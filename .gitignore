@@ -1,0 +1,15 @@
+target/
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+
+.env
+.env.*
+*.log
+
+*.tmp
+*.bak
+.codex
