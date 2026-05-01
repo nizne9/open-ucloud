@@ -11,6 +11,8 @@ Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Fl
 - `crates/ffi/`: Dart-facing facade for Flutter. It must hide Rust lifetimes, traits, generics, and internal session types.
 - `apps/client/`: Flutter UI, navigation, local presentation state, permissions, and platform UX.
 
+The current implemented harness contains `api`, `core`, `store`, and `cli`. `ffi` and `apps/client` remain planned boundaries.
+
 ## Dependency Direction
 
 Core must not depend on CLI, FFI, Flutter, Web, or UI concepts. API must stay DTO-oriented. Store must expose interfaces that core can use without knowing platform details. Adapters depend inward on API/core/store.
@@ -18,3 +20,9 @@ Core must not depend on CLI, FFI, Flutter, Web, or UI concepts. API must stay DT
 ## Product Boundary
 
 The project is a personal client and self-hosted entry point for legitimate account use. Do not add bypass, fake-location, account delegation, automatic answer generation, or unattended platform-rule evasion features.
+
+## Current Auth Core
+
+The Rust core owns the real login chain: unified auth page initialization, optional captcha image loading, credential POST, ticket extraction, UCloud token exchange, role lookup, role-scoped refresh, JWT expiration parsing, and access-token refresh. CLI and future FFI adapters must call this core instead of duplicating protocol logic.
+
+The store crate now has two session stores: memory storage for tests and short-lived adapters, and secure session persistence through the operating system credential store for the CLI. If the platform credential backend is unavailable, adapters must surface a storage error instead of writing tokens to plaintext files.

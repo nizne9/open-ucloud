@@ -8,6 +8,7 @@ Commands should be verb-first and stable:
 
 ```bash
 open-cloud doctor
+open-cloud doctor --json
 open-cloud login --interactive
 open-cloud session --json
 open-cloud courses --json
@@ -18,9 +19,19 @@ open-cloud logout
 
 Use human-readable output by default. Add `--json` for machine output. JSON fields and error codes are public contracts and require tests.
 
+`login --interactive` verifies the real login chain and stores the session in the system credential store. `session --json` reads that stored session and must not print access tokens, refresh tokens, cookies, passwords, or upstream session data. If secure storage is unavailable or locked, commands return `SECURE_STORAGE_UNAVAILABLE` instead of falling back to plaintext files.
+
 ## Agent-Friendly Rules
 
 - `doctor` checks version, config paths, secure storage availability, network reachability, and session state.
+- `doctor` must print stable credential diagnostics:
+  - `credential backend: keyutils|secret-service|mock|unknown`
+  - `credential persistence: until-reboot|until-delete|process-only|entry-only|unknown`
+  - `credential status: available|unavailable`
+  - `credential reason: <redacted reason>` only when the runtime probe fails
+  - a warning when the selected backend is `mock` or persistence is `process-only`
+- `doctor --json` must expose the same credential diagnostics as camelCase fields: `credentialBackend`, `credentialPersistence`, `credentialStatus`, and nullable `credentialReason`.
+- `doctor` may write and delete a temporary `doctor-probe` credential entry, but must not read, write, or delete the real `default-session` login entry.
 - Discovery commands support small default output, `--json`, and stable identifiers.
 - Exact-read commands take IDs from discovery output.
 - Large payloads and downloads should write files and return paths instead of dumping huge content to stdout.

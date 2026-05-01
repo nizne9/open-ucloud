@@ -11,6 +11,7 @@ cargo fmt --all
 cargo clippy --workspace --all-targets
 cargo test --workspace
 cargo run -p open-cloud-cli -- --help
+cargo run -p open-cloud-cli -- doctor
 ```
 
 Flutter work should also run:
@@ -21,6 +22,17 @@ flutter test
 
 Document any new required command in this file and `README.md`.
 
+## Linux Release Credential Matrix
+
+Linux release artifacts must make credential persistence explicit:
+
+| Artifact | Build command | Expected `doctor` fields |
+| --- | --- | --- |
+| `open-cloud-linux-keyutils` | `cargo build --release -p open-cloud-cli` | `credential backend: keyutils`, `credential persistence: until-reboot`, and `credential status: available` in a working runtime |
+| `open-cloud-linux-secret-service` | `cargo build --release -p open-cloud-cli --features linux-secret-service` | `credential backend: secret-service`, `credential persistence: until-delete`, and `credential status: available` in a working desktop runtime |
+
+Run `cargo run -p open-cloud-cli -- doctor` for the default Linux package. Verify the Secret Service build on a native Linux desktop with a DBus session, a Secret Service provider such as GNOME Keyring, KWallet, or KeePassXC, and an unlocked collection. Build hosts may need `libdbus-1-dev` and `pkg-config`; use `linux-secret-service-vendored` only for a release environment that intentionally vendors native dependencies.
+
 ## Structural Expectations
 
 - `core` must not depend on CLI, FFI, Flutter, Web, or UI state.
@@ -28,6 +40,8 @@ Document any new required command in this file and `README.md`.
 - `cli --json` output and error codes are stable contracts.
 - Storage must avoid plaintext credentials by default.
 - Logs must redact usernames, tokens, cookies, passwords, and upstream session data.
+- CLI login must remain interactive unless a future secure credential handoff is explicitly designed.
+- Secure session persistence must use the platform credential store and return a stable error when unavailable; do not add plaintext fallback storage for tokens.
 
 ## Future Mechanical Checks
 

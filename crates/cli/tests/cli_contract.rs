@@ -1,0 +1,194 @@
+use clap::{CommandFactory, Parser};
+use open_cloud_api::{AuthErrorCode, RoleName, SessionUser};
+use open_cloud_cli::{Cli, Commands};
+use open_cloud_store::{
+    AuthSession, CredentialBackend, CredentialProbe, SecureSessionStore, StoreError,
+    OPEN_CLOUD_KEYRING_ACCOUNT, OPEN_CLOUD_KEYRING_SERVICE,
+};
+use std::sync::{Arc, Mutex};
+
+#[test]
+fn exposes_documented_commands() {
+    let mut command = Cli::command();
+
+    command
+        .try_get_matches_from_mut(["open-cloud", "doctor"])
+        .expect("doctor parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "doctor", "--json"])
+        .expect("doctor json parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "login", "--interactive", "--role", "学生"])
+        .expect("login parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "session", "--json"])
+        .expect("session parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "logout", "--yes"])
+        .expect("logout parses");
+}
+
+#[test]
+fn logout_requires_explicit_yes() {
+    let cli = Cli::try_parse_from(["open-cloud", "logout"]).expect("logout parses");
+
+    assert!(matches!(cli.command, Commands::Logout { yes: false }));
+}
+
+#[test]
+fn doctor_json_flag_is_explicit() {
+    let cli = Cli::try_parse_from(["open-cloud", "doctor", "--json"]).expect("doctor parses");
+
+    assert!(matches!(cli.command, Commands::Doctor { json: true }));
+}
+
+#[derive(Clone, Default)]
+struct MockCredentialBackend {
+    value: Arc<Mutex<Option<String>>>,
+    fail: Option<StoreError>,
+}
+
+impl CredentialBackend for MockCredentialBackend {
+    fn get_password(&self, service: &str, account: &str) -> Result<Option<String>, StoreError> {
+        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        if let Some(error) = &self.fail {
+            return Err(error.clone());
+        }
+        Ok(self.value.lock().expect("mock lock").clone())
+    }
+
+    fn set_password(&self, service: &str, account: &str, password: &str) -> Result<(), StoreError> {
+        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        *self.value.lock().expect("mock lock") = Some(password.to_string());
+        Ok(())
+    }
+
+    fn delete_password(&self, service: &str, account: &str) -> Result<(), StoreError> {
+        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        *self.value.lock().expect("mock lock") = None;
+        Ok(())
+    }
+}
+
+fn session() -> AuthSession {
+    AuthSession {
+        access_token: "access".to_string(),
+        access_token_expires_at_ms: 4_100,
+        refresh_token: "refresh".to_string(),
+        refresh_token_expires_at_ms: 9_100,
+        role: RoleName::Student,
+        user: SessionUser {
+            account: "2024000000".to_string(),
+            real_name: "Alice".to_string(),
+            user_id: "u-1".to_string(),
+            user_name: "2024000000".to_string(),
+        },
+    }
+}
+
+#[test]
+fn reads_persisted_session_profile_without_tokens() {
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+    store.save_current(&session()).expect("session saves");
+
+    let response = open_cloud_cli::load_persisted_session(&store, 4_000)
+        .expect("session loads")
+        .expect("session exists");
+    let json = serde_json::to_value(response).expect("session serializes");
+
+    assert_eq!(json["selectedRole"], "学生");
+    assert_eq!(json["user"]["realName"], "Alice");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn maps_secure_storage_failures_to_stable_error_code() {
+    let store = SecureSessionStore::new(MockCredentialBackend {
+        value: Arc::default(),
+        fail: Some(StoreError::Unavailable("backend locked".to_string())),
+    });
+
+    let err =
+        open_cloud_cli::load_persisted_session(&store, 4_000).expect_err("secure storage fails");
+
+    assert_eq!(err.code, AuthErrorCode::SecureStorageUnavailable);
+    assert!(err.message.contains("secure storage is unavailable"));
+}
+
+#[test]
+fn serializes_auth_errors_for_json_output() {
+    let payload = open_cloud_cli::json_error(AuthErrorCode::SecureStorageUnavailable, "locked")
+        .expect("json error serializes");
+
+    assert!(payload.contains("\"code\": \"SECURE_STORAGE_UNAVAILABLE\""));
+    assert!(payload.contains("\"message\": \"locked\""));
+}
+
+#[test]
+fn doctor_report_exposes_credential_backend_and_persistence() {
+    let report = open_cloud_cli::doctor_report();
+
+    assert!(report.contains("credential backend: "));
+    assert!(report.contains("credential persistence: "));
+}
+
+#[test]
+fn doctor_report_exposes_runtime_credential_status() {
+    let report = open_cloud_cli::doctor_report_from(
+        "keyutils",
+        "until-reboot",
+        CredentialProbe::available(),
+    );
+
+    assert!(report.contains("credential status: available"));
+}
+
+#[test]
+fn doctor_report_exposes_unavailable_runtime_reason_without_probe_secret() {
+    let report = open_cloud_cli::doctor_report_from(
+        "secret-service",
+        "until-delete",
+        CredentialProbe::unavailable("backend locked\nopen-cloud-doctor-probe"),
+    );
+
+    assert!(report.contains("credential status: unavailable"));
+    assert!(report.contains("credential reason: backend locked"));
+    assert!(!report.contains("open-cloud-doctor-probe"));
+}
+
+#[test]
+fn doctor_json_exposes_stable_credential_fields() {
+    let payload = open_cloud_cli::doctor_report_json_from(
+        "keyutils",
+        "until-reboot",
+        CredentialProbe::available(),
+    )
+    .expect("doctor json serializes");
+    let json: serde_json::Value = serde_json::from_str(&payload).expect("doctor json parses");
+
+    assert_eq!(json["credentialBackend"], "keyutils");
+    assert_eq!(json["credentialPersistence"], "until-reboot");
+    assert_eq!(json["credentialStatus"], "available");
+    assert!(json["credentialReason"].is_null());
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn doctor_json_includes_unavailable_reason_without_probe_secret() {
+    let payload = open_cloud_cli::doctor_report_json_from(
+        "secret-service",
+        "until-delete",
+        CredentialProbe::unavailable("backend locked\nopen-cloud-doctor-probe"),
+    )
+    .expect("doctor json serializes");
+    let json: serde_json::Value = serde_json::from_str(&payload).expect("doctor json parses");
+
+    assert_eq!(json["credentialStatus"], "unavailable");
+    assert_eq!(json["credentialReason"], "backend locked [redacted]");
+    assert!(!payload.contains("open-cloud-doctor-probe"));
+}

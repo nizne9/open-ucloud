@@ -1,0 +1,32 @@
+[package]
+name = "open-cloud-cli"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["open-cloud-store/default"]
+desktop-keyring = ["open-cloud-store/desktop-keyring"]
+linux-secret-service = ["open-cloud-store/linux-secret-service"]
+linux-secret-service-vendored = ["open-cloud-store/linux-secret-service-vendored"]
+
+[[bin]]
+name = "open-cloud"
+path = "src/main.rs"
+
+[lib]
+name = "open_cloud_cli"
+path = "src/lib.rs"
+
+[dependencies]
+clap.workspace = true
+open-cloud-api = { path = "../api" }
+open-cloud-core = { path = "../core" }
+open-cloud-store = { path = "../store", default-features = false }
+rpassword.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+uuid.workspace = true
