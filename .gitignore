@@ -1,4 +1,5 @@
 target/
+.worktrees/
 build/
 .dart_tool/
 .flutter-plugins
