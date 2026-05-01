@@ -15,9 +15,7 @@ open-cloud courses --json
 open-cloud courses --with-going --json
 open-cloud course <site-id> --json
 open-cloud attendance --site <site-id> --json
-open-cloud assignments --json
-open-cloud materials --json
-open-cloud logout
+open-cloud logout --yes
 ```
 
 Use human-readable output by default. Add `--json` for machine output. JSON fields and error codes are public contracts and require tests.
@@ -77,7 +75,7 @@ This command does not submit sign-ins, prepare QR signing data, fake location, o
 
 ## Agent-Friendly Rules
 
-- `doctor` checks version, config paths, secure storage availability, network reachability, and session state.
+- `doctor` reports local CLI readiness and credential-store diagnostics. Network login is checked during `login --interactive`, not during `doctor`.
 - `doctor` must print stable credential diagnostics:
   - `credential backend: keyutils|secret-service|mock|unknown`
   - `credential persistence: until-reboot|until-delete|process-only|entry-only|unknown`

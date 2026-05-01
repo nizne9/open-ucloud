@@ -12,7 +12,7 @@ The initial direction is:
 Current workspace:
 
 - `crates/api`: public DTOs, role names, session responses, and auth error codes.
-- `crates/core`: real Open UCloud login, captcha handling, ticket exchange, role lookup, token refresh, and session access refresh.
+- `crates/core`: `OpenCloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, and session access refresh.
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
 - `crates/cli`: `open-cloud` command-line harness.
 
