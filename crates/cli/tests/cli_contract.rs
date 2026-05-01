@@ -27,6 +27,9 @@ fn exposes_documented_commands() {
         .try_get_matches_from_mut(["open-cloud", "courses", "--json"])
         .expect("courses json parses");
     command
+        .try_get_matches_from_mut(["open-cloud", "courses", "--json", "--with-going"])
+        .expect("courses with going status parses");
+    command
         .try_get_matches_from_mut(["open-cloud", "courses"])
         .expect("courses parses");
     command
@@ -52,7 +55,21 @@ fn doctor_json_flag_is_explicit() {
 fn courses_json_flag_is_explicit() {
     let cli = Cli::try_parse_from(["open-cloud", "courses", "--json"]).expect("courses parses");
 
-    assert!(matches!(cli.command, Commands::Courses { json: true }));
+    assert!(matches!(cli.command, Commands::Courses { json: true, .. }));
+}
+
+#[test]
+fn courses_with_going_flag_is_explicit() {
+    let cli =
+        Cli::try_parse_from(["open-cloud", "courses", "--with-going"]).expect("courses parses");
+
+    assert!(matches!(
+        cli.command,
+        Commands::Courses {
+            with_going: true,
+            ..
+        }
+    ));
 }
 
 #[tokio::test]
@@ -189,6 +206,28 @@ fn serializes_auth_errors_for_json_output() {
 
     assert!(payload.contains("\"code\": \"SECURE_STORAGE_UNAVAILABLE\""));
     assert!(payload.contains("\"message\": \"locked\""));
+}
+
+#[test]
+fn formats_course_list_with_going_status() {
+    let courses = vec![
+        open_cloud_api::CourseSite {
+            id: "site-1".to_string(),
+            site_name: "软件测试".to_string(),
+        },
+        open_cloud_api::CourseSite {
+            id: "site-2".to_string(),
+            site_name: "操作系统".to_string(),
+        },
+    ];
+    let going_sites = vec![open_cloud_api::GoingSite {
+        group_id: "group-1".to_string(),
+        site_id: "site-2".to_string(),
+    }];
+
+    let output = open_cloud_cli::format_course_list_with_going(&courses, &going_sites);
+
+    assert_eq!(output, "site-1\t软件测试\tidle\nsite-2\t操作系统\tgoing\n");
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use base64::Engine;
-use open_cloud_api::{AuthErrorCode, CourseSite, RoleInfo, RoleName, SessionUser};
+use open_cloud_api::{AuthErrorCode, CourseSite, GoingSite, RoleInfo, RoleName, SessionUser};
 use open_cloud_store::{AuthSession, SessionStore};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -13,6 +13,7 @@ const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
 pub struct AuthEndpoints {
     pub login_url: String,
     pub course_sites_url: String,
+    pub going_sites_url: String,
     pub token_url: String,
     pub roles_url: String,
     pub ucloud_referer: String,
@@ -25,6 +26,8 @@ impl Default for AuthEndpoints {
                 "https://auth.bupt.edu.cn/authserver/login?service=https://ucloud.bupt.edu.cn"
                     .to_string(),
             course_sites_url: "https://apiucloud.bupt.edu.cn/ykt-site/site/list/student/current"
+                .to_string(),
+            going_sites_url: "https://apiucloud.bupt.edu.cn/blade-chat/web/chat/myCourse"
                 .to_string(),
             token_url: "https://apiucloud.bupt.edu.cn/ykt-basics/oauth/token".to_string(),
             roles_url: "https://apiucloud.bupt.edu.cn/ykt-basics/userroledomaindept/listByUserId"
@@ -452,6 +455,33 @@ where
         let data: RawCourseSiteList = parse_ucloud_envelope(response, "课程加载失败。")?;
         Ok(normalize_course_sites(data))
     }
+
+    pub async fn get_going_sites(
+        &self,
+        site_ids: &[String],
+        access_token: &str,
+    ) -> Result<Vec<GoingSite>, AuthError> {
+        if site_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut url = url::Url::parse(&self.endpoints.going_sites_url)
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("siteIds", &site_ids.join(","));
+        let mut headers = ucloud_json_headers(SWORD_BASIC_AUTH, access_token);
+        headers.push(("content-type".to_string(), "application/json".to_string()));
+        let response = self
+            .http
+            .send(HttpRequest {
+                method: HttpMethod::Post,
+                url: url.to_string(),
+                headers,
+                body: Some("{}".to_string()),
+            })
+            .await?;
+        let data: RawGoingSiteList = parse_ucloud_envelope(response, "签到状态加载失败。")?;
+        Ok(normalize_going_sites(data))
+    }
 }
 
 #[derive(Clone)]
@@ -575,6 +605,20 @@ struct RawCourseSite {
     site_name: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(untagged)]
+enum RawGoingSiteList {
+    Records { records: Option<Vec<RawGoingSite>> },
+    Array(Vec<RawGoingSite>),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct RawGoingSite {
+    group_id: Option<serde_json::Value>,
+    site_id: Option<serde_json::Value>,
+}
+
 fn normalize_course_sites(payload: RawCourseSiteList) -> Vec<CourseSite> {
     let records = match payload {
         RawCourseSiteList::Records { records } => records.unwrap_or_default(),
@@ -599,6 +643,24 @@ fn value_to_string(value: serde_json::Value) -> Option<String> {
         serde_json::Value::Number(value) => Some(value.to_string()),
         _ => None,
     }
+}
+
+fn normalize_going_sites(payload: RawGoingSiteList) -> Vec<GoingSite> {
+    let records = match payload {
+        RawGoingSiteList::Records { records } => records.unwrap_or_default(),
+        RawGoingSiteList::Array(records) => records,
+    };
+    records
+        .into_iter()
+        .filter_map(|record| {
+            let group_id = value_to_string(record.group_id?)?;
+            let site_id = value_to_string(record.site_id?)?;
+            if group_id.is_empty() || site_id.is_empty() {
+                return None;
+            }
+            Some(GoingSite { group_id, site_id })
+        })
+        .collect()
 }
 
 pub fn get_token_expiration_ms(token: &str) -> Option<u64> {

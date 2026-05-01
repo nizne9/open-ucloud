@@ -426,3 +426,83 @@ async fn get_student_courses_reports_http_status_failures() {
     assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
     assert_eq!(err.message, "课程加载失败。 HTTP status 502.");
 }
+
+#[tokio::test]
+async fn get_going_sites_requests_my_course_endpoint_and_filters_records() {
+    let http = MockHttp::with(vec![response(
+        200,
+        &[],
+        r#"{"success":true,"data":{"records":[
+          {"groupId":2001,"siteId":1001},
+          {"groupId":"group-2","siteId":"site-2"},
+          {"groupId":"","siteId":"site-3"},
+          {"groupId":"group-4","siteId":""}
+        ]}}"#,
+    )]);
+    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+
+    let going_sites = client
+        .get_going_sites(&["1001".to_string(), "site-2".to_string()], "access-token")
+        .await
+        .expect("going sites load");
+
+    assert_eq!(going_sites.len(), 2);
+    assert_eq!(going_sites[0].group_id, "2001");
+    assert_eq!(going_sites[0].site_id, "1001");
+    assert_eq!(going_sites[1].group_id, "group-2");
+    assert_eq!(going_sites[1].site_id, "site-2");
+
+    let request = http.requests().pop().expect("going sites request");
+    assert_eq!(request.method, open_cloud_core::HttpMethod::Post);
+    assert!(request
+        .url
+        .starts_with("https://apiucloud.bupt.edu.cn/blade-chat/web/chat/myCourse?"));
+    let url = url::Url::parse(&request.url).expect("going sites request url parses");
+    assert_eq!(
+        url.query_pairs()
+            .find(|(key, _)| key == "siteIds")
+            .unwrap()
+            .1,
+        "1001,site-2"
+    );
+    assert_eq!(request.body.as_deref(), Some("{}"));
+    assert!(request.headers.iter().any(|(name, value)| {
+        name.eq_ignore_ascii_case("content-type") && value == "application/json"
+    }));
+    assert!(request
+        .headers
+        .iter()
+        .any(|(name, value)| name == "Blade-Auth" && value == "access-token"));
+}
+
+#[tokio::test]
+async fn get_going_sites_skips_request_when_no_course_ids_exist() {
+    let http = MockHttp::default();
+    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+
+    let going_sites = client
+        .get_going_sites(&[], "access-token")
+        .await
+        .expect("empty course ids succeed");
+
+    assert!(going_sites.is_empty());
+    assert!(http.requests().is_empty());
+}
+
+#[tokio::test]
+async fn get_going_sites_maps_upstream_failure() {
+    let http = MockHttp::with(vec![response(
+        200,
+        &[],
+        r#"{"success":false,"msg":"签到状态加载失败"}"#,
+    )]);
+    let client = AuthClient::new(http, AuthEndpoints::default());
+
+    let err = client
+        .get_going_sites(&["1001".to_string()], "access-token")
+        .await
+        .expect_err("upstream failure maps");
+
+    assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+    assert_eq!(err.message, "签到状态加载失败");
+}

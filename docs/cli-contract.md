@@ -12,6 +12,7 @@ open-cloud doctor --json
 open-cloud login --interactive
 open-cloud session --json
 open-cloud courses --json
+open-cloud courses --with-going --json
 open-cloud assignments --json
 open-cloud materials --json
 open-cloud logout
@@ -32,6 +33,21 @@ Use human-readable output by default. Add `--json` for machine output. JSON fiel
 ```
 
 The human-readable `courses` output prints one `id<TAB>siteName` record per line, or `No courses found.` when the list is empty.
+
+`courses --with-going --json` additionally calls the course activity endpoint and prints:
+
+```json
+{
+  "records": [
+    { "id": "site-1", "siteName": "软件测试" }
+  ],
+  "goingSites": [
+    { "groupId": "group-1", "siteId": "site-1" }
+  ]
+}
+```
+
+The human-readable `courses --with-going` output prints one `id<TAB>siteName<TAB>going|idle` record per line.
 
 ## Agent-Friendly Rules
 

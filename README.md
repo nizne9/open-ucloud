@@ -24,12 +24,15 @@ cargo run -p open-cloud-cli -- doctor --json
 cargo run -p open-cloud-cli -- login --interactive
 cargo run -p open-cloud-cli -- session --json
 cargo run -p open-cloud-cli -- courses --json
+cargo run -p open-cloud-cli -- courses --with-going --json
 cargo run -p open-cloud-cli -- logout --yes
 ```
 
 `login` does not accept passwords as flags. Stored sessions use the platform credential store through `keyring`; if the platform backend is unavailable or locked, the CLI reports `SECURE_STORAGE_UNAVAILABLE` and does not fall back to plaintext files.
 
 `courses --json` reads the stored session, refreshes the access token when needed, and returns the current student course list as stable DTOs without printing access tokens, refresh tokens, cookies, or upstream session data.
+
+`courses --with-going --json` also queries the current in-progress course attendance state and returns `goingSites` records with `siteId` and `groupId`. The plain-text form prints `id<TAB>siteName<TAB>going|idle`.
 
 ## Linux Credential Packages
 

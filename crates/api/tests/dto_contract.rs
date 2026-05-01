@@ -1,6 +1,7 @@
 use open_cloud_api::{
-    AuthErrorCode, AuthErrorResponse, AuthFinishResponse, AuthSessionResponse, CourseListResponse,
-    CourseSite, RoleInfo, RoleName, SessionUser,
+    AuthErrorCode, AuthErrorResponse, AuthFinishResponse, AuthSessionResponse,
+    CourseActivityResponse, CourseListResponse, CourseSite, GoingSite, RoleInfo, RoleName,
+    SessionUser,
 };
 
 #[test]
@@ -36,6 +37,28 @@ fn serializes_course_list_without_tokens() {
 
     assert_eq!(json["records"][0]["id"], "site-1");
     assert_eq!(json["records"][0]["siteName"], "软件测试");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_course_activity_without_tokens() {
+    let response = CourseActivityResponse {
+        records: vec![CourseSite {
+            id: "site-1".to_string(),
+            site_name: "软件测试".to_string(),
+        }],
+        going_sites: vec![GoingSite {
+            group_id: "group-1".to_string(),
+            site_id: "site-1".to_string(),
+        }],
+    };
+
+    let json = serde_json::to_value(response).expect("course activity serializes");
+
+    assert_eq!(json["records"][0]["siteName"], "软件测试");
+    assert_eq!(json["goingSites"][0]["groupId"], "group-1");
+    assert_eq!(json["goingSites"][0]["siteId"], "site-1");
     assert!(json.get("accessToken").is_none());
     assert!(json.get("refreshToken").is_none());
 }

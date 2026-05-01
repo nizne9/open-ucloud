@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use open_cloud_api::{
-    AuthErrorCode, AuthErrorResponse, AuthSessionResponse, CourseListResponse, CourseSite, RoleName,
+    AuthErrorCode, AuthErrorResponse, AuthSessionResponse, CourseActivityResponse,
+    CourseListResponse, CourseSite, GoingSite, RoleName,
 };
 use open_cloud_core::{refresh_session_if_needed, AuthClient, AuthEndpoints, ReqwestHttpClient};
 use open_cloud_store::{
@@ -9,6 +10,7 @@ use open_cloud_store::{
     SystemCredentialBackend, SystemSecureSessionStore,
 };
 use serde::Serialize;
+use std::collections::HashSet;
 use std::str::FromStr;
 
 #[derive(Debug, Parser)]
@@ -43,6 +45,8 @@ pub enum Commands {
     Courses {
         #[arg(long)]
         json: bool,
+        #[arg(long)]
+        with_going: bool,
     },
     /// Clear the current in-process session.
     Logout {
@@ -266,7 +270,7 @@ where
             }
             Ok(())
         }
-        Commands::Courses { json } => {
+        Commands::Courses { json, with_going } => {
             let http = ReqwestHttpClient::new().map_err(to_response_error)?;
             let client = AuthClient::new(http, AuthEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
@@ -290,11 +294,41 @@ where
                 Err(error_response) => return Err(error_response.into()),
             };
             if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&CourseListResponse { records: courses })
+                if with_going {
+                    let going_sites =
+                        match load_going_sites(&client, &courses, &session.access_token)
+                            .await
+                            .map_err(to_response_error)
+                        {
+                            Ok(going_sites) => going_sites,
+                            Err(error_response) => {
+                                print_json_error_response(&error_response)?;
+                                return Err(CliError::JsonErrorPrinted(error_response));
+                            }
+                        };
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&CourseActivityResponse {
+                            records: courses,
+                            going_sites
+                        })
                         .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-                );
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&CourseListResponse { records: courses })
+                            .map_err(|err| error(
+                                AuthErrorCode::UnknownAuthError,
+                                err.to_string()
+                            ))?
+                    );
+                }
+            } else if with_going {
+                let going_sites = load_going_sites(&client, &courses, &session.access_token)
+                    .await
+                    .map_err(to_response_error)?;
+                print!("{}", format_course_list_with_going(&courses, &going_sites));
             } else {
                 print_course_list(&courses);
             }
@@ -442,6 +476,44 @@ pub fn print_course_list(courses: &[CourseSite]) {
     for course in courses {
         println!("{}\t{}", course.id, course.site_name);
     }
+}
+
+pub fn format_course_list_with_going(courses: &[CourseSite], going_sites: &[GoingSite]) -> String {
+    if courses.is_empty() {
+        return "No courses found.\n".to_string();
+    }
+    let going_site_ids = going_sites
+        .iter()
+        .map(|site| site.site_id.as_str())
+        .collect::<HashSet<_>>();
+    let mut output = String::new();
+    for course in courses {
+        let status = if going_site_ids.contains(course.id.as_str()) {
+            "going"
+        } else {
+            "idle"
+        };
+        output.push_str(&format!(
+            "{}\t{}\t{}\n",
+            course.id, course.site_name, status
+        ));
+    }
+    output
+}
+
+async fn load_going_sites<C>(
+    client: &AuthClient<C>,
+    courses: &[CourseSite],
+    access_token: &str,
+) -> Result<Vec<GoingSite>, open_cloud_core::AuthError>
+where
+    C: open_cloud_core::HttpClient,
+{
+    let site_ids = courses
+        .iter()
+        .map(|course| course.id.clone())
+        .collect::<Vec<_>>();
+    client.get_going_sites(&site_ids, access_token).await
 }
 
 fn print_json_error_response(error_response: &AuthErrorResponse) -> Result<(), AuthErrorResponse> {
