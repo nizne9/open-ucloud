@@ -638,7 +638,13 @@ where
     let courses = client
         .get_student_courses(&session.user.user_id, &session.access_token)
         .await?;
-    let going_sites = load_going_sites(client, &courses, &session.access_token).await?;
+    let base_detail = resolve_course_detail(&courses, &[], site_id)?;
+    let going_sites = client
+        .get_going_sites(
+            std::slice::from_ref(&base_detail.course.id),
+            &session.access_token,
+        )
+        .await?;
     resolve_course_detail(&courses, &going_sites, site_id)
 }
 
@@ -696,4 +702,88 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis() as u64)
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use open_cloud_core::{AuthError, HttpClient, HttpRequest, HttpResponse};
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Default)]
+    struct MockHttp {
+        responses: Arc<Mutex<VecDeque<HttpResponse>>>,
+        requests: Arc<Mutex<Vec<HttpRequest>>>,
+    }
+
+    impl MockHttp {
+        fn with(responses: Vec<HttpResponse>) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(VecDeque::from(responses))),
+                requests: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn request_count(&self) -> usize {
+            self.requests.lock().expect("requests lock").len()
+        }
+    }
+
+    #[async_trait]
+    impl HttpClient for MockHttp {
+        async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
+            self.requests.lock().expect("requests lock").push(request);
+            self.responses
+                .lock()
+                .expect("responses lock")
+                .pop_front()
+                .ok_or_else(|| AuthError::upstream("missing mock response"))
+        }
+    }
+
+    fn response(status: u16, body: &str) -> HttpResponse {
+        HttpResponse {
+            status,
+            headers: Vec::new(),
+            body: body.as_bytes().to_vec(),
+        }
+    }
+
+    fn session() -> AuthSession {
+        AuthSession {
+            access_token: "access".to_string(),
+            access_token_expires_at_ms: 120_000,
+            refresh_token: "refresh".to_string(),
+            refresh_token_expires_at_ms: 240_000,
+            role: RoleName::Student,
+            user: open_cloud_api::SessionUser {
+                account: "2024000000".to_string(),
+                real_name: "Alice".to_string(),
+                user_id: "u-1".to_string(),
+                user_name: "2024000000".to_string(),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn load_course_detail_reports_missing_course_before_loading_going_sites() {
+        let http = MockHttp::with(vec![
+            response(
+                200,
+                r#"{"success":true,"data":{"records":[{"id":"site-1","siteName":"软件测试"}]}}"#,
+            ),
+            response(502, r#"{"success":false,"msg":"going unavailable"}"#),
+        ]);
+        let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+
+        let err = load_course_detail(&client, &session(), "missing")
+            .await
+            .expect_err("missing course wins before going state");
+
+        assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
+        assert_eq!(err.message, "未找到课程：missing。");
+        assert_eq!(http.request_count(), 1);
+    }
 }
