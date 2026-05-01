@@ -24,6 +24,12 @@ fn exposes_documented_commands() {
         .try_get_matches_from_mut(["open-cloud", "session", "--json"])
         .expect("session parses");
     command
+        .try_get_matches_from_mut(["open-cloud", "courses", "--json"])
+        .expect("courses json parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "courses"])
+        .expect("courses parses");
+    command
         .try_get_matches_from_mut(["open-cloud", "logout", "--yes"])
         .expect("logout parses");
 }
@@ -42,8 +48,42 @@ fn doctor_json_flag_is_explicit() {
     assert!(matches!(cli.command, Commands::Doctor { json: true }));
 }
 
+#[test]
+fn courses_json_flag_is_explicit() {
+    let cli = Cli::try_parse_from(["open-cloud", "courses", "--json"]).expect("courses parses");
+
+    assert!(matches!(cli.command, Commands::Courses { json: true }));
+}
+
+#[tokio::test]
+async fn courses_json_returns_failure_when_session_is_missing() {
+    let cli = Cli::try_parse_from(["open-cloud", "courses", "--json"]).expect("courses parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_cloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing session fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
+async fn session_json_returns_failure_when_session_is_missing() {
+    let cli = Cli::try_parse_from(["open-cloud", "session", "--json"]).expect("session parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_cloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing session fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
 #[derive(Clone, Default)]
 struct MockCredentialBackend {
+    set_count: Arc<Mutex<usize>>,
     value: Arc<Mutex<Option<String>>>,
     fail: Option<StoreError>,
 }
@@ -61,6 +101,7 @@ impl CredentialBackend for MockCredentialBackend {
     fn set_password(&self, service: &str, account: &str, password: &str) -> Result<(), StoreError> {
         assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
         assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        *self.set_count.lock().expect("set count lock") += 1;
         *self.value.lock().expect("mock lock") = Some(password.to_string());
         Ok(())
     }
@@ -89,6 +130,27 @@ fn session() -> AuthSession {
     }
 }
 
+#[tokio::test]
+async fn load_access_session_does_not_rewrite_unexpired_session() {
+    let backend = MockCredentialBackend::default();
+    let mut current = session();
+    current.access_token_expires_at_ms = 120_000;
+    *backend.value.lock().expect("mock lock") =
+        Some(serde_json::to_string(&current).expect("session serializes"));
+    let store = SecureSessionStore::new(backend.clone());
+    let client = open_cloud_core::AuthClient::new(
+        open_cloud_core::ReqwestHttpClient::new().expect("http client creates"),
+        open_cloud_core::AuthEndpoints::default(),
+    );
+
+    let response = open_cloud_cli::load_access_session(&store, &client, 4_000)
+        .await
+        .expect("session loads");
+
+    assert_eq!(response.user.real_name, "Alice");
+    assert_eq!(*backend.set_count.lock().expect("set count lock"), 0);
+}
+
 #[test]
 fn reads_persisted_session_profile_without_tokens() {
     let store = SecureSessionStore::new(MockCredentialBackend::default());
@@ -108,6 +170,7 @@ fn reads_persisted_session_profile_without_tokens() {
 #[test]
 fn maps_secure_storage_failures_to_stable_error_code() {
     let store = SecureSessionStore::new(MockCredentialBackend {
+        set_count: Arc::default(),
         value: Arc::default(),
         fail: Some(StoreError::Unavailable("backend locked".to_string())),
     });

@@ -261,3 +261,122 @@ async fn session_manager_refreshes_expiring_access_token() {
         8_000_000
     );
 }
+
+#[tokio::test]
+async fn get_student_courses_requests_documented_endpoint_and_filters_records() {
+    let http = MockHttp::with(vec![response(
+        200,
+        &[],
+        r#"{"success":true,"data":{"records":[
+          {"id":1001,"siteName":"软件测试"},
+          {"id":"site-2","siteName":"  操作系统  "},
+          {"id":"","siteName":"空课程"},
+          {"id":"site-3","siteName":""}
+        ]}}"#,
+    )]);
+    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+
+    let courses = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect("courses load");
+
+    assert_eq!(courses.len(), 2);
+    assert_eq!(courses[0].id, "1001");
+    assert_eq!(courses[0].site_name, "软件测试");
+    assert_eq!(courses[1].id, "site-2");
+    assert_eq!(courses[1].site_name, "操作系统");
+
+    let request = http.requests().pop().expect("course request");
+    assert_eq!(request.method, open_cloud_core::HttpMethod::Get);
+    assert!(request
+        .url
+        .starts_with("https://apiucloud.bupt.edu.cn/ykt-site/site/list/student/current?"));
+    let url = url::Url::parse(&request.url).expect("course request url parses");
+    assert_eq!(
+        url.query_pairs()
+            .find(|(key, _)| key == "current")
+            .unwrap()
+            .1,
+        "1"
+    );
+    assert_eq!(
+        url.query_pairs()
+            .find(|(key, _)| key == "siteRoleCode")
+            .unwrap()
+            .1,
+        "2"
+    );
+    assert_eq!(
+        url.query_pairs().find(|(key, _)| key == "size").unwrap().1,
+        "9999"
+    );
+    assert_eq!(
+        url.query_pairs()
+            .find(|(key, _)| key == "userId")
+            .unwrap()
+            .1,
+        "u-1"
+    );
+    assert!(request.headers.iter().any(|(name, value)| {
+        name.eq_ignore_ascii_case("authorization") && value == "Basic c3dvcmQ6c3dvcmRfc2VjcmV0"
+    }));
+    assert!(request
+        .headers
+        .iter()
+        .any(|(name, value)| name == "Blade-Auth" && value == "access-token"));
+}
+
+#[tokio::test]
+async fn get_student_courses_accepts_array_payload() {
+    let http = MockHttp::with(vec![response(
+        200,
+        &[],
+        r#"{"data":[{"id":"site-1","siteName":"软件测试"}]}"#,
+    )]);
+    let client = AuthClient::new(http, AuthEndpoints::default());
+
+    let courses = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect("courses load");
+
+    assert_eq!(courses[0].id, "site-1");
+    assert_eq!(courses[0].site_name, "软件测试");
+}
+
+#[tokio::test]
+async fn get_student_courses_maps_upstream_failure() {
+    let http = MockHttp::with(vec![response(
+        200,
+        &[],
+        r#"{"success":false,"message":"课程加载失败","data":[]}"#,
+    )]);
+    let client = AuthClient::new(http, AuthEndpoints::default());
+
+    let err = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect_err("upstream failure maps");
+
+    assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+    assert_eq!(err.message, "课程加载失败");
+}
+
+#[tokio::test]
+async fn get_student_courses_preserves_failure_message_without_data() {
+    let http = MockHttp::with(vec![response(
+        200,
+        &[],
+        r#"{"success":false,"msg":"登录已过期"}"#,
+    )]);
+    let client = AuthClient::new(http, AuthEndpoints::default());
+
+    let err = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect_err("upstream failure maps");
+
+    assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+    assert_eq!(err.message, "登录已过期");
+}

@@ -21,6 +21,18 @@ Use human-readable output by default. Add `--json` for machine output. JSON fiel
 
 `login --interactive` verifies the real login chain and stores the session in the system credential store. `session --json` reads that stored session and must not print access tokens, refresh tokens, cookies, passwords, or upstream session data. If secure storage is unavailable or locked, commands return `SECURE_STORAGE_UNAVAILABLE` instead of falling back to plaintext files.
 
+`courses --json` reads the stored session, refreshes an expiring access token through core, and prints:
+
+```json
+{
+  "records": [
+    { "id": "site-1", "siteName": "软件测试" }
+  ]
+}
+```
+
+The human-readable `courses` output prints one `id<TAB>siteName` record per line, or `No courses found.` when the list is empty.
+
 ## Agent-Friendly Rules
 
 - `doctor` checks version, config paths, secure storage availability, network reachability, and session state.

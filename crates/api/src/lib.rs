@@ -111,6 +111,19 @@ pub struct AuthSessionResponse {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CourseSite {
+    pub id: String,
+    pub site_name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CourseListResponse {
+    pub records: Vec<CourseSite>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthErrorResponse {
     pub code: AuthErrorCode,
     pub message: String,

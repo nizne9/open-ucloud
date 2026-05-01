@@ -1,16 +1,18 @@
 use async_trait::async_trait;
 use base64::Engine;
-use open_cloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
+use open_cloud_api::{AuthErrorCode, CourseSite, RoleInfo, RoleName, SessionUser};
 use open_cloud_store::{AuthSession, SessionStore};
 use serde::Deserialize;
 use std::collections::HashMap;
 use thiserror::Error;
 
 const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
+const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthEndpoints {
     pub login_url: String,
+    pub course_sites_url: String,
     pub token_url: String,
     pub roles_url: String,
     pub ucloud_referer: String,
@@ -22,6 +24,8 @@ impl Default for AuthEndpoints {
             login_url:
                 "https://auth.bupt.edu.cn/authserver/login?service=https://ucloud.bupt.edu.cn"
                     .to_string(),
+            course_sites_url: "https://apiucloud.bupt.edu.cn/ykt-site/site/list/student/current"
+                .to_string(),
             token_url: "https://apiucloud.bupt.edu.cn/ykt-basics/oauth/token".to_string(),
             roles_url: "https://apiucloud.bupt.edu.cn/ykt-basics/userroledomaindept/listByUserId"
                 .to_string(),
@@ -423,6 +427,45 @@ where
             .await?;
         parse_json_response(response, "刷新 token 失败。")
     }
+
+    pub async fn get_student_courses(
+        &self,
+        user_id: &str,
+        access_token: &str,
+    ) -> Result<Vec<CourseSite>, AuthError> {
+        let mut url = url::Url::parse(&self.endpoints.course_sites_url)
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        url.query_pairs_mut()
+            .append_pair("current", "1")
+            .append_pair("siteRoleCode", "2")
+            .append_pair("size", "9999")
+            .append_pair("userId", user_id);
+        let response = self
+            .http
+            .send(HttpRequest {
+                method: HttpMethod::Get,
+                url: url.to_string(),
+                headers: vec![
+                    ("authorization".to_string(), SWORD_BASIC_AUTH.to_string()),
+                    ("Blade-Auth".to_string(), access_token.to_string()),
+                ],
+                body: None,
+            })
+            .await?;
+        let payload: CourseSitesPayload = parse_json_response(response, "课程加载失败。")?;
+        if payload.success == Some(false) {
+            return Err(AuthError::upstream(
+                payload
+                    .message
+                    .or(payload.msg)
+                    .unwrap_or_else(|| "课程加载失败。".to_string()),
+            ));
+        }
+        let Some(data) = payload.data else {
+            return Err(AuthError::upstream("课程加载失败。"));
+        };
+        Ok(normalize_course_sites(data))
+    }
 }
 
 #[derive(Clone)]
@@ -455,37 +498,48 @@ where
             return Ok(session.access_token);
         }
 
-        let roles = self.auth.get_user_roles(&session.refresh_token).await?;
-        let refreshed = self
-            .auth
-            .refresh_user_info(&session.refresh_token, Some(session.role.clone()), &roles)
-            .await?;
-        let access_token_expires_at_ms = get_token_expiration_ms(&refreshed.access_token)
-            .ok_or_else(|| {
-                AuthError::new(AuthErrorCode::SessionExpired, "登录会话缺少过期时间。")
-            })?;
-        let refresh_token_expires_at_ms = get_token_expiration_ms(&refreshed.refresh_token)
-            .ok_or_else(|| {
-                AuthError::new(AuthErrorCode::SessionExpired, "登录会话缺少过期时间。")
-            })?;
-        let next = AuthSession {
-            access_token: refreshed.access_token,
-            access_token_expires_at_ms,
-            refresh_token: refreshed.refresh_token,
-            refresh_token_expires_at_ms,
-            role: session.role,
-            user: SessionUser {
-                account: refreshed.account,
-                real_name: refreshed.real_name,
-                user_id: refreshed.user_id,
-                user_name: refreshed.user_name,
-            },
-        };
+        let next = refresh_session_if_needed(&self.auth, session, now_ms).await?;
         let access_token = next.access_token.clone();
+        let refresh_token_expires_at_ms = next.refresh_token_expires_at_ms;
         self.store
             .update(session_id.to_string(), next, refresh_token_expires_at_ms);
         Ok(access_token)
     }
+}
+
+pub async fn refresh_session_if_needed<C>(
+    auth: &AuthClient<C>,
+    session: AuthSession,
+    now_ms: u64,
+) -> Result<AuthSession, AuthError>
+where
+    C: HttpClient,
+{
+    if session.access_token_expires_at_ms.saturating_sub(now_ms) > 60_000 {
+        return Ok(session);
+    }
+
+    let roles = auth.get_user_roles(&session.refresh_token).await?;
+    let refreshed = auth
+        .refresh_user_info(&session.refresh_token, Some(session.role.clone()), &roles)
+        .await?;
+    let access_token_expires_at_ms = get_token_expiration_ms(&refreshed.access_token)
+        .ok_or_else(|| AuthError::new(AuthErrorCode::SessionExpired, "登录会话缺少过期时间。"))?;
+    let refresh_token_expires_at_ms = get_token_expiration_ms(&refreshed.refresh_token)
+        .ok_or_else(|| AuthError::new(AuthErrorCode::SessionExpired, "登录会话缺少过期时间。"))?;
+    Ok(AuthSession {
+        access_token: refreshed.access_token,
+        access_token_expires_at_ms,
+        refresh_token: refreshed.refresh_token,
+        refresh_token_expires_at_ms,
+        role: session.role,
+        user: SessionUser {
+            account: refreshed.account,
+            real_name: refreshed.real_name,
+            user_id: refreshed.user_id,
+            user_name: refreshed.user_name,
+        },
+    })
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -502,6 +556,54 @@ pub struct UserInfoPayload {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 struct RoleListPayload {
     data: Vec<RoleInfo>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+struct CourseSitesPayload {
+    data: Option<RawCourseSiteList>,
+    message: Option<String>,
+    msg: Option<String>,
+    success: Option<bool>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(untagged)]
+enum RawCourseSiteList {
+    Records { records: Option<Vec<RawCourseSite>> },
+    Array(Vec<RawCourseSite>),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct RawCourseSite {
+    id: Option<serde_json::Value>,
+    site_name: Option<String>,
+}
+
+fn normalize_course_sites(payload: RawCourseSiteList) -> Vec<CourseSite> {
+    let records = match payload {
+        RawCourseSiteList::Records { records } => records.unwrap_or_default(),
+        RawCourseSiteList::Array(records) => records,
+    };
+    records
+        .into_iter()
+        .filter_map(|record| {
+            let id = value_to_string(record.id?)?;
+            let site_name = record.site_name.unwrap_or_default().trim().to_string();
+            if id.is_empty() || site_name.is_empty() {
+                return None;
+            }
+            Some(CourseSite { id, site_name })
+        })
+        .collect()
+}
+
+fn value_to_string(value: serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(value) => Some(value.trim().to_string()),
+        serde_json::Value::Number(value) => Some(value.to_string()),
+        _ => None,
+    }
 }
 
 pub fn get_token_expiration_ms(token: &str) -> Option<u64> {

@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
-use open_cloud_api::{AuthErrorCode, AuthErrorResponse, AuthSessionResponse, RoleName};
-use open_cloud_core::{AuthClient, AuthEndpoints, ReqwestHttpClient};
+use open_cloud_api::{
+    AuthErrorCode, AuthErrorResponse, AuthSessionResponse, CourseListResponse, CourseSite, RoleName,
+};
+use open_cloud_core::{refresh_session_if_needed, AuthClient, AuthEndpoints, ReqwestHttpClient};
 use open_cloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
     CredentialBackend, CredentialProbe, CredentialProbeStatus, SecureSessionStore, StoreError,
@@ -37,6 +39,11 @@ pub enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// List current student courses.
+    Courses {
+        #[arg(long)]
+        json: bool,
+    },
     /// Clear the current in-process session.
     Logout {
         #[arg(long)]
@@ -49,9 +56,42 @@ pub async fn run() -> i32 {
     match run_cli(cli).await {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!("{}", error.message);
+            if let Some(message) = error.stderr_message() {
+                eprintln!("{message}");
+            }
             1
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum CliError {
+    Error(AuthErrorResponse),
+    JsonErrorPrinted(AuthErrorResponse),
+}
+
+impl CliError {
+    pub fn response(&self) -> &AuthErrorResponse {
+        match self {
+            Self::Error(response) | Self::JsonErrorPrinted(response) => response,
+        }
+    }
+
+    pub fn json_error_was_printed(&self) -> bool {
+        matches!(self, Self::JsonErrorPrinted(_))
+    }
+
+    fn stderr_message(&self) -> Option<&str> {
+        match self {
+            Self::Error(response) => Some(&response.message),
+            Self::JsonErrorPrinted(_) => None,
+        }
+    }
+}
+
+impl From<AuthErrorResponse> for CliError {
+    fn from(value: AuthErrorResponse) -> Self {
+        Self::Error(value)
     }
 }
 
@@ -154,8 +194,15 @@ impl DoctorDiagnostics {
     }
 }
 
-pub async fn run_cli(cli: Cli) -> Result<(), AuthErrorResponse> {
+pub async fn run_cli(cli: Cli) -> Result<(), CliError> {
     let store = SystemSecureSessionStore::new(SystemCredentialBackend);
+    run_cli_with_store(cli, store).await
+}
+
+pub async fn run_cli_with_store<B>(cli: Cli, store: SecureSessionStore<B>) -> Result<(), CliError>
+where
+    B: CredentialBackend,
+{
     match cli.command {
         Commands::Doctor { json } => {
             if json {
@@ -178,24 +225,20 @@ pub async fn run_cli(cli: Cli) -> Result<(), AuthErrorResponse> {
                 return Err(error(
                     AuthErrorCode::UnknownAuthError,
                     "login requires --interactive so credentials are not passed through shell history.",
-                ));
+                )
+                .into());
             }
-            login_interactive(&store, role, json).await
+            login_interactive(&store, role, json).await?;
+            Ok(())
         }
         Commands::Session { json } => {
             let session = match load_persisted_session(&store, now_ms()) {
                 Ok(session) => session,
                 Err(error_response) if json => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&error_response).map_err(|err| error(
-                            AuthErrorCode::UnknownAuthError,
-                            err.to_string()
-                        ))?
-                    );
-                    return Ok(());
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
                 }
-                Err(error_response) => return Err(error_response),
+                Err(error_response) => return Err(error_response.into()),
             };
             let Some(response) = session else {
                 let error_response = error(
@@ -203,16 +246,10 @@ pub async fn run_cli(cli: Cli) -> Result<(), AuthErrorResponse> {
                     "No persisted session is available. Run login --interactive first.",
                 );
                 if json {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&error_response).map_err(|err| error(
-                            AuthErrorCode::UnknownAuthError,
-                            err.to_string()
-                        ))?
-                    );
-                    return Ok(());
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
                 }
-                return Err(error_response);
+                return Err(error_response.into());
             };
             if json {
                 println!(
@@ -229,12 +266,47 @@ pub async fn run_cli(cli: Cli) -> Result<(), AuthErrorResponse> {
             }
             Ok(())
         }
+        Commands::Courses { json } => {
+            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+            let client = AuthClient::new(http, AuthEndpoints::default());
+            let session = match load_access_session(&store, &client, now_ms()).await {
+                Ok(session) => session,
+                Err(error_response) if json => {
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
+                }
+                Err(error_response) => return Err(error_response.into()),
+            };
+            let courses = match client
+                .get_student_courses(&session.user.user_id, &session.access_token)
+                .await
+                .map_err(to_response_error)
+            {
+                Ok(courses) => courses,
+                Err(error_response) if json => {
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
+                }
+                Err(error_response) => return Err(error_response.into()),
+            };
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&CourseListResponse { records: courses })
+                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+                );
+            } else {
+                print_course_list(&courses);
+            }
+            Ok(())
+        }
         Commands::Logout { yes } => {
             if !yes {
                 return Err(error(
                     AuthErrorCode::UnknownAuthError,
                     "logout is a mutating command; rerun with --yes.",
-                ));
+                )
+                .into());
             }
             store.clear_current().map_err(store_error)?;
             println!("stored session cleared");
@@ -244,7 +316,7 @@ pub async fn run_cli(cli: Cli) -> Result<(), AuthErrorResponse> {
 }
 
 async fn login_interactive(
-    store: &SystemSecureSessionStore,
+    store: &SecureSessionStore<impl CredentialBackend>,
     role: Option<RoleName>,
     json: bool,
 ) -> Result<(), AuthErrorResponse> {
@@ -335,6 +407,50 @@ where
         selected_role: session.role,
         user: session.user,
     }))
+}
+
+pub async fn load_access_session<B, C>(
+    store: &SecureSessionStore<B>,
+    client: &AuthClient<C>,
+    now_ms: u64,
+) -> Result<AuthSession, AuthErrorResponse>
+where
+    B: CredentialBackend,
+    C: open_cloud_core::HttpClient,
+{
+    let Some(session) = store.load_current(now_ms).map_err(store_error)? else {
+        return Err(error(
+            AuthErrorCode::SessionExpired,
+            "No persisted session is available. Run login --interactive first.",
+        ));
+    };
+    let original = session.clone();
+    let refreshed = refresh_session_if_needed(client, session, now_ms)
+        .await
+        .map_err(to_response_error)?;
+    if refreshed != original {
+        store.save_current(&refreshed).map_err(store_error)?;
+    }
+    Ok(refreshed)
+}
+
+pub fn print_course_list(courses: &[CourseSite]) {
+    if courses.is_empty() {
+        println!("No courses found.");
+        return;
+    }
+    for course in courses {
+        println!("{}\t{}", course.id, course.site_name);
+    }
+}
+
+fn print_json_error_response(error_response: &AuthErrorResponse) -> Result<(), AuthErrorResponse> {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&error_response)
+            .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+    );
+    Ok(())
 }
 
 pub fn json_error(
