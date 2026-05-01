@@ -380,3 +380,49 @@ async fn get_student_courses_preserves_failure_message_without_data() {
     assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
     assert_eq!(err.message, "登录已过期");
 }
+
+#[tokio::test]
+async fn get_student_courses_preserves_failure_msg_over_fallback() {
+    let http = MockHttp::with(vec![response(
+        200,
+        &[],
+        r#"{"success":false,"msg":"角色无权访问"}"#,
+    )]);
+    let client = AuthClient::new(http, AuthEndpoints::default());
+
+    let err = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect_err("upstream failure maps");
+
+    assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+    assert_eq!(err.message, "角色无权访问");
+}
+
+#[tokio::test]
+async fn get_student_courses_reports_fallback_when_success_data_is_missing() {
+    let http = MockHttp::with(vec![response(200, &[], r#"{"success":true}"#)]);
+    let client = AuthClient::new(http, AuthEndpoints::default());
+
+    let err = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect_err("missing data fails");
+
+    assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+    assert_eq!(err.message, "课程加载失败。");
+}
+
+#[tokio::test]
+async fn get_student_courses_reports_http_status_failures() {
+    let http = MockHttp::with(vec![response(502, &[], r#"bad gateway"#)]);
+    let client = AuthClient::new(http, AuthEndpoints::default());
+
+    let err = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect_err("http failure maps");
+
+    assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+    assert_eq!(err.message, "课程加载失败。 HTTP status 502.");
+}
