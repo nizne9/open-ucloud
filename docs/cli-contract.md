@@ -13,6 +13,8 @@ open-cloud login --interactive
 open-cloud session --json
 open-cloud courses --json
 open-cloud courses --with-going --json
+open-cloud course <site-id> --json
+open-cloud attendance --site <site-id> --json
 open-cloud assignments --json
 open-cloud materials --json
 open-cloud logout
@@ -48,6 +50,30 @@ The human-readable `courses` output prints one `id<TAB>siteName` record per line
 ```
 
 The human-readable `courses --with-going` output prints one `id<TAB>siteName<TAB>going|idle` record per line.
+
+`course <site-id> --json` reads the stored session, refreshes an expiring access token through core, resolves the current course by ID, and prints:
+
+```json
+{
+  "course": { "id": "site-1", "siteName": "软件测试" },
+  "goingSite": { "groupId": "group-1", "siteId": "site-1" }
+}
+```
+
+`goingSite` is `null` when the current course has no in-progress attendance state. The human-readable output prints `id<TAB>siteName<TAB>going|idle`, plus `groupId` as a fourth column when present.
+
+`attendance --site <site-id> --json` is read-only and derives status from the current course activity state:
+
+```json
+{
+  "siteId": "site-1",
+  "siteName": "软件测试",
+  "going": true,
+  "groupId": "group-1"
+}
+```
+
+This command does not submit sign-ins, prepare QR signing data, fake location, or generate answers. The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available.
 
 ## Agent-Friendly Rules
 

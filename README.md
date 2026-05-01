@@ -25,6 +25,8 @@ cargo run -p open-cloud-cli -- login --interactive
 cargo run -p open-cloud-cli -- session --json
 cargo run -p open-cloud-cli -- courses --json
 cargo run -p open-cloud-cli -- courses --with-going --json
+cargo run -p open-cloud-cli -- course <site-id> --json
+cargo run -p open-cloud-cli -- attendance --site <site-id> --json
 cargo run -p open-cloud-cli -- logout --yes
 ```
 
@@ -33,6 +35,8 @@ cargo run -p open-cloud-cli -- logout --yes
 `courses --json` reads the stored session, refreshes the access token when needed, and returns the current student course list as stable DTOs without printing access tokens, refresh tokens, cookies, or upstream session data.
 
 `courses --with-going --json` also queries the current in-progress course attendance state and returns `goingSites` records with `siteId` and `groupId`. The plain-text form prints `id<TAB>siteName<TAB>going|idle`.
+
+`course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or prepare QR signing data.
 
 ## Linux Credential Packages
 
