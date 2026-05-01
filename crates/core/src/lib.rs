@@ -3,6 +3,7 @@ mod auth;
 mod client;
 mod courses;
 mod error;
+mod protocol;
 mod session;
 mod transport;
 

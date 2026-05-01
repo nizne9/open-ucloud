@@ -1,3 +1,4 @@
+use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
 use crate::{AuthClient, AuthError, HttpClient, HttpMethod, HttpRequest};
 use open_cloud_api::{AuthErrorCode, CourseDetailResponse, CourseSite, GoingSite};
 use serde::Deserialize;
@@ -25,7 +26,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: ucloud_json_headers(SWORD_BASIC_AUTH, access_token),
+                headers: UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_vec(),
                 body: None,
             })
             .await?;
@@ -54,30 +55,6 @@ pub fn resolve_course_detail(
         .find(|site| site.site_id == site_id)
         .cloned();
     Ok(CourseDetailResponse { course, going_site })
-}
-
-fn ucloud_json_headers(basic_auth: &str, access_token: &str) -> Vec<(String, String)> {
-    vec![
-        ("authorization".to_string(), basic_auth.to_string()),
-        ("Blade-Auth".to_string(), access_token.to_string()),
-    ]
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-struct UcloudEnvelope<T> {
-    data: Option<T>,
-    message: Option<String>,
-    msg: Option<String>,
-    success: Option<bool>,
-}
-
-impl<T> UcloudEnvelope<T> {
-    fn upstream_message(self, fallback: &str) -> String {
-        self.message
-            .or(self.msg)
-            .filter(|message| !message.trim().is_empty())
-            .unwrap_or_else(|| fallback.to_string())
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -110,32 +87,4 @@ fn normalize_course_sites(payload: RawCourseSiteList) -> Vec<CourseSite> {
             Some(CourseSite { id, site_name })
         })
         .collect()
-}
-
-fn parse_ucloud_envelope<T>(response: crate::HttpResponse, fallback: &str) -> Result<T, AuthError>
-where
-    T: for<'de> Deserialize<'de>,
-{
-    if !(200..300).contains(&response.status) {
-        return Err(AuthError::upstream(format!(
-            "{fallback} HTTP status {}.",
-            response.status
-        )));
-    }
-    let payload: UcloudEnvelope<T> = serde_json::from_slice(&response.body)
-        .map_err(|error| AuthError::upstream(error.to_string()))?;
-    if payload.success == Some(false) {
-        return Err(AuthError::upstream(payload.upstream_message(fallback)));
-    }
-    payload
-        .data
-        .ok_or_else(|| AuthError::upstream(fallback.to_string()))
-}
-
-fn value_to_string(value: serde_json::Value) -> Option<String> {
-    match value {
-        serde_json::Value::String(value) => Some(value.trim().to_string()),
-        serde_json::Value::Number(value) => Some(value.to_string()),
-        _ => None,
-    }
 }

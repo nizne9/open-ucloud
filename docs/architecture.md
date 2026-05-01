@@ -13,6 +13,21 @@ Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Fl
 
 The current implemented harness contains `api`, `core`, `store`, and `cli`. `ffi` and `apps/client` remain planned boundaries.
 
+## Core Internal Boundaries
+
+`crates/core/src/lib.rs` is a public facade only. Keep implementation details in focused modules:
+
+- `client.rs`: `AuthClient` and endpoint configuration shared by core operations.
+- `transport.rs`: HTTP request/response abstractions and the reqwest adapter.
+- `error.rs`: core error type and stable API error-code mapping.
+- `auth.rs`: login, ticket exchange, role lookup, and token refresh protocol.
+- `session.rs`: session refresh orchestration using store abstractions.
+- `courses.rs`: course list loading and course detail resolution.
+- `attendance.rs`: check-in/attendance state loading.
+- `protocol.rs`: shared UCloud response envelope parsing and primitive value normalization.
+
+Do not move shared transport, client, error, or protocol helpers back into a business module just because one module uses them first.
+
 ## Dependency Direction
 
 Core must not depend on CLI, FFI, Flutter, Web, or UI concepts. API must stay DTO-oriented. Store must expose interfaces that core can use without knowing platform details. Adapters depend inward on API/core/store.
