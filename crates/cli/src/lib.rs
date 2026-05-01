@@ -1,9 +1,12 @@
 use clap::{Parser, Subcommand};
 use open_cloud_api::{
-    AuthErrorCode, AuthErrorResponse, AuthSessionResponse, CourseActivityResponse,
-    CourseListResponse, CourseSite, GoingSite, RoleName,
+    AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthSessionResponse,
+    CourseActivityResponse, CourseDetailResponse, CourseListResponse, CourseSite, GoingSite,
+    RoleName,
 };
-use open_cloud_core::{refresh_session_if_needed, AuthClient, AuthEndpoints, ReqwestHttpClient};
+use open_cloud_core::{
+    refresh_session_if_needed, resolve_course_detail, AuthClient, AuthEndpoints, ReqwestHttpClient,
+};
 use open_cloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
     CredentialBackend, CredentialProbe, CredentialProbeStatus, SecureSessionStore, StoreError,
@@ -47,6 +50,19 @@ pub enum Commands {
         json: bool,
         #[arg(long)]
         with_going: bool,
+    },
+    /// Show a current student course by id.
+    Course {
+        site_id: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show read-only attendance status for a course.
+    Attendance {
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        json: bool,
     },
     /// Clear the current in-process session.
     Logout {
@@ -334,6 +350,72 @@ where
             }
             Ok(())
         }
+        Commands::Course { site_id, json } => {
+            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+            let client = AuthClient::new(http, AuthEndpoints::default());
+            let session = match load_access_session(&store, &client, now_ms()).await {
+                Ok(session) => session,
+                Err(error_response) if json => {
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
+                }
+                Err(error_response) => return Err(error_response.into()),
+            };
+            let detail = match load_course_detail(&client, &session, &site_id)
+                .await
+                .map_err(to_response_error)
+            {
+                Ok(detail) => detail,
+                Err(error_response) if json => {
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
+                }
+                Err(error_response) => return Err(error_response.into()),
+            };
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&detail)
+                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+                );
+            } else {
+                print!("{}", format_course_detail(&detail));
+            }
+            Ok(())
+        }
+        Commands::Attendance { site, json } => {
+            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+            let client = AuthClient::new(http, AuthEndpoints::default());
+            let session = match load_access_session(&store, &client, now_ms()).await {
+                Ok(session) => session,
+                Err(error_response) if json => {
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
+                }
+                Err(error_response) => return Err(error_response.into()),
+            };
+            let status = match load_attendance_status(&client, &session, &site)
+                .await
+                .map_err(to_response_error)
+            {
+                Ok(status) => status,
+                Err(error_response) if json => {
+                    print_json_error_response(&error_response)?;
+                    return Err(CliError::JsonErrorPrinted(error_response));
+                }
+                Err(error_response) => return Err(error_response.into()),
+            };
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&status)
+                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+                );
+            } else {
+                print!("{}", format_attendance_status(&status));
+            }
+            Ok(())
+        }
         Commands::Logout { yes } => {
             if !yes {
                 return Err(error(
@@ -501,6 +583,35 @@ pub fn format_course_list_with_going(courses: &[CourseSite], going_sites: &[Goin
     output
 }
 
+pub fn format_course_detail(detail: &CourseDetailResponse) -> String {
+    let status = if detail.going_site.is_some() {
+        "going"
+    } else {
+        "idle"
+    };
+    match &detail.going_site {
+        Some(going_site) => format!(
+            "{}\t{}\t{}\t{}\n",
+            detail.course.id, detail.course.site_name, status, going_site.group_id
+        ),
+        None => format!(
+            "{}\t{}\t{}\n",
+            detail.course.id, detail.course.site_name, status
+        ),
+    }
+}
+
+pub fn format_attendance_status(status: &AttendanceStatusResponse) -> String {
+    let label = if status.going { "going" } else { "idle" };
+    match &status.group_id {
+        Some(group_id) => format!(
+            "{}\t{}\t{}\t{}\n",
+            status.site_id, status.site_name, label, group_id
+        ),
+        None => format!("{}\t{}\t{}\n", status.site_id, status.site_name, label),
+    }
+}
+
 async fn load_going_sites<C>(
     client: &AuthClient<C>,
     courses: &[CourseSite],
@@ -514,6 +625,39 @@ where
         .map(|course| course.id.clone())
         .collect::<Vec<_>>();
     client.get_going_sites(&site_ids, access_token).await
+}
+
+async fn load_course_detail<C>(
+    client: &AuthClient<C>,
+    session: &AuthSession,
+    site_id: &str,
+) -> Result<CourseDetailResponse, open_cloud_core::AuthError>
+where
+    C: open_cloud_core::HttpClient,
+{
+    let courses = client
+        .get_student_courses(&session.user.user_id, &session.access_token)
+        .await?;
+    let going_sites = load_going_sites(client, &courses, &session.access_token).await?;
+    resolve_course_detail(&courses, &going_sites, site_id)
+}
+
+async fn load_attendance_status<C>(
+    client: &AuthClient<C>,
+    session: &AuthSession,
+    site_id: &str,
+) -> Result<AttendanceStatusResponse, open_cloud_core::AuthError>
+where
+    C: open_cloud_core::HttpClient,
+{
+    let detail = load_course_detail(client, session, site_id).await?;
+    let going_site = detail.going_site;
+    Ok(AttendanceStatusResponse {
+        site_id: detail.course.id,
+        site_name: detail.course.site_name,
+        going: going_site.is_some(),
+        group_id: going_site.map(|site| site.group_id),
+    })
 }
 
 fn print_json_error_response(error_response: &AuthErrorResponse) -> Result<(), AuthErrorResponse> {

@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use base64::Engine;
-use open_cloud_api::{AuthErrorCode, CourseSite, GoingSite, RoleInfo, RoleName, SessionUser};
+use open_cloud_api::{
+    AuthErrorCode, CourseDetailResponse, CourseSite, GoingSite, RoleInfo, RoleName, SessionUser,
+};
 use open_cloud_store::{AuthSession, SessionStore};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -556,6 +558,28 @@ where
             user_name: refreshed.user_name,
         },
     })
+}
+
+pub fn resolve_course_detail(
+    courses: &[CourseSite],
+    going_sites: &[GoingSite],
+    site_id: &str,
+) -> Result<CourseDetailResponse, AuthError> {
+    let course = courses
+        .iter()
+        .find(|course| course.id == site_id)
+        .cloned()
+        .ok_or_else(|| {
+            AuthError::new(
+                AuthErrorCode::UnknownAuthError,
+                format!("未找到课程：{site_id}。"),
+            )
+        })?;
+    let going_site = going_sites
+        .iter()
+        .find(|site| site.site_id == site_id)
+        .cloned();
+    Ok(CourseDetailResponse { course, going_site })
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]

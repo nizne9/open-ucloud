@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use open_cloud_api::{AuthErrorCode, RoleName};
 use open_cloud_core::{
-    get_token_expiration_ms, AuthClient, AuthEndpoints, AuthError, HttpClient, HttpRequest,
-    HttpResponse, SessionManager,
+    get_token_expiration_ms, resolve_course_detail, AuthClient, AuthEndpoints, AuthError,
+    HttpClient, HttpRequest, HttpResponse, SessionManager,
 };
 use open_cloud_store::{AuthSession, MemorySessionStore, SessionStore};
 use std::collections::VecDeque;
@@ -505,4 +505,46 @@ async fn get_going_sites_maps_upstream_failure() {
 
     assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
     assert_eq!(err.message, "签到状态加载失败");
+}
+
+#[test]
+fn resolve_course_detail_matches_course_and_going_site() {
+    let courses = vec![
+        open_cloud_api::CourseSite {
+            id: "site-1".to_string(),
+            site_name: "软件测试".to_string(),
+        },
+        open_cloud_api::CourseSite {
+            id: "site-2".to_string(),
+            site_name: "操作系统".to_string(),
+        },
+    ];
+    let going_sites = vec![open_cloud_api::GoingSite {
+        group_id: "group-1".to_string(),
+        site_id: "site-2".to_string(),
+    }];
+
+    let detail = resolve_course_detail(&courses, &going_sites, "site-2").expect("course exists");
+
+    assert_eq!(detail.course.site_name, "操作系统");
+    assert_eq!(
+        detail
+            .going_site
+            .as_ref()
+            .map(|site| site.group_id.as_str()),
+        Some("group-1")
+    );
+}
+
+#[test]
+fn resolve_course_detail_reports_missing_course() {
+    let courses = vec![open_cloud_api::CourseSite {
+        id: "site-1".to_string(),
+        site_name: "软件测试".to_string(),
+    }];
+
+    let err = resolve_course_detail(&courses, &[], "missing").expect_err("course is missing");
+
+    assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.message, "未找到课程：missing。");
 }

@@ -138,6 +138,22 @@ pub struct CourseActivityResponse {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CourseDetailResponse {
+    pub course: CourseSite,
+    pub going_site: Option<GoingSite>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttendanceStatusResponse {
+    pub site_id: String,
+    pub site_name: String,
+    pub going: bool,
+    pub group_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthErrorResponse {
     pub code: AuthErrorCode,
     pub message: String,

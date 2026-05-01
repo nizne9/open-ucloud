@@ -1,7 +1,7 @@
 use open_cloud_api::{
-    AuthErrorCode, AuthErrorResponse, AuthFinishResponse, AuthSessionResponse,
-    CourseActivityResponse, CourseListResponse, CourseSite, GoingSite, RoleInfo, RoleName,
-    SessionUser,
+    AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthFinishResponse,
+    AuthSessionResponse, CourseActivityResponse, CourseDetailResponse, CourseListResponse,
+    CourseSite, GoingSite, RoleInfo, RoleName, SessionUser,
 };
 
 #[test]
@@ -59,6 +59,47 @@ fn serializes_course_activity_without_tokens() {
     assert_eq!(json["records"][0]["siteName"], "软件测试");
     assert_eq!(json["goingSites"][0]["groupId"], "group-1");
     assert_eq!(json["goingSites"][0]["siteId"], "site-1");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_course_detail_without_tokens() {
+    let response = CourseDetailResponse {
+        course: CourseSite {
+            id: "site-1".to_string(),
+            site_name: "软件测试".to_string(),
+        },
+        going_site: Some(GoingSite {
+            group_id: "group-1".to_string(),
+            site_id: "site-1".to_string(),
+        }),
+    };
+
+    let json = serde_json::to_value(response).expect("course detail serializes");
+
+    assert_eq!(json["course"]["id"], "site-1");
+    assert_eq!(json["course"]["siteName"], "软件测试");
+    assert_eq!(json["goingSite"]["groupId"], "group-1");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_attendance_status_without_tokens() {
+    let response = AttendanceStatusResponse {
+        site_id: "site-1".to_string(),
+        site_name: "软件测试".to_string(),
+        going: true,
+        group_id: Some("group-1".to_string()),
+    };
+
+    let json = serde_json::to_value(response).expect("attendance status serializes");
+
+    assert_eq!(json["siteId"], "site-1");
+    assert_eq!(json["siteName"], "软件测试");
+    assert_eq!(json["going"], true);
+    assert_eq!(json["groupId"], "group-1");
     assert!(json.get("accessToken").is_none());
     assert!(json.get("refreshToken").is_none());
 }

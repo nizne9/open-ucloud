@@ -33,6 +33,12 @@ fn exposes_documented_commands() {
         .try_get_matches_from_mut(["open-cloud", "courses"])
         .expect("courses parses");
     command
+        .try_get_matches_from_mut(["open-cloud", "course", "site-1", "--json"])
+        .expect("course detail parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "attendance", "--site", "site-1", "--json"])
+        .expect("attendance status parses");
+    command
         .try_get_matches_from_mut(["open-cloud", "logout", "--yes"])
         .expect("logout parses");
 }
@@ -72,9 +78,51 @@ fn courses_with_going_flag_is_explicit() {
     ));
 }
 
+#[test]
+fn course_detail_command_captures_site_id() {
+    let cli =
+        Cli::try_parse_from(["open-cloud", "course", "site-1", "--json"]).expect("course parses");
+
+    assert!(matches!(
+        cli.command,
+        Commands::Course {
+            site_id,
+            json: true
+        } if site_id == "site-1"
+    ));
+}
+
+#[test]
+fn attendance_status_command_captures_site_id() {
+    let cli = Cli::try_parse_from(["open-cloud", "attendance", "--site", "site-1", "--json"])
+        .expect("attendance parses");
+
+    assert!(matches!(
+        cli.command,
+        Commands::Attendance {
+            site,
+            json: true
+        } if site == "site-1"
+    ));
+}
+
 #[tokio::test]
 async fn courses_json_returns_failure_when_session_is_missing() {
     let cli = Cli::try_parse_from(["open-cloud", "courses", "--json"]).expect("courses parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_cloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing session fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
+async fn attendance_json_returns_failure_when_session_is_missing() {
+    let cli = Cli::try_parse_from(["open-cloud", "attendance", "--site", "site-1", "--json"])
+        .expect("attendance parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
     let err = open_cloud_cli::run_cli_with_store(cli, store)
@@ -228,6 +276,38 @@ fn formats_course_list_with_going_status() {
     let output = open_cloud_cli::format_course_list_with_going(&courses, &going_sites);
 
     assert_eq!(output, "site-1\t软件测试\tidle\nsite-2\t操作系统\tgoing\n");
+}
+
+#[test]
+fn formats_course_detail_with_going_site() {
+    let detail = open_cloud_api::CourseDetailResponse {
+        course: open_cloud_api::CourseSite {
+            id: "site-1".to_string(),
+            site_name: "软件测试".to_string(),
+        },
+        going_site: Some(open_cloud_api::GoingSite {
+            group_id: "group-1".to_string(),
+            site_id: "site-1".to_string(),
+        }),
+    };
+
+    let output = open_cloud_cli::format_course_detail(&detail);
+
+    assert_eq!(output, "site-1\t软件测试\tgoing\tgroup-1\n");
+}
+
+#[test]
+fn formats_attendance_status_without_group_id() {
+    let status = open_cloud_api::AttendanceStatusResponse {
+        site_id: "site-1".to_string(),
+        site_name: "软件测试".to_string(),
+        going: false,
+        group_id: None,
+    };
+
+    let output = open_cloud_cli::format_attendance_status(&status);
+
+    assert_eq!(output, "site-1\t软件测试\tidle\n");
 }
 
 #[test]
