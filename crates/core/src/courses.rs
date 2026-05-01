@@ -1,11 +1,11 @@
 use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
-use crate::{AuthClient, AuthError, HttpClient, HttpMethod, HttpRequest};
+use crate::{AuthError, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use open_cloud_api::{AuthErrorCode, CourseDetailResponse, CourseSite, GoingSite};
 use serde::Deserialize;
 
 const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
 
-impl<C> AuthClient<C>
+impl<C> OpenCloudClient<C>
 where
     C: HttpClient,
 {

@@ -5,7 +5,8 @@ use open_cloud_api::{
     RoleName,
 };
 use open_cloud_core::{
-    refresh_session_if_needed, resolve_course_detail, AuthClient, AuthEndpoints, ReqwestHttpClient,
+    refresh_session_if_needed, resolve_course_detail, OpenCloudClient, OpenCloudEndpoints,
+    ReqwestHttpClient,
 };
 use open_cloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
@@ -288,7 +289,7 @@ where
         }
         Commands::Courses { json, with_going } => {
             let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-            let client = AuthClient::new(http, AuthEndpoints::default());
+            let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
                 Ok(session) => session,
                 Err(error_response) if json => {
@@ -352,7 +353,7 @@ where
         }
         Commands::Course { site_id, json } => {
             let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-            let client = AuthClient::new(http, AuthEndpoints::default());
+            let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
                 Ok(session) => session,
                 Err(error_response) if json => {
@@ -385,7 +386,7 @@ where
         }
         Commands::Attendance { site, json } => {
             let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-            let client = AuthClient::new(http, AuthEndpoints::default());
+            let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
                 Ok(session) => session,
                 Err(error_response) if json => {
@@ -440,7 +441,7 @@ async fn login_interactive(
     let password = rpassword::prompt_password("Password: ")
         .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
     let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
     let flow = client
         .start_login(&username)
         .await
@@ -527,7 +528,7 @@ where
 
 pub async fn load_access_session<B, C>(
     store: &SecureSessionStore<B>,
-    client: &AuthClient<C>,
+    client: &OpenCloudClient<C>,
     now_ms: u64,
 ) -> Result<AuthSession, AuthErrorResponse>
 where
@@ -613,7 +614,7 @@ pub fn format_attendance_status(status: &AttendanceStatusResponse) -> String {
 }
 
 async fn load_going_sites<C>(
-    client: &AuthClient<C>,
+    client: &OpenCloudClient<C>,
     courses: &[CourseSite],
     access_token: &str,
 ) -> Result<Vec<GoingSite>, open_cloud_core::AuthError>
@@ -628,7 +629,7 @@ where
 }
 
 async fn load_course_detail<C>(
-    client: &AuthClient<C>,
+    client: &OpenCloudClient<C>,
     session: &AuthSession,
     site_id: &str,
 ) -> Result<CourseDetailResponse, open_cloud_core::AuthError>
@@ -649,7 +650,7 @@ where
 }
 
 async fn load_attendance_status<C>(
-    client: &AuthClient<C>,
+    client: &OpenCloudClient<C>,
     session: &AuthSession,
     site_id: &str,
 ) -> Result<AttendanceStatusResponse, open_cloud_core::AuthError>
@@ -776,7 +777,7 @@ mod tests {
             ),
             response(502, r#"{"success":false,"msg":"going unavailable"}"#),
         ]);
-        let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
         let err = load_course_detail(&client, &session(), "missing")
             .await

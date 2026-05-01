@@ -1,10 +1,10 @@
-use crate::{get_token_expiration_ms, AuthClient, AuthError, HttpClient};
+use crate::{get_token_expiration_ms, AuthError, HttpClient, OpenCloudClient};
 use open_cloud_api::{AuthErrorCode, SessionUser};
 use open_cloud_store::{AuthSession, SessionStore};
 
 #[derive(Clone)]
 pub struct SessionManager<C, S> {
-    auth: AuthClient<C>,
+    auth: OpenCloudClient<C>,
     store: S,
 }
 
@@ -13,7 +13,7 @@ where
     C: HttpClient,
     S: SessionStore,
 {
-    pub fn new(auth: AuthClient<C>, store: S) -> Self {
+    pub fn new(auth: OpenCloudClient<C>, store: S) -> Self {
         Self { auth, store }
     }
 
@@ -42,7 +42,7 @@ where
 }
 
 pub async fn refresh_session_if_needed<C>(
-    auth: &AuthClient<C>,
+    auth: &OpenCloudClient<C>,
     session: AuthSession,
     now_ms: u64,
 ) -> Result<AuthSession, AuthError>

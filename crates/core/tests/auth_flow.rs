@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use open_cloud_api::{AuthErrorCode, RoleName};
 use open_cloud_core::{
-    get_token_expiration_ms, resolve_course_detail, AuthClient, AuthEndpoints, AuthError,
-    HttpClient, HttpRequest, HttpResponse, SessionManager,
+    get_token_expiration_ms, resolve_course_detail, AuthError, HttpClient, HttpRequest,
+    HttpResponse, OpenCloudClient, OpenCloudEndpoints, SessionManager,
 };
 use open_cloud_store::{AuthSession, MemorySessionStore, SessionStore};
 use std::collections::VecDeque;
@@ -71,7 +71,7 @@ async fn start_login_flow_extracts_execution_and_captcha() {
         ),
         response(200, &[("content-type", "image/png")], "png"),
     ]);
-    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
     let flow = client.start_login("2024000000").await.expect("flow starts");
 
@@ -91,7 +91,7 @@ async fn finish_login_flow_maps_invalid_captcha() {
         &[],
         r#"<div class="alert alert-danger" id="errorDiv"><p>Bad captcha.</p></div>"#,
     )]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
     let flow = open_cloud_core::LoginFlow {
         captcha_id: Some("cap-1".to_string()),
         captcha_image: None,
@@ -155,7 +155,7 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
             ),
         ),
     ]);
-    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
     let flow = open_cloud_core::LoginFlow {
         captcha_id: None,
         captcha_image: None,
@@ -226,7 +226,7 @@ async fn session_manager_refreshes_expiring_access_token() {
             ),
         ),
     ]);
-    let auth = AuthClient::new(http, AuthEndpoints::default());
+    let auth = OpenCloudClient::new(http, OpenCloudEndpoints::default());
     let store = MemorySessionStore::default();
     store.create(
         "s-1".to_string(),
@@ -274,7 +274,7 @@ async fn get_student_courses_requests_documented_endpoint_and_filters_records() 
           {"id":"site-3","siteName":""}
         ]}}"#,
     )]);
-    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
     let courses = client
         .get_student_courses("u-1", "access-token")
@@ -334,7 +334,7 @@ async fn get_student_courses_accepts_array_payload() {
         &[],
         r#"{"data":[{"id":"site-1","siteName":"软件测试"}]}"#,
     )]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let courses = client
         .get_student_courses("u-1", "access-token")
@@ -352,7 +352,7 @@ async fn get_student_courses_maps_upstream_failure() {
         &[],
         r#"{"success":false,"message":"课程加载失败","data":[]}"#,
     )]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -370,7 +370,7 @@ async fn get_student_courses_preserves_failure_message_without_data() {
         &[],
         r#"{"success":false,"msg":"登录已过期"}"#,
     )]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -388,7 +388,7 @@ async fn get_student_courses_preserves_failure_msg_over_fallback() {
         &[],
         r#"{"success":false,"msg":"角色无权访问"}"#,
     )]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -402,7 +402,7 @@ async fn get_student_courses_preserves_failure_msg_over_fallback() {
 #[tokio::test]
 async fn get_student_courses_reports_fallback_when_success_data_is_missing() {
     let http = MockHttp::with(vec![response(200, &[], r#"{"success":true}"#)]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -416,7 +416,7 @@ async fn get_student_courses_reports_fallback_when_success_data_is_missing() {
 #[tokio::test]
 async fn get_student_courses_reports_http_status_failures() {
     let http = MockHttp::with(vec![response(502, &[], r#"bad gateway"#)]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -439,7 +439,7 @@ async fn get_going_sites_requests_my_course_endpoint_and_filters_records() {
           {"groupId":"group-4","siteId":""}
         ]}}"#,
     )]);
-    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
     let going_sites = client
         .get_going_sites(&["1001".to_string(), "site-2".to_string()], "access-token")
@@ -478,7 +478,7 @@ async fn get_going_sites_requests_my_course_endpoint_and_filters_records() {
 #[tokio::test]
 async fn get_going_sites_skips_request_when_no_course_ids_exist() {
     let http = MockHttp::default();
-    let client = AuthClient::new(http.clone(), AuthEndpoints::default());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
     let going_sites = client
         .get_going_sites(&[], "access-token")
@@ -496,7 +496,7 @@ async fn get_going_sites_maps_upstream_failure() {
         &[],
         r#"{"success":false,"msg":"签到状态加载失败"}"#,
     )]);
-    let client = AuthClient::new(http, AuthEndpoints::default());
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let err = client
         .get_going_sites(&["1001".to_string()], "access-token")

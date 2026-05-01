@@ -69,3 +69,111 @@ pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use open_cloud_api::AuthErrorCode;
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize, Eq, PartialEq)]
+    struct Payload {
+        value: String,
+    }
+
+    fn response(status: u16, body: &str) -> HttpResponse {
+        HttpResponse {
+            status,
+            headers: Vec::new(),
+            body: body.as_bytes().to_vec(),
+        }
+    }
+
+    #[test]
+    fn parses_successful_ucloud_envelope_data() {
+        let payload: Payload = parse_ucloud_envelope(
+            response(200, r#"{"success":true,"data":{"value":"ok"}}"#),
+            "fallback",
+        )
+        .expect("envelope parses");
+
+        assert_eq!(
+            payload,
+            Payload {
+                value: "ok".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn maps_ucloud_failure_message_before_msg() {
+        let err = parse_ucloud_envelope::<Payload>(
+            response(
+                200,
+                r#"{"success":false,"message":"message wins","msg":"msg loses"}"#,
+            ),
+            "fallback",
+        )
+        .expect_err("failure maps");
+
+        assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+        assert_eq!(err.message, "message wins");
+    }
+
+    #[test]
+    fn maps_ucloud_failure_msg_when_message_is_missing() {
+        let err = parse_ucloud_envelope::<Payload>(
+            response(200, r#"{"success":false,"msg":"msg wins"}"#),
+            "fallback",
+        )
+        .expect_err("failure maps");
+
+        assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+        assert_eq!(err.message, "msg wins");
+    }
+
+    #[test]
+    fn reports_fallback_when_success_data_is_missing() {
+        let err =
+            parse_ucloud_envelope::<Payload>(response(200, r#"{"success":true}"#), "fallback")
+                .expect_err("missing data maps");
+
+        assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+        assert_eq!(err.message, "fallback");
+    }
+
+    #[test]
+    fn reports_http_status_before_parsing_body() {
+        let err = parse_ucloud_envelope::<Payload>(response(503, "not json"), "fallback")
+            .expect_err("http status maps");
+
+        assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
+        assert_eq!(err.message, "fallback HTTP status 503.");
+    }
+
+    #[test]
+    fn converts_string_and_number_values() {
+        assert_eq!(
+            value_to_string(serde_json::Value::String("  site-1  ".to_string())).as_deref(),
+            Some("site-1")
+        );
+        assert_eq!(
+            value_to_string(serde_json::Value::Number(1001.into())).as_deref(),
+            Some("1001")
+        );
+        assert_eq!(value_to_string(serde_json::Value::Bool(true)), None);
+    }
+
+    #[test]
+    fn builds_ucloud_json_headers() {
+        let headers = UcloudJsonHeaders::new("Basic token", "access-token").into_vec();
+
+        assert_eq!(
+            headers,
+            vec![
+                ("authorization".to_string(), "Basic token".to_string()),
+                ("Blade-Auth".to_string(), "access-token".to_string()),
+            ]
+        );
+    }
+}

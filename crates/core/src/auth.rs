@@ -1,4 +1,4 @@
-use crate::{AuthClient, AuthError, HttpClient, HttpMethod, HttpRequest};
+use crate::{AuthError, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use base64::Engine;
 use open_cloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
 use serde::Deserialize;
@@ -27,7 +27,7 @@ pub struct LoginResult {
     pub user: SessionUser,
 }
 
-impl<C> AuthClient<C>
+impl<C> OpenCloudClient<C>
 where
     C: HttpClient,
 {

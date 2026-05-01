@@ -203,9 +203,9 @@ async fn load_access_session_does_not_rewrite_unexpired_session() {
     *backend.value.lock().expect("mock lock") =
         Some(serde_json::to_string(&current).expect("session serializes"));
     let store = SecureSessionStore::new(backend.clone());
-    let client = open_cloud_core::AuthClient::new(
+    let client = open_cloud_core::OpenCloudClient::new(
         open_cloud_core::ReqwestHttpClient::new().expect("http client creates"),
-        open_cloud_core::AuthEndpoints::default(),
+        open_cloud_core::OpenCloudEndpoints::default(),
     );
 
     let response = open_cloud_cli::load_access_session(&store, &client, 4_000)
