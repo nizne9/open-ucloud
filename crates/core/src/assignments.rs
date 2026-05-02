@@ -58,7 +58,7 @@ where
         user_id: &str,
         access_token: &str,
     ) -> Result<AssignmentListResponse, AuthError> {
-        let mut url = url::Url::parse("https://apiucloud.bupt.edu.cn/ykt-site/site/student/undone")
+        let mut url = url::Url::parse(&self.endpoints.assignment_undone_url)
             .map_err(|error| AuthError::upstream(error.to_string()))?;
         url.query_pairs_mut().append_pair("userId", user_id);
         let response = self
@@ -83,7 +83,7 @@ where
                         RawAssignmentSummary {
                             assignment_end_time: item.end_time,
                             assignment_title: item.activity_name,
-                            id: item.activity_id.map(serde_json::Value::String),
+                            id: item.activity_id,
                             site_id: item.site_id,
                             site_name: item.site_name,
                             ..RawAssignmentSummary::default()
@@ -313,7 +313,7 @@ struct RawAssignmentRecords {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct RawUndoneItem {
-    activity_id: Option<String>,
+    activity_id: Option<serde_json::Value>,
     activity_name: Option<String>,
     end_time: Option<String>,
     site_id: Option<serde_json::Value>,

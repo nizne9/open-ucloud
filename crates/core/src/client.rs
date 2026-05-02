@@ -6,6 +6,7 @@ pub struct OpenCloudEndpoints {
     pub assignment_detail_url: String,
     pub assignment_list_url: String,
     pub assignment_submit_url: String,
+    pub assignment_undone_url: String,
     pub assignment_upload_url: String,
     pub course_sites_url: String,
     pub going_sites_url: String,
@@ -27,6 +28,8 @@ impl Default for OpenCloudEndpoints {
             assignment_list_url: "https://apiucloud.bupt.edu.cn/ykt-site/work/student/list"
                 .to_string(),
             assignment_submit_url: "https://apiucloud.bupt.edu.cn/ykt-site/work/submit".to_string(),
+            assignment_undone_url: "https://apiucloud.bupt.edu.cn/ykt-site/site/student/undone"
+                .to_string(),
             assignment_upload_url: "https://apiucloud.bupt.edu.cn/blade-source/resource/upload/biz"
                 .to_string(),
             course_sites_url: "https://apiucloud.bupt.edu.cn/ykt-site/site/list/student/current"

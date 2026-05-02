@@ -125,11 +125,15 @@ async fn get_undone_assignments_keeps_only_assignment_items() {
     let http = MockHttp::with(vec![response(
         200,
         r#"{"success":true,"data":{"undoneList":[
-          {"activityId":"work-1","activityName":"待提交","endTime":"2099-05-03","siteId":1001,"siteName":"软件测试","type":3},
+          {"activityId":2043171894306238465,"activityName":"待提交","endTime":"2099-05-03","siteId":1001,"siteName":"软件测试","type":3},
           {"activityId":"quiz-1","activityName":"测验","endTime":"2099-05-03","siteId":1001,"siteName":"软件测试","type":2}
         ]}}"#,
     )]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let endpoints = OpenCloudEndpoints {
+        assignment_undone_url: "https://example.test/ykt-site/site/student/undone".to_string(),
+        ..OpenCloudEndpoints::default()
+    };
+    let client = OpenCloudClient::new(http.clone(), endpoints);
 
     let result = client
         .get_undone_assignments("u-1", "access-token")
@@ -137,13 +141,15 @@ async fn get_undone_assignments_keeps_only_assignment_items() {
         .expect("undone assignments load");
 
     assert_eq!(result.records.len(), 1);
-    assert_eq!(result.records[0].id, "work-1");
+    assert_eq!(result.records[0].id, "2043171894306238465");
     assert_eq!(result.records[0].source, "undone");
     assert_eq!(result.records[0].status, AssignmentStatus::Pending);
 
     let request = http.requests().pop().expect("undone request");
     assert_eq!(request.method, HttpMethod::Get);
-    assert!(request.url.contains("/ykt-site/site/student/undone?"));
+    assert!(request
+        .url
+        .starts_with("https://example.test/ykt-site/site/student/undone?"));
     assert!(request.url.contains("userId=u-1"));
 }
 
