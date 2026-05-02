@@ -314,6 +314,23 @@ async fn submit_assignment_sends_documented_payload() {
 }
 
 #[tokio::test]
+async fn submit_assignment_preserves_content_whitespace() {
+    let http = MockHttp::with(vec![response(200, r#"{"success":true}"#)]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let content = "  line one\n    code();\n  ";
+
+    client
+        .submit_assignment("work-1", "u-1", content, &[], "access-token")
+        .await
+        .expect("submit succeeds");
+
+    let request = http.requests().pop().expect("submit request");
+    let body: serde_json::Value =
+        serde_json::from_str(&body_text(&request)).expect("submit body is json");
+    assert_eq!(body["assignmentContent"], content);
+}
+
+#[tokio::test]
 async fn upload_assignment_file_sends_multipart_and_preview_url() {
     let http = MockHttp::with(vec![
         response(200, r#"{"success":true,"data":"resource-1"}"#),

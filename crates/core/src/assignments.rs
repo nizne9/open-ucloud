@@ -178,20 +178,19 @@ where
         attachment_ids: &[String],
         access_token: &str,
     ) -> Result<AssignmentSubmitResponse, AuthError> {
-        let content = assignment_content.trim();
         let attachments = attachment_ids
             .iter()
             .map(|id| id.trim().to_string())
             .filter(|id| !id.is_empty())
             .collect::<Vec<_>>();
-        if content.is_empty() && attachments.is_empty() {
+        if assignment_content.trim().is_empty() && attachments.is_empty() {
             return Err(AuthError::new(
                 AuthErrorCode::UnknownAuthError,
                 "请先填写作业内容或上传附件。",
             ));
         }
         let body = serde_json::json!({
-            "assignmentContent": content,
+            "assignmentContent": assignment_content,
             "assignmentId": assignment_id,
             "assignmentType": 0,
             "attachmentIds": attachments,
