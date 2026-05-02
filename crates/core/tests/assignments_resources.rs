@@ -159,11 +159,12 @@ async fn get_assignment_detail_loads_teacher_and_submitted_resources() {
         response(
             200,
             r#"{"success":true,"data":{
-              "id":"work-1","assignmentTitle":"实验报告","assignmentContent":"完成报告","assignmentBeginTime":"2026-05-01","assignmentEndTime":"2099-05-03",
+              "id":"work-1","title":"实验报告","assignmentContent":"完成报告","assignmentBeginTime":"2026-05-01","assignmentEndTime":"2099-05-03",
               "siteId":"site-1","siteName":"软件测试","className":"1 班","assignmentComment":"不错","assignmentScore":95,
               "commitTime":"2026-05-02","studentCommitContent":"已完成","isOvertimeCommit":0,
               "assignmentResource":[{"resourceId":2050487502087970817}],
-              "submitAttachmentList":[{"id":"student-1","name":"report.pdf","ext":"pdf","storageId":"storage-1"}]
+              "submitAttachmentList":[],
+              "studentAttachmentList":[{"id":"student-1","name":"report.pdf","ext":"pdf","storageId":"storage-1"}]
             }}"#,
         ),
         response(
@@ -187,6 +188,7 @@ async fn get_assignment_detail_loads_teacher_and_submitted_resources() {
         .expect("detail loads");
 
     assert_eq!(detail.id, "work-1");
+    assert_eq!(detail.title, "实验报告");
     assert_eq!(detail.status, AssignmentStatus::Submitted);
     assert_eq!(detail.score, Some(95));
     assert_eq!(

@@ -117,12 +117,11 @@ where
             .await?;
         let detail: RawAssignmentDetail =
             parse_ucloud_envelope(response, "作业详情加载失败，请稍后重试。")?;
-        let submitted_source = detail
-            .submit_attachment_list
-            .clone()
-            .or(detail.student_attachment_list.clone())
-            .or(detail.student_resource.clone())
-            .unwrap_or_default();
+        let submitted_source = first_non_empty_resource_list([
+            detail.submit_attachment_list.clone(),
+            detail.student_attachment_list.clone(),
+            detail.student_resource.clone(),
+        ]);
         let teacher_resources = self
             .assignment_resources_from_refs(
                 detail.assignment_resource.clone().unwrap_or_default(),
@@ -163,6 +162,7 @@ where
             teacher_resources,
             title: pick_string([
                 detail.assignment_title.clone(),
+                detail.title.clone(),
                 value_to_string_opt(detail.id.clone()),
             ])
             .unwrap_or_default(),
@@ -280,6 +280,16 @@ where
         }
         Ok(output)
     }
+}
+
+fn first_non_empty_resource_list<const N: usize>(
+    values: [Option<Vec<RawResourceDetail>>; N],
+) -> Vec<RawResourceDetail> {
+    values
+        .into_iter()
+        .flatten()
+        .find(|resources| !resources.is_empty())
+        .unwrap_or_default()
 }
 
 #[derive(Clone, Debug, Deserialize, Default, Eq, PartialEq)]
