@@ -1,4 +1,4 @@
-use crate::{AuthError, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
+use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use base64::Engine;
 use open_cloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
 use serde::Deserialize;
@@ -125,7 +125,7 @@ where
                         "Mozilla/5.0 AppleWebKit/537.36 Chrome/118 Safari/537.36".to_string(),
                     ),
                 ],
-                body: Some(form_body),
+                body: Some(HttpBody::text(form_body)),
             })
             .await?;
 
@@ -215,7 +215,10 @@ where
                 method: HttpMethod::Post,
                 url: self.endpoints.token_url.clone(),
                 headers: token_headers(&self.endpoints.ucloud_referer),
-                body: Some(format!("ticket={}&grant_type=third", form_url(ticket))),
+                body: Some(HttpBody::text(format!(
+                    "ticket={}&grant_type=third",
+                    form_url(ticket)
+                ))),
             })
             .await?;
         parse_json_response(response, "UCloud token 兑换失败。")
@@ -267,7 +270,7 @@ where
                     ("authorization".to_string(), PORTAL_BASIC_AUTH.to_string()),
                     ("content-type".to_string(), content_type),
                 ],
-                body: Some(body),
+                body: Some(HttpBody::text(body)),
             })
             .await?;
         parse_json_response(response, "刷新 token 失败。")

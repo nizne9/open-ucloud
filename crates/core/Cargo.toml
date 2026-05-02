@@ -9,6 +9,7 @@ rust-version.workspace = true
 [dependencies]
 async-trait.workspace = true
 base64.workspace = true
+chrono.workspace = true
 open-cloud-api = { path = "../api" }
 open-cloud-store = { path = "../store", default-features = false }
 reqwest.workspace = true

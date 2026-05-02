@@ -4,7 +4,7 @@ Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Fl
 
 ## Module Boundaries
 
-- `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, and read-only attendance state. Assignments and materials are planned future core domains.
+- `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, read-only attendance state, assignments, and resources.
 - `crates/api/`: stable DTOs, command/response shapes, and error codes shared by CLI, FFI, and future adapters.
 - `crates/store/`: storage abstractions and implementations for secure storage, SQLite, local cache, and downloaded files.
 - `crates/cli/`: agent-friendly command-line client. It is the first integration surface and smoke-test harness for core.
@@ -24,6 +24,8 @@ The current implemented harness contains `api`, `core`, `store`, and `cli`. `ffi
 - `session.rs`: session refresh orchestration using store abstractions.
 - `courses.rs`: course list loading and course detail resolution.
 - `attendance.rs`: check-in/attendance state loading.
+- `assignments.rs`: assignment list/detail normalization, attachment upload, and assignment submit protocol.
+- `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, and raw download bytes.
 - `protocol.rs`: shared UCloud response envelope parsing and primitive value normalization.
 
 Do not move shared transport, client, error, or protocol helpers back into a business module just because one module uses them first.

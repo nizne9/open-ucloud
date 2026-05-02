@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use open_cloud_api::{AuthErrorCode, RoleName};
 use open_cloud_core::{
-    get_token_expiration_ms, resolve_course_detail, AuthError, HttpClient, HttpRequest,
+    get_token_expiration_ms, resolve_course_detail, AuthError, HttpBody, HttpClient, HttpRequest,
     HttpResponse, OpenCloudClient, OpenCloudEndpoints, SessionManager,
 };
 use open_cloud_store::{AuthSession, MemorySessionStore, SessionStore};
@@ -47,6 +47,13 @@ fn response(status: u16, headers: &[(&str, &str)], body: &str) -> HttpResponse {
             .map(|(name, value)| (name.to_string(), value.to_string()))
             .collect(),
         body: body.as_bytes().to_vec(),
+    }
+}
+
+fn body_text(request: &HttpRequest) -> &str {
+    match request.body.as_ref().expect("request body") {
+        HttpBody::Text(value) => value.as_str(),
+        HttpBody::Bytes(_) => panic!("expected text body"),
     }
 }
 
@@ -175,12 +182,8 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
     assert_eq!(result.roles[0].id, "identity-1");
     assert_eq!(result.access_token_expires_at_ms, 4_200_000);
     assert_eq!(result.refresh_token_expires_at_ms, 9_200_000);
-    assert!(http.requests()[0]
-        .body
-        .as_deref()
-        .unwrap()
-        .contains("username=2024000000"));
     let requests = http.requests();
+    assert!(body_text(&requests[0]).contains("username=2024000000"));
     assert!(
         requests[3].headers.iter().any(|(name, value)| {
             name.eq_ignore_ascii_case("content-type")
@@ -188,7 +191,7 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
         }),
         "refresh token request must use multipart form data like byrdocs/bupt-auth"
     );
-    let refresh_body = requests[3].body.as_deref().expect("refresh body");
+    let refresh_body = body_text(&requests[3]);
     assert!(refresh_body.contains(r#"name="grant_type""#));
     assert!(refresh_body.contains("refresh_token"));
     assert!(refresh_body.contains(r#"name="identity""#));
@@ -465,7 +468,7 @@ async fn get_going_sites_requests_my_course_endpoint_and_filters_records() {
             .1,
         "1001,site-2"
     );
-    assert_eq!(request.body.as_deref(), Some("{}"));
+    assert_eq!(body_text(&request), "{}");
     assert!(request.headers.iter().any(|(name, value)| {
         name.eq_ignore_ascii_case("content-type") && value == "application/json"
     }));

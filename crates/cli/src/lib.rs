@@ -1,8 +1,10 @@
 use clap::{Parser, Subcommand};
 use open_cloud_api::{
-    AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthSessionResponse,
-    CourseActivityResponse, CourseDetailResponse, CourseListResponse, CourseSite, GoingSite,
-    RoleName,
+    AssignmentDetailResponse, AssignmentListResponse, AssignmentSubmitResponse, AssignmentSummary,
+    AssignmentUploadResponse, AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse,
+    AuthSessionResponse, CourseActivityResponse, CourseDetailResponse, CourseListResponse,
+    CourseResourceDetail, CourseResourceDownloadResponse, CourseResourceSummary,
+    CourseResourcesResponse, CourseSite, GoingSite, RoleName,
 };
 use open_cloud_core::{
     refresh_session_if_needed, resolve_course_detail, OpenCloudClient, OpenCloudEndpoints,
@@ -15,6 +17,7 @@ use open_cloud_store::{
 };
 use serde::Serialize;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 #[derive(Debug, Parser)]
@@ -65,10 +68,117 @@ pub enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// List, inspect, upload, and submit assignments.
+    Assignments {
+        #[command(subcommand)]
+        command: AssignmentCommands,
+    },
+    /// List and download course resources.
+    Resources {
+        #[command(subcommand)]
+        command: ResourceCommands,
+    },
     /// Clear the current in-process session.
     Logout {
         #[arg(long)]
         yes: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AssignmentCommands {
+    /// List assignments for a course.
+    List {
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        site_name: Option<String>,
+        #[arg(long, default_value = "")]
+        keyword: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// List unfinished assignments for the current user.
+    Undone {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show assignment details.
+    Detail {
+        assignment_id: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Upload an assignment attachment.
+    Upload {
+        #[arg(long)]
+        file: PathBuf,
+        #[arg(long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Submit assignment content and optional uploaded attachments.
+    Submit {
+        assignment_id: String,
+        #[arg(long, conflicts_with = "content_file")]
+        content: Option<String>,
+        #[arg(long)]
+        content_file: Option<PathBuf>,
+        #[arg(long = "attachment")]
+        attachments: Vec<String>,
+        #[arg(long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ResourceCommands {
+    /// List resources for a course.
+    List {
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        site_name: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show resource detail and download URL.
+    Detail {
+        resource_id: String,
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        site_name: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Download one resource file.
+    Download {
+        resource_id: String,
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        site_name: Option<String>,
+        #[arg(long)]
+        out_dir: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Download all resources in a course.
+    DownloadCourse {
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        site_name: Option<String>,
+        #[arg(long)]
+        out_dir: PathBuf,
+        #[arg(long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -417,6 +527,8 @@ where
             }
             Ok(())
         }
+        Commands::Assignments { command } => handle_assignment_command(command, &store).await,
+        Commands::Resources { command } => handle_resource_command(command, &store).await,
         Commands::Logout { yes } => {
             if !yes {
                 return Err(error(
@@ -551,6 +663,282 @@ where
     Ok(refreshed)
 }
 
+async fn handle_assignment_command<B>(
+    command: AssignmentCommands,
+    store: &SecureSessionStore<B>,
+) -> Result<(), CliError>
+where
+    B: CredentialBackend,
+{
+    let json = assignment_json_flag(&command);
+    if assignment_requires_yes(&command) {
+        return Err(error(
+            AuthErrorCode::UnknownAuthError,
+            "assignment write commands are mutating; rerun with --yes.",
+        )
+        .into());
+    }
+    let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let session = load_access_session_or_print(store, &client, json).await?;
+    match command {
+        AssignmentCommands::List {
+            site,
+            site_name,
+            keyword,
+            json,
+        } => {
+            let response = client
+                .get_course_assignments(
+                    &site,
+                    site_name.as_deref().unwrap_or_default(),
+                    &session.access_token,
+                    &keyword,
+                )
+                .await
+                .map_err(to_response_error)?;
+            print_assignment_list(&response, json)?;
+        }
+        AssignmentCommands::Undone { json } => {
+            let response = client
+                .get_undone_assignments(&session.user.user_id, &session.access_token)
+                .await
+                .map_err(to_response_error)?;
+            print_assignment_list(&response, json)?;
+        }
+        AssignmentCommands::Detail {
+            assignment_id,
+            json,
+        } => {
+            let detail = client
+                .get_assignment_detail(&assignment_id, &session.access_token)
+                .await
+                .map_err(to_response_error)?;
+            print_assignment_detail(&detail, json)?;
+        }
+        AssignmentCommands::Upload { file, json, .. } => {
+            let bytes = std::fs::read(&file)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+            let file_name = file
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| {
+                    error(AuthErrorCode::UnknownAuthError, "invalid upload file name")
+                })?;
+            let response = client
+                .upload_assignment_file(
+                    file_name,
+                    &bytes,
+                    &session.user.user_id,
+                    &session.access_token,
+                )
+                .await
+                .map_err(to_response_error)?;
+            print_assignment_upload(&response, json)?;
+        }
+        AssignmentCommands::Submit {
+            assignment_id,
+            content,
+            content_file,
+            attachments,
+            json,
+            ..
+        } => {
+            let content = match (content, content_file) {
+                (Some(content), None) => content,
+                (None, Some(path)) => std::fs::read_to_string(path)
+                    .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?,
+                (None, None) => String::new(),
+                (Some(_), Some(_)) => unreachable!("clap prevents both content inputs"),
+            };
+            let response = client
+                .submit_assignment(
+                    &assignment_id,
+                    &session.user.user_id,
+                    &content,
+                    &attachments,
+                    &session.access_token,
+                )
+                .await
+                .map_err(to_response_error)?;
+            print_assignment_submit(&response, json)?;
+        }
+    }
+    Ok(())
+}
+
+async fn handle_resource_command<B>(
+    command: ResourceCommands,
+    store: &SecureSessionStore<B>,
+) -> Result<(), CliError>
+where
+    B: CredentialBackend,
+{
+    let json = resource_json_flag(&command);
+    if resource_requires_yes(&command) {
+        return Err(error(
+            AuthErrorCode::UnknownAuthError,
+            "resource batch download is mutating; rerun with --yes.",
+        )
+        .into());
+    }
+    let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let session = load_access_session_or_print(store, &client, json).await?;
+    match command {
+        ResourceCommands::List {
+            site,
+            site_name,
+            json,
+        } => {
+            let response = client
+                .get_course_resources(
+                    &site,
+                    site_name.as_deref().unwrap_or_default(),
+                    &session.user.user_id,
+                    &session.access_token,
+                )
+                .await
+                .map_err(to_response_error)?;
+            print_resource_list(&response, json)?;
+        }
+        ResourceCommands::Detail {
+            resource_id,
+            site,
+            site_name,
+            json,
+        } => {
+            let detail = client
+                .get_resource_detail(
+                    &resource_id,
+                    &site,
+                    site_name.as_deref().unwrap_or_default(),
+                    &session.access_token,
+                )
+                .await
+                .map_err(to_response_error)?;
+            print_resource_detail(&detail, json)?;
+        }
+        ResourceCommands::Download {
+            resource_id,
+            site,
+            site_name,
+            out_dir,
+            json,
+        } => {
+            let detail = client
+                .get_resource_detail(
+                    &resource_id,
+                    &site,
+                    site_name.as_deref().unwrap_or_default(),
+                    &session.access_token,
+                )
+                .await
+                .map_err(to_response_error)?;
+            let path = download_resource_to_dir(&client, &detail, &out_dir).await?;
+            let response = CourseResourceDownloadResponse {
+                records: vec![detail],
+                written_paths: vec![path.display().to_string()],
+            };
+            print_download_response(&response, json)?;
+        }
+        ResourceCommands::DownloadCourse {
+            site,
+            site_name,
+            out_dir,
+            json,
+            ..
+        } => {
+            let site_name_value = site_name.unwrap_or_default();
+            let list = client
+                .get_course_resources(
+                    &site,
+                    &site_name_value,
+                    &session.user.user_id,
+                    &session.access_token,
+                )
+                .await
+                .map_err(to_response_error)?;
+            let mut records = Vec::new();
+            let mut paths = Vec::new();
+            for resource in list.records {
+                let detail = client
+                    .get_resource_detail(
+                        &resource.resource_id,
+                        &site,
+                        &site_name_value,
+                        &session.access_token,
+                    )
+                    .await
+                    .map_err(to_response_error)?;
+                let path = download_resource_to_dir(&client, &detail, &out_dir).await?;
+                paths.push(path.display().to_string());
+                records.push(detail);
+            }
+            print_download_response(
+                &CourseResourceDownloadResponse {
+                    records,
+                    written_paths: paths,
+                },
+                json,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+async fn load_access_session_or_print<B, C>(
+    store: &SecureSessionStore<B>,
+    client: &OpenCloudClient<C>,
+    json: bool,
+) -> Result<AuthSession, CliError>
+where
+    B: CredentialBackend,
+    C: open_cloud_core::HttpClient,
+{
+    match load_access_session(store, client, now_ms()).await {
+        Ok(session) => Ok(session),
+        Err(error_response) if json => {
+            print_json_error_response(&error_response)?;
+            Err(CliError::JsonErrorPrinted(error_response))
+        }
+        Err(error_response) => Err(error_response.into()),
+    }
+}
+
+fn assignment_json_flag(command: &AssignmentCommands) -> bool {
+    match command {
+        AssignmentCommands::List { json, .. }
+        | AssignmentCommands::Undone { json }
+        | AssignmentCommands::Detail { json, .. }
+        | AssignmentCommands::Upload { json, .. }
+        | AssignmentCommands::Submit { json, .. } => *json,
+    }
+}
+
+fn assignment_requires_yes(command: &AssignmentCommands) -> bool {
+    match command {
+        AssignmentCommands::Upload { yes, .. } | AssignmentCommands::Submit { yes, .. } => !yes,
+        _ => false,
+    }
+}
+
+fn resource_json_flag(command: &ResourceCommands) -> bool {
+    match command {
+        ResourceCommands::List { json, .. }
+        | ResourceCommands::Detail { json, .. }
+        | ResourceCommands::Download { json, .. }
+        | ResourceCommands::DownloadCourse { json, .. } => *json,
+    }
+}
+
+fn resource_requires_yes(command: &ResourceCommands) -> bool {
+    match command {
+        ResourceCommands::DownloadCourse { yes, .. } => !yes,
+        _ => false,
+    }
+}
+
 pub fn print_course_list(courses: &[CourseSite]) {
     if courses.is_empty() {
         println!("No courses found.");
@@ -610,6 +998,268 @@ pub fn format_attendance_status(status: &AttendanceStatusResponse) -> String {
             status.site_id, status.site_name, label, group_id
         ),
         None => format!("{}\t{}\t{}\n", status.site_id, status.site_name, label),
+    }
+}
+
+fn print_assignment_list(response: &AssignmentListResponse, json: bool) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(response)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+        return Ok(());
+    }
+    print!("{}", format_assignment_list(&response.records));
+    Ok(())
+}
+
+fn print_assignment_detail(detail: &AssignmentDetailResponse, json: bool) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(detail)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+        return Ok(());
+    }
+    print!("{}", format_assignment_detail(detail));
+    Ok(())
+}
+
+fn print_assignment_upload(
+    response: &AssignmentUploadResponse,
+    json: bool,
+) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(response)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+    } else {
+        println!("{}\t{}", response.resource_id, response.file_name);
+    }
+    Ok(())
+}
+
+fn print_assignment_submit(
+    response: &AssignmentSubmitResponse,
+    json: bool,
+) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(response)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+    } else {
+        println!("assignment submitted");
+    }
+    Ok(())
+}
+
+fn print_resource_list(response: &CourseResourcesResponse, json: bool) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(response)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+        return Ok(());
+    }
+    print!("{}", format_resource_list(&response.records));
+    Ok(())
+}
+
+fn print_resource_detail(detail: &CourseResourceDetail, json: bool) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&open_cloud_api::CourseResourceDetailResponse {
+                detail: detail.clone()
+            })
+            .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+        return Ok(());
+    }
+    print!("{}", format_resource_detail(detail));
+    Ok(())
+}
+
+fn print_download_response(
+    response: &CourseResourceDownloadResponse,
+    json: bool,
+) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(response)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+    } else {
+        for path in &response.written_paths {
+            println!("{path}");
+        }
+    }
+    Ok(())
+}
+
+pub fn format_assignment_list(assignments: &[AssignmentSummary]) -> String {
+    if assignments.is_empty() {
+        return "No assignments found.\n".to_string();
+    }
+    assignments
+        .iter()
+        .map(|assignment| {
+            format!(
+                "{}\t{}\t{}\t{}\t{}",
+                assignment.id,
+                assignment.site_id,
+                assignment.site_name,
+                assignment.status.as_str(),
+                assignment.title
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}
+
+pub fn format_assignment_detail(detail: &AssignmentDetailResponse) -> String {
+    format!(
+        "{}\t{}\t{}\t{}\t{}\t{}\n",
+        detail.id,
+        detail.site_id,
+        detail.site_name,
+        detail.status.as_str(),
+        detail
+            .score
+            .map(|score| score.to_string())
+            .unwrap_or_default(),
+        detail.title
+    )
+}
+
+pub fn format_resource_list(resources: &[CourseResourceSummary]) -> String {
+    if resources.is_empty() {
+        return "No resources found.\n".to_string();
+    }
+    resources
+        .iter()
+        .map(|resource| {
+            format!(
+                "{}\t{}\t{}\t{}",
+                resource.resource_id,
+                resource.site_id,
+                resource
+                    .size_bytes
+                    .map(|size| size.to_string())
+                    .unwrap_or_default(),
+                resource.name
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}
+
+pub fn format_resource_detail(detail: &CourseResourceDetail) -> String {
+    format!(
+        "{}\t{}\t{}\t{}\n",
+        detail.resource_id,
+        detail.site_id,
+        detail
+            .size_bytes
+            .map(|size| size.to_string())
+            .unwrap_or_default(),
+        detail.name
+    )
+}
+
+async fn download_resource_to_dir<C>(
+    client: &OpenCloudClient<C>,
+    detail: &CourseResourceDetail,
+    out_dir: &Path,
+) -> Result<PathBuf, CliError>
+where
+    C: open_cloud_core::HttpClient,
+{
+    let url = detail.download_url.as_deref().ok_or_else(|| {
+        error(
+            AuthErrorCode::UpstreamUnavailable,
+            "resource does not have a downloadable URL.",
+        )
+    })?;
+    std::fs::create_dir_all(out_dir)
+        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+    let path = next_download_path(out_dir, &detail.name)?;
+    let bytes = client
+        .download_url_bytes(url)
+        .await
+        .map_err(to_response_error)?;
+    std::fs::write(&path, bytes)
+        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+    Ok(path)
+}
+
+pub fn next_download_path(out_dir: &Path, file_name: &str) -> Result<PathBuf, AuthErrorResponse> {
+    let clean_name = sanitize_file_name(file_name);
+    let candidate = out_dir.join(&clean_name);
+    if !candidate.exists() {
+        return Ok(candidate);
+    }
+    let path = Path::new(&clean_name);
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("download");
+    let extension = path.extension().and_then(|value| value.to_str());
+    for index in 1..10_000 {
+        let name = match extension {
+            Some(extension) => format!("{stem} ({index}).{extension}"),
+            None => format!("{stem} ({index})"),
+        };
+        let candidate = out_dir.join(name);
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err(error(
+        AuthErrorCode::UnknownAuthError,
+        "could not allocate a non-overwriting download path.",
+    ))
+}
+
+fn sanitize_file_name(file_name: &str) -> String {
+    let cleaned = file_name
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | '\0' => '_',
+            other => other,
+        })
+        .collect::<String>()
+        .trim()
+        .to_string();
+    if cleaned.is_empty() {
+        "download".to_string()
+    } else {
+        cleaned
+    }
+}
+
+trait AssignmentStatusLabel {
+    fn as_str(&self) -> &'static str;
+}
+
+impl AssignmentStatusLabel for open_cloud_api::AssignmentStatus {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Submitted => "submitted",
+            Self::Expired => "expired",
+        }
     }
 }
 

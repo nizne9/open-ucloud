@@ -1,5 +1,5 @@
 use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
-use crate::{AuthError, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
+use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use open_cloud_api::GoingSite;
 use serde::Deserialize;
 
@@ -29,7 +29,7 @@ where
                 method: HttpMethod::Post,
                 url: url.to_string(),
                 headers,
-                body: Some("{}".to_string()),
+                body: Some(HttpBody::text("{}")),
             })
             .await?;
         let data: RawGoingSiteList = parse_ucloud_envelope(response, "签到状态加载失败。")?;

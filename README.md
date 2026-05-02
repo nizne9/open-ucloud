@@ -12,7 +12,7 @@ The initial direction is:
 Current workspace:
 
 - `crates/api`: public DTOs, role names, session responses, and auth error codes.
-- `crates/core`: `OpenCloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, and session access refresh.
+- `crates/core`: `OpenCloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, assignments, resources, and session access refresh.
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
 - `crates/cli`: `open-cloud` command-line harness.
 
@@ -27,6 +27,15 @@ cargo run -p open-cloud-cli -- courses --json
 cargo run -p open-cloud-cli -- courses --with-going --json
 cargo run -p open-cloud-cli -- course <site-id> --json
 cargo run -p open-cloud-cli -- attendance --site <site-id> --json
+cargo run -p open-cloud-cli -- assignments list --site <site-id> --json
+cargo run -p open-cloud-cli -- assignments undone --json
+cargo run -p open-cloud-cli -- assignments detail <assignment-id> --json
+cargo run -p open-cloud-cli -- assignments upload --file <path> --yes --json
+cargo run -p open-cloud-cli -- assignments submit <assignment-id> --content <text> --yes --json
+cargo run -p open-cloud-cli -- resources list --site <site-id> --json
+cargo run -p open-cloud-cli -- resources detail <resource-id> --site <site-id> --json
+cargo run -p open-cloud-cli -- resources download <resource-id> --site <site-id> --out-dir <dir> --json
+cargo run -p open-cloud-cli -- resources download-course --site <site-id> --out-dir <dir> --yes --json
 cargo run -p open-cloud-cli -- logout --yes
 ```
 
@@ -37,6 +46,10 @@ cargo run -p open-cloud-cli -- logout --yes
 `courses --with-going --json` also queries the current in-progress course attendance state and returns `goingSites` records with `siteId` and `groupId`. The plain-text form prints `id<TAB>siteName<TAB>going|idle`.
 
 `course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or prepare QR signing data.
+
+`assignments` supports course assignment lists, unfinished assignments, assignment detail, attachment upload, and explicit assignment submission. Upload and submit are live write operations and require `--yes`.
+
+`resources` supports course resource lists, resource detail, single-resource download, and explicit full-course batch download. Downloads require `--out-dir`, create the directory if needed, never overwrite existing files, and print or return the actual written paths.
 
 ## Linux Credential Packages
 

@@ -39,6 +39,96 @@ fn exposes_documented_commands() {
         .try_get_matches_from_mut(["open-cloud", "attendance", "--site", "site-1", "--json"])
         .expect("attendance status parses");
     command
+        .try_get_matches_from_mut([
+            "open-cloud",
+            "assignments",
+            "list",
+            "--site",
+            "site-1",
+            "--site-name",
+            "软件测试",
+            "--json",
+        ])
+        .expect("assignment list parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "assignments", "undone", "--json"])
+        .expect("undone assignments parses");
+    command
+        .try_get_matches_from_mut(["open-cloud", "assignments", "detail", "work-1", "--json"])
+        .expect("assignment detail parses");
+    command
+        .try_get_matches_from_mut([
+            "open-cloud",
+            "assignments",
+            "upload",
+            "--file",
+            "report.pdf",
+            "--yes",
+            "--json",
+        ])
+        .expect("assignment upload parses");
+    command
+        .try_get_matches_from_mut([
+            "open-cloud",
+            "assignments",
+            "submit",
+            "work-1",
+            "--content",
+            "答案",
+            "--attachment",
+            "resource-1",
+            "--yes",
+            "--json",
+        ])
+        .expect("assignment submit parses");
+    command
+        .try_get_matches_from_mut([
+            "open-cloud",
+            "resources",
+            "list",
+            "--site",
+            "site-1",
+            "--json",
+        ])
+        .expect("resource list parses");
+    command
+        .try_get_matches_from_mut([
+            "open-cloud",
+            "resources",
+            "detail",
+            "resource-1",
+            "--site",
+            "site-1",
+            "--json",
+        ])
+        .expect("resource detail parses");
+    command
+        .try_get_matches_from_mut([
+            "open-cloud",
+            "resources",
+            "download",
+            "resource-1",
+            "--site",
+            "site-1",
+            "--out-dir",
+            ".",
+            "--json",
+        ])
+        .expect("resource download parses");
+    command
+        .try_get_matches_from_mut([
+            "open-cloud",
+            "resources",
+            "download-course",
+            "--site",
+            "site-1",
+            "--out-dir",
+            ".",
+            "--yes",
+            "--json",
+        ])
+        .expect("resource course download parses");
+    command
         .try_get_matches_from_mut(["open-cloud", "logout", "--yes"])
         .expect("logout parses");
 }
@@ -131,6 +221,63 @@ async fn attendance_json_returns_failure_when_session_is_missing() {
 
     assert!(err.json_error_was_printed());
     assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
+async fn assignments_json_returns_failure_when_session_is_missing() {
+    let cli = Cli::try_parse_from(["open-cloud", "assignments", "undone", "--json"])
+        .expect("assignments parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_cloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing session fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
+async fn assignment_writes_require_yes_before_session_load() {
+    let cli = Cli::try_parse_from([
+        "open-cloud",
+        "assignments",
+        "submit",
+        "work-1",
+        "--content",
+        "答案",
+    ])
+    .expect("submit parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_cloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing yes fails");
+
+    assert_eq!(err.response().code, AuthErrorCode::UnknownAuthError);
+    assert!(err.response().message.contains("--yes"));
+}
+
+#[test]
+fn allocates_non_overwriting_download_paths() {
+    let dir = std::env::temp_dir().join(format!("open-cloud-cli-test-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).expect("temp dir creates");
+    std::fs::write(dir.join("课件.pdf"), b"existing").expect("existing file writes");
+
+    let first = open_cloud_cli::next_download_path(&dir, "课件.pdf").expect("path allocates");
+    std::fs::write(&first, b"new").expect("new file writes");
+    let second = open_cloud_cli::next_download_path(&dir, "课件.pdf").expect("path allocates");
+
+    assert_eq!(
+        first.file_name().and_then(|name| name.to_str()),
+        Some("课件 (1).pdf")
+    );
+    assert_eq!(
+        second.file_name().and_then(|name| name.to_str()),
+        Some("课件 (2).pdf")
+    );
+
+    std::fs::remove_dir_all(&dir).expect("temp dir removes");
 }
 
 #[tokio::test]

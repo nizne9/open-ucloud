@@ -1,7 +1,9 @@
 use open_cloud_api::{
-    AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthFinishResponse,
-    AuthSessionResponse, CourseActivityResponse, CourseDetailResponse, CourseListResponse,
-    CourseSite, GoingSite, RoleInfo, RoleName, SessionUser,
+    AssignmentDetailResponse, AssignmentResource, AssignmentStatus, AssignmentSubmitResponse,
+    AssignmentSummary, AssignmentUploadResponse, AttendanceStatusResponse, AuthErrorCode,
+    AuthErrorResponse, AuthFinishResponse, AuthSessionResponse, CourseActivityResponse,
+    CourseDetailResponse, CourseListResponse, CourseResourceDetail, CourseResourceDownloadResponse,
+    CourseResourceSummary, CourseSite, GoingSite, RoleInfo, RoleName, SessionUser,
 };
 
 #[test]
@@ -102,6 +104,109 @@ fn serializes_attendance_status_without_tokens() {
     assert_eq!(json["groupId"], "group-1");
     assert!(json.get("accessToken").is_none());
     assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_assignment_summary_and_detail_without_tokens() {
+    let summary = AssignmentSummary {
+        end_time: "2026-05-03 23:59:59".to_string(),
+        id: "work-1".to_string(),
+        site_id: "site-1".to_string(),
+        site_name: "软件测试".to_string(),
+        source: "course".to_string(),
+        start_time: "2026-05-01 08:00:00".to_string(),
+        status: AssignmentStatus::Pending,
+        title: "实验报告".to_string(),
+    };
+    let detail = AssignmentDetailResponse {
+        class_name: "2024 级 1 班".to_string(),
+        comment: "写得不错".to_string(),
+        content: "完成实验报告。".to_string(),
+        end_time: summary.end_time.clone(),
+        id: summary.id.clone(),
+        is_overtime_commit: false,
+        score: Some(95),
+        site_id: summary.site_id.clone(),
+        site_name: summary.site_name.clone(),
+        start_time: summary.start_time.clone(),
+        status: AssignmentStatus::Submitted,
+        submitted_at: "2026-05-02 10:00:00".to_string(),
+        submitted_attachments: vec![AssignmentResource {
+            ext: Some("pdf".to_string()),
+            name: "report.pdf".to_string(),
+            preview_url: Some("https://files.example/report".to_string()),
+            resource_id: "resource-1".to_string(),
+            storage_id: Some("storage-1".to_string()),
+        }],
+        submitted_content: "已提交。".to_string(),
+        teacher_resources: Vec::new(),
+        title: summary.title,
+    };
+
+    let json = serde_json::to_value(detail).expect("assignment detail serializes");
+
+    assert_eq!(json["id"], "work-1");
+    assert_eq!(json["status"], "submitted");
+    assert_eq!(json["submittedAttachments"][0]["resourceId"], "resource-1");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_assignment_upload_and_submit_without_tokens() {
+    let upload = AssignmentUploadResponse {
+        file_name: "report.pdf".to_string(),
+        preview_url: Some("https://files.example/report".to_string()),
+        resource_id: "resource-1".to_string(),
+    };
+    let submit = AssignmentSubmitResponse { ok: true };
+
+    let upload_json = serde_json::to_value(upload).expect("upload response serializes");
+    let submit_json = serde_json::to_value(submit).expect("submit response serializes");
+
+    assert_eq!(upload_json["fileName"], "report.pdf");
+    assert_eq!(upload_json["resourceId"], "resource-1");
+    assert_eq!(submit_json["ok"], true);
+    assert!(upload_json.get("accessToken").is_none());
+    assert!(submit_json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_course_resource_contract_without_tokens() {
+    let detail = CourseResourceDetail {
+        description: Some("实验资料".to_string()),
+        download_url: Some("https://files.example/resource".to_string()),
+        ext: Some("pdf".to_string()),
+        name: "课件.pdf".to_string(),
+        resource_id: "resource-1".to_string(),
+        site_id: "site-1".to_string(),
+        site_name: "软件测试".to_string(),
+        size_bytes: Some(1024),
+        updated_at: "2026-05-02 10:00:00".to_string(),
+    };
+    let summary = CourseResourceSummary {
+        ext: detail.ext.clone(),
+        name: detail.name.clone(),
+        resource_id: detail.resource_id.clone(),
+        site_id: detail.site_id.clone(),
+        site_name: detail.site_name.clone(),
+        size_bytes: detail.size_bytes,
+        updated_at: detail.updated_at.clone(),
+    };
+    let download = CourseResourceDownloadResponse {
+        records: vec![detail.clone()],
+        written_paths: vec!["/tmp/课件.pdf".to_string()],
+    };
+
+    let summary_json = serde_json::to_value(summary).expect("resource summary serializes");
+    let detail_json = serde_json::to_value(detail).expect("resource detail serializes");
+    let download_json = serde_json::to_value(download).expect("download response serializes");
+
+    assert_eq!(summary_json["resourceId"], "resource-1");
+    assert_eq!(detail_json["downloadUrl"], "https://files.example/resource");
+    assert_eq!(download_json["writtenPaths"][0], "/tmp/课件.pdf");
+    assert!(detail_json.get("accessToken").is_none());
+    assert!(download_json.get("refreshToken").is_none());
 }
 
 #[test]

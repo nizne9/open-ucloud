@@ -15,6 +15,15 @@ open-cloud courses --json
 open-cloud courses --with-going --json
 open-cloud course <site-id> --json
 open-cloud attendance --site <site-id> --json
+open-cloud assignments list --site <site-id> --json
+open-cloud assignments undone --json
+open-cloud assignments detail <assignment-id> --json
+open-cloud assignments upload --file <path> --yes --json
+open-cloud assignments submit <assignment-id> --content <text> --yes --json
+open-cloud resources list --site <site-id> --json
+open-cloud resources detail <resource-id> --site <site-id> --json
+open-cloud resources download <resource-id> --site <site-id> --out-dir <dir> --json
+open-cloud resources download-course --site <site-id> --out-dir <dir> --yes --json
 open-cloud logout --yes
 ```
 
@@ -73,6 +82,49 @@ The human-readable `courses --with-going` output prints one `id<TAB>siteName<TAB
 
 This command does not submit sign-ins, prepare QR signing data, fake location, or generate answers. The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available.
 
+`assignments list --site <site-id> --json` reads the stored session, refreshes tokens through core, and prints:
+
+```json
+{
+  "records": [
+    {
+      "endTime": "2026-05-03 23:59:59",
+      "id": "work-1",
+      "siteId": "site-1",
+      "siteName": "软件测试",
+      "source": "course",
+      "startTime": "2026-05-01 08:00:00",
+      "status": "pending",
+      "title": "实验报告"
+    }
+  ]
+}
+```
+
+`assignments undone --json` returns the same shape with `source: "undone"`. `assignments detail <assignment-id> --json` returns assignment content, status, score, teacher resources, submitted content, and submitted attachments without tokens.
+
+`assignments upload --file <path> --yes --json` uploads one attachment and prints `{ "fileName": "...", "resourceId": "...", "previewUrl": "..." }`. `assignments submit <assignment-id> --content <text> --attachment <resource-id> --yes --json` submits live assignment content and returns `{ "ok": true }`. These commands are mutating and must require `--yes`.
+
+`resources list --site <site-id> --json` prints:
+
+```json
+{
+  "records": [
+    {
+      "ext": "pdf",
+      "name": "课件.pdf",
+      "resourceId": "resource-1",
+      "siteId": "site-1",
+      "siteName": "软件测试",
+      "sizeBytes": 1024,
+      "updatedAt": "2026-05-02 10:00:00"
+    }
+  ]
+}
+```
+
+`resources detail <resource-id> --site <site-id> --json` wraps the detail as `{ "detail": { ... } }` and includes `downloadUrl` when upstream provides one. `resources download` and `resources download-course` require `--out-dir`; they create the directory if needed, do not overwrite existing files, and return `writtenPaths` with the actual saved paths.
+
 ## Agent-Friendly Rules
 
 - `doctor` reports local CLI readiness and credential-store diagnostics. Network login is checked during `login --interactive`, not during `doctor`.
@@ -87,8 +139,9 @@ This command does not submit sign-ins, prepare QR signing data, fake location, o
 - Discovery commands support small default output, `--json`, and stable identifiers.
 - Exact-read commands take IDs from discovery output.
 - Large payloads and downloads should write files and return paths instead of dumping huge content to stdout.
+- Resource file downloads must require explicit `--out-dir`, allocate non-overwriting paths, and return the paths written.
 - Setup/auth failures must explain the missing action without exposing secrets.
 
 ## Write Safety
 
-Mutating commands require explicit confirmation or `--yes`. This includes check-in submission, assignment submission, logout, credential clearing, and destructive cache changes. Agents may run read-only commands freely; live writes require user approval.
+Mutating commands require explicit confirmation or `--yes`. This includes check-in submission, assignment upload, assignment submission, full-course batch downloads, logout, credential clearing, and destructive cache changes. Agents may run read-only commands freely; live writes require user approval.

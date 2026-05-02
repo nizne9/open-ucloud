@@ -11,6 +11,8 @@ cargo fmt --all
 cargo clippy --workspace --all-targets
 cargo test --workspace
 cargo run -p open-cloud-cli -- --help
+cargo run -p open-cloud-cli -- assignments --help
+cargo run -p open-cloud-cli -- resources --help
 cargo run -p open-cloud-cli -- doctor
 ```
 
@@ -41,6 +43,8 @@ Run `cargo run -p open-cloud-cli -- doctor` for the default Linux package. Verif
 - Storage must avoid plaintext credentials by default.
 - Logs must redact usernames, tokens, cookies, passwords, and upstream session data.
 - CLI login must remain interactive unless a future secure credential handoff is explicitly designed.
+- Assignment upload, assignment submit, and full-course resource download must keep explicit `--yes` gates.
+- Resource downloads must require `--out-dir` and avoid overwriting existing files.
 - Secure session persistence must use the platform credential store and return a stable error when unavailable; do not add plaintext fallback storage for tokens.
 
 ## Future Mechanical Checks

@@ -1,9 +1,11 @@
+mod assignments;
 mod attendance;
 mod auth;
 mod client;
 mod courses;
 mod error;
 mod protocol;
+mod resources;
 mod session;
 mod transport;
 
@@ -12,4 +14,6 @@ pub use client::{OpenCloudClient, OpenCloudEndpoints};
 pub use courses::resolve_course_detail;
 pub use error::AuthError;
 pub use session::{refresh_session_if_needed, SessionManager};
-pub use transport::{HttpClient, HttpMethod, HttpRequest, HttpResponse, ReqwestHttpClient};
+pub use transport::{
+    HttpBody, HttpClient, HttpMethod, HttpRequest, HttpResponse, ReqwestHttpClient,
+};

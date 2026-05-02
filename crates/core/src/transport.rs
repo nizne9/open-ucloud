@@ -12,7 +12,30 @@ pub struct HttpRequest {
     pub method: HttpMethod,
     pub url: String,
     pub headers: Vec<(String, String)>,
-    pub body: Option<String>,
+    pub body: Option<HttpBody>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum HttpBody {
+    Text(String),
+    Bytes(Vec<u8>),
+}
+
+impl HttpBody {
+    pub fn text(value: impl Into<String>) -> Self {
+        Self::Text(value.into())
+    }
+
+    pub fn bytes(value: impl Into<Vec<u8>>) -> Self {
+        Self::Bytes(value.into())
+    }
+
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Self::Text(value) => Some(value.as_str()),
+            Self::Bytes(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,7 +91,10 @@ impl HttpClient for ReqwestHttpClient {
             builder = builder.header(name, value);
         }
         if let Some(body) = request.body {
-            builder = builder.body(body);
+            builder = match body {
+                HttpBody::Text(value) => builder.body(value),
+                HttpBody::Bytes(value) => builder.body(value),
+            };
         }
         let response = builder
             .send()
