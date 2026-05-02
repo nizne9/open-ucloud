@@ -290,7 +290,7 @@ async fn upload_assignment_file_escapes_multipart_filename() {
     let result = client
         .upload_assignment_file(
             &assignment_detail(AssignmentStatus::Pending),
-            "报告\"\\\r\nX-Test: injected.pdf",
+            "报告\"\\.pdf",
             b"pdf-bytes",
             "u-1",
             "access-token",
@@ -301,11 +301,28 @@ async fn upload_assignment_file_escapes_multipart_filename() {
     assert_eq!(result.resource_id, "resource-1");
     let request = http.requests().first().expect("upload request").clone();
     let body = body_text(&request);
-    assert!(body.contains(r#"filename="报告\"\\__X-Test: injected.pdf""#));
-    assert!(
-        body.contains("filename*=UTF-8''%E6%8A%A5%E5%91%8A%22%5C%0D%0AX-Test%3A%20injected.pdf")
-    );
-    assert!(!body.contains("\r\nX-Test: injected.pdf"));
+    assert!(body.contains(r#"filename="报告\"\\.pdf""#));
+    assert!(!body.contains("filename*="));
+}
+
+#[tokio::test]
+async fn upload_assignment_file_rejects_header_breaking_filename() {
+    let http = MockHttp::with(Vec::new());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let error = client
+        .upload_assignment_file(
+            &assignment_detail(AssignmentStatus::Pending),
+            "报告\r\nX-Test: injected.pdf",
+            b"pdf-bytes",
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect_err("header-breaking filename is rejected");
+
+    assert_eq!(error.code, AuthErrorCode::InvalidFileName);
+    assert!(http.requests().is_empty());
 }
 
 #[tokio::test]

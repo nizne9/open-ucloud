@@ -470,6 +470,12 @@ fn resolve_assignment_status(record: &RawAssignmentSummary) -> AssignmentStatus 
 }
 
 fn validate_assignment_upload(file_name: &str, bytes: &[u8]) -> Result<(), AuthError> {
+    if file_name.contains(['\r', '\n']) {
+        return Err(AuthError::new(
+            AuthErrorCode::InvalidFileName,
+            "上传文件名不能包含换行符。",
+        ));
+    }
     if bytes.is_empty() {
         return Err(AuthError::new(
             AuthErrorCode::EmptyUpload,
@@ -530,16 +536,13 @@ fn json_headers(access_token: &str) -> Vec<(String, String)> {
 fn multipart_upload_body(file_name: &str, bytes: &[u8], user_id: &str) -> (String, Vec<u8>) {
     let boundary = "----open-cloud-assignment-upload-boundary";
     let filename = multipart_quoted_string(file_name);
-    let filename_star = percent_encode_attr_value(file_name);
     let mut body = Vec::new();
     push_field(&mut body, boundary, "userId", user_id.as_bytes());
     push_field(&mut body, boundary, "bizType", b"3");
     body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
     body.extend_from_slice(
-        format!(
-            "Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"; filename*=UTF-8''{filename_star}\r\n\r\n"
-        )
-        .as_bytes(),
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n\r\n")
+            .as_bytes(),
     );
     body.extend_from_slice(bytes);
     body.extend_from_slice(b"\r\n");
@@ -553,33 +556,7 @@ fn multipart_quoted_string(value: &str) -> String {
         match ch {
             '"' => output.push_str("\\\""),
             '\\' => output.push_str("\\\\"),
-            '\r' | '\n' => output.push('_'),
             other => output.push(other),
-        }
-    }
-    output
-}
-
-fn percent_encode_attr_value(value: &str) -> String {
-    let mut output = String::new();
-    for byte in value.as_bytes() {
-        match *byte {
-            b'0'..=b'9'
-            | b'A'..=b'Z'
-            | b'a'..=b'z'
-            | b'!'
-            | b'#'
-            | b'$'
-            | b'&'
-            | b'+'
-            | b'-'
-            | b'.'
-            | b'^'
-            | b'_'
-            | b'`'
-            | b'|'
-            | b'~' => output.push(*byte as char),
-            byte => output.push_str(&format!("%{byte:02X}")),
         }
     }
     output

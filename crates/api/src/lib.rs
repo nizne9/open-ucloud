@@ -7,6 +7,7 @@ pub enum AuthErrorCode {
     CaptchaInvalid,
     EmptyUpload,
     FileTooLarge,
+    InvalidFileName,
     FileTypeNotAllowed,
     FlowExpired,
     InvalidCredentials,

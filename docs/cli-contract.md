@@ -118,6 +118,8 @@ This command does not submit sign-ins, prepare QR signing data, fake location, o
 
 `assignments submit <assignment-id> --content <text> --attachment <resource-id> --yes --json` submits live assignment content and returns `{ "ok": true }`. Upload and submit commands are mutating and must require `--yes`.
 
+Assignment uploads use RFC 7578-style `multipart/form-data` with a single UTF-8 `filename` parameter. The client must not send `filename*` in multipart part headers. File names containing CR or LF are rejected before any request is sent because they cannot be represented safely in part headers.
+
 `resources list --site <site-id> --json` prints:
 
 ```json
