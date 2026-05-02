@@ -253,7 +253,7 @@ where
     ) -> Result<Vec<AssignmentResource>, AuthError> {
         let ids = resources
             .into_iter()
-            .filter_map(|item| item.resource_id)
+            .filter_map(|item| value_to_string_opt(item.resource_id))
             .collect::<Vec<_>>();
         let details = self.get_resource_details_by_ids(&ids, access_token).await?;
         self.assignment_resources_from_details(details).await
@@ -392,7 +392,7 @@ impl RawAssignmentDetail {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct RawAssignmentResourceRef {
-    resource_id: Option<String>,
+    resource_id: Option<serde_json::Value>,
 }
 
 fn to_assignment_summary(
