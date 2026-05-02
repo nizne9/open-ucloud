@@ -688,52 +688,66 @@ where
             keyword,
             json,
         } => {
-            let response = client
-                .get_course_assignments(
-                    &site,
-                    site_name.as_deref().unwrap_or_default(),
-                    &session.access_token,
-                    &keyword,
-                )
-                .await
-                .map_err(to_response_error)?;
+            let response = json_cli_result(
+                client
+                    .get_course_assignments(
+                        &site,
+                        site_name.as_deref().unwrap_or_default(),
+                        &session.access_token,
+                        &keyword,
+                    )
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             print_assignment_list(&response, json)?;
         }
         AssignmentCommands::Undone { json } => {
-            let response = client
-                .get_undone_assignments(&session.user.user_id, &session.access_token)
-                .await
-                .map_err(to_response_error)?;
+            let response = json_cli_result(
+                client
+                    .get_undone_assignments(&session.user.user_id, &session.access_token)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             print_assignment_list(&response, json)?;
         }
         AssignmentCommands::Detail {
             assignment_id,
             json,
         } => {
-            let detail = client
-                .get_assignment_detail(&assignment_id, &session.access_token)
-                .await
-                .map_err(to_response_error)?;
+            let detail = json_cli_result(
+                client
+                    .get_assignment_detail(&assignment_id, &session.access_token)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             print_assignment_detail(&detail, json)?;
         }
         AssignmentCommands::Upload { file, json, .. } => {
-            let bytes = std::fs::read(&file)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+            let bytes = json_cli_result(
+                std::fs::read(&file)
+                    .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string())),
+                json,
+            )?;
             let file_name = file
                 .file_name()
                 .and_then(|name| name.to_str())
-                .ok_or_else(|| {
-                    error(AuthErrorCode::UnknownAuthError, "invalid upload file name")
-                })?;
-            let response = client
-                .upload_assignment_file(
-                    file_name,
-                    &bytes,
-                    &session.user.user_id,
-                    &session.access_token,
-                )
-                .await
-                .map_err(to_response_error)?;
+                .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "invalid upload file name"));
+            let file_name = json_cli_result(file_name, json)?;
+            let response = json_cli_result(
+                client
+                    .upload_assignment_file(
+                        file_name,
+                        &bytes,
+                        &session.user.user_id,
+                        &session.access_token,
+                    )
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             print_assignment_upload(&response, json)?;
         }
         AssignmentCommands::Submit {
@@ -746,21 +760,27 @@ where
         } => {
             let content = match (content, content_file) {
                 (Some(content), None) => content,
-                (None, Some(path)) => std::fs::read_to_string(path)
-                    .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?,
+                (None, Some(path)) => json_cli_result(
+                    std::fs::read_to_string(path)
+                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string())),
+                    json,
+                )?,
                 (None, None) => String::new(),
                 (Some(_), Some(_)) => unreachable!("clap prevents both content inputs"),
             };
-            let response = client
-                .submit_assignment(
-                    &assignment_id,
-                    &session.user.user_id,
-                    &content,
-                    &attachments,
-                    &session.access_token,
-                )
-                .await
-                .map_err(to_response_error)?;
+            let response = json_cli_result(
+                client
+                    .submit_assignment(
+                        &assignment_id,
+                        &session.user.user_id,
+                        &content,
+                        &attachments,
+                        &session.access_token,
+                    )
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             print_assignment_submit(&response, json)?;
         }
     }
@@ -791,15 +811,18 @@ where
             site_name,
             json,
         } => {
-            let response = client
-                .get_course_resources(
-                    &site,
-                    site_name.as_deref().unwrap_or_default(),
-                    &session.user.user_id,
-                    &session.access_token,
-                )
-                .await
-                .map_err(to_response_error)?;
+            let response = json_cli_result(
+                client
+                    .get_course_resources(
+                        &site,
+                        site_name.as_deref().unwrap_or_default(),
+                        &session.user.user_id,
+                        &session.access_token,
+                    )
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             print_resource_list(&response, json)?;
         }
         ResourceCommands::Detail {
@@ -808,15 +831,18 @@ where
             site_name,
             json,
         } => {
-            let detail = client
-                .get_resource_detail(
-                    &resource_id,
-                    &site,
-                    site_name.as_deref().unwrap_or_default(),
-                    &session.access_token,
-                )
-                .await
-                .map_err(to_response_error)?;
+            let detail = json_cli_result(
+                client
+                    .get_resource_detail(
+                        &resource_id,
+                        &site,
+                        site_name.as_deref().unwrap_or_default(),
+                        &session.access_token,
+                    )
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             print_resource_detail(&detail, json)?;
         }
         ResourceCommands::Download {
@@ -826,16 +852,22 @@ where
             out_dir,
             json,
         } => {
-            let detail = client
-                .get_resource_detail(
-                    &resource_id,
-                    &site,
-                    site_name.as_deref().unwrap_or_default(),
-                    &session.access_token,
-                )
-                .await
-                .map_err(to_response_error)?;
-            let path = download_resource_to_dir(&client, &detail, &out_dir).await?;
+            let detail = json_cli_result(
+                client
+                    .get_resource_detail(
+                        &resource_id,
+                        &site,
+                        site_name.as_deref().unwrap_or_default(),
+                        &session.access_token,
+                    )
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
+            let path = json_cli_result(
+                download_resource_to_dir(&client, &detail, &out_dir).await,
+                json,
+            )?;
             let response = CourseResourceDownloadResponse {
                 records: vec![detail],
                 written_paths: vec![path.display().to_string()],
@@ -850,28 +882,37 @@ where
             ..
         } => {
             let site_name_value = site_name.unwrap_or_default();
-            let list = client
-                .get_course_resources(
-                    &site,
-                    &site_name_value,
-                    &session.user.user_id,
-                    &session.access_token,
-                )
-                .await
-                .map_err(to_response_error)?;
-            let mut records = Vec::new();
-            let mut paths = Vec::new();
-            for resource in list.records {
-                let detail = client
-                    .get_resource_detail(
-                        &resource.resource_id,
+            let list = json_cli_result(
+                client
+                    .get_course_resources(
                         &site,
                         &site_name_value,
+                        &session.user.user_id,
                         &session.access_token,
                     )
                     .await
-                    .map_err(to_response_error)?;
-                let path = download_resource_to_dir(&client, &detail, &out_dir).await?;
+                    .map_err(to_response_error),
+                json,
+            )?;
+            let mut records = Vec::new();
+            let mut paths = Vec::new();
+            for resource in list.records {
+                let detail = json_cli_result(
+                    client
+                        .get_resource_detail(
+                            &resource.resource_id,
+                            &site,
+                            &site_name_value,
+                            &session.access_token,
+                        )
+                        .await
+                        .map_err(to_response_error),
+                    json,
+                )?;
+                let path = json_cli_result(
+                    download_resource_to_dir(&client, &detail, &out_dir).await,
+                    json,
+                )?;
                 paths.push(path.display().to_string());
                 records.push(detail);
             }
@@ -904,6 +945,24 @@ where
         }
         Err(error_response) => Err(error_response.into()),
     }
+}
+
+fn json_cli_result<T>(result: Result<T, AuthErrorResponse>, json: bool) -> Result<T, CliError> {
+    match result {
+        Ok(value) => Ok(value),
+        Err(error_response) => match cli_error_response(error_response, json) {
+            Err(error) => Err(error),
+            Ok(()) => unreachable!("cli_error_response always returns an error"),
+        },
+    }
+}
+
+fn cli_error_response(error_response: AuthErrorResponse, json: bool) -> Result<(), CliError> {
+    if json {
+        print_json_error_response(&error_response)?;
+        return Err(CliError::JsonErrorPrinted(error_response));
+    }
+    Err(error_response.into())
 }
 
 fn assignment_json_flag(command: &AssignmentCommands) -> bool {
@@ -1181,7 +1240,7 @@ async fn download_resource_to_dir<C>(
     client: &OpenCloudClient<C>,
     detail: &CourseResourceDetail,
     out_dir: &Path,
-) -> Result<PathBuf, CliError>
+) -> Result<PathBuf, AuthErrorResponse>
 where
     C: open_cloud_core::HttpClient,
 {
@@ -1436,5 +1495,15 @@ mod tests {
         assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
         assert_eq!(err.message, "未找到课程：missing。");
         assert_eq!(http.request_count(), 1);
+    }
+
+    #[test]
+    fn json_cli_error_is_marked_as_already_printed() {
+        let response = error(AuthErrorCode::UpstreamUnavailable, "upstream failed");
+
+        let err = cli_error_response(response, true).expect_err("json error returns cli error");
+
+        assert!(err.json_error_was_printed());
+        assert_eq!(err.response().code, AuthErrorCode::UpstreamUnavailable);
     }
 }
