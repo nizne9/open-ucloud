@@ -511,7 +511,7 @@ fn validate_assignment_upload(file_name: &str, bytes: &[u8]) -> Result<(), AuthE
     }
     let extension = file_name
         .rsplit_once('.')
-        .map(|(_, extension)| extension.to_ascii_lowercase());
+        .map(|(_, extension)| extension.trim().to_ascii_lowercase());
     if extension
         .as_deref()
         .is_some_and(|extension| BLOCKED_UPLOAD_EXTENSIONS.contains(&extension))

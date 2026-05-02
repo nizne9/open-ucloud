@@ -486,6 +486,26 @@ async fn upload_assignment_file_rejects_header_breaking_filename() {
 }
 
 #[tokio::test]
+async fn upload_assignment_file_rejects_blocked_extension_with_trailing_space() {
+    let http = MockHttp::with(Vec::new());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let error = client
+        .upload_assignment_file(
+            &assignment_detail(AssignmentStatus::Pending),
+            "script.sh ",
+            b"script bytes",
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect_err("blocked extension with trailing space is rejected");
+
+    assert_eq!(error.code, AuthErrorCode::FileTypeNotAllowed);
+    assert!(http.requests().is_empty());
+}
+
+#[tokio::test]
 async fn get_course_resources_flattens_tree_and_dedupes() {
     let http = MockHttp::with(vec![response(
         200,
