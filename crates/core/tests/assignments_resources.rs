@@ -62,6 +62,13 @@ fn header_value<'a>(request: &'a HttpRequest, header: &str) -> &'a str {
         .expect("header exists")
 }
 
+fn has_header(request: &HttpRequest, header: &str, expected: &str) -> bool {
+    request
+        .headers
+        .iter()
+        .any(|(name, value)| name.eq_ignore_ascii_case(header) && value == expected)
+}
+
 fn assignment_detail(status: AssignmentStatus) -> AssignmentDetailResponse {
     AssignmentDetailResponse {
         class_name: "1 班".to_string(),
@@ -207,7 +214,7 @@ async fn get_assignment_detail_loads_teacher_and_submitted_resources() {
             r#"{"success":true,"data":{"previewUrl":"https://files.example/student"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
     let detail = client
         .get_assignment_detail("work-1", "access-token")
@@ -227,6 +234,9 @@ async fn get_assignment_detail_loads_teacher_and_submitted_resources() {
         Some("https://files.example/teacher")
     );
     assert_eq!(detail.submitted_attachments[0].resource_id, "student-1");
+    let requests = http.requests();
+    assert!(has_header(&requests[2], "Blade-Auth", "access-token"));
+    assert!(has_header(&requests[3], "Blade-Auth", "access-token"));
 }
 
 #[tokio::test]
@@ -316,6 +326,8 @@ async fn upload_assignment_file_sends_multipart_and_preview_url() {
     let body = body_text(&request);
     assert!(body.contains(r#"name="bizType""#));
     assert!(body.contains(r#"name="file"; filename="report.pdf""#));
+    let preview_request = http.requests().get(1).expect("preview request").clone();
+    assert!(has_header(&preview_request, "Blade-Auth", "access-token"));
 }
 
 #[tokio::test]
@@ -487,7 +499,7 @@ async fn get_resource_detail_adds_download_url() {
             r#"{"success":true,"data":{"previewUrl":"https://files.example/resource"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
     let detail = client
         .get_resource_detail("resource-1", "site-1", "软件测试", "access-token")
@@ -500,4 +512,6 @@ async fn get_resource_detail_adds_download_url() {
         detail.download_url.as_deref(),
         Some("https://files.example/resource")
     );
+    let requests = http.requests();
+    assert!(has_header(&requests[1], "Blade-Auth", "access-token"));
 }

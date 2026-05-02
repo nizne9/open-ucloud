@@ -59,12 +59,14 @@ where
             .into_iter()
             .find(|detail| raw_resource_id(detail).as_deref() == Some(resource_id))
             .ok_or_else(|| AuthError::upstream("资料详情加载失败，请稍后重试。"))?;
-        self.to_resource_detail(resource, site_id, site_name).await
+        self.to_resource_detail(resource, site_id, site_name, access_token)
+            .await
     }
 
     pub async fn get_resource_download_url(
         &self,
         resource_id: &str,
+        access_token: &str,
     ) -> Result<Option<String>, AuthError> {
         let mut url = url::Url::parse(&self.endpoints.resource_preview_url)
             .map_err(|error| AuthError::upstream(error.to_string()))?;
@@ -74,7 +76,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: vec![("authorization".to_string(), PORTAL_BASIC_AUTH.to_string())],
+                headers: portal_json_headers(access_token),
                 body: None,
             })
             .await?;
@@ -142,12 +144,14 @@ where
         resource: RawResourceDetail,
         site_id: &str,
         site_name: &str,
+        access_token: &str,
     ) -> Result<CourseResourceDetail, AuthError> {
         let resource_id = raw_resource_id(&resource).unwrap_or_default();
         let download_url = if resource_id.is_empty() {
             None
         } else {
-            self.get_resource_download_url(&resource_id).await?
+            self.get_resource_download_url(&resource_id, access_token)
+                .await?
         };
         Ok(CourseResourceDetail {
             description: pick_string([

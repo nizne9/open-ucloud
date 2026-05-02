@@ -130,7 +130,7 @@ where
             )
             .await?;
         let submitted_attachments = self
-            .assignment_resources_from_details(submitted_source)
+            .assignment_resources_from_details(submitted_source, access_token)
             .await?;
         let summary = detail.summary();
         Ok(AssignmentDetailResponse {
@@ -236,7 +236,9 @@ where
             })
             .await?;
         let resource_id: String = parse_ucloud_envelope(response, "附件上传失败，请稍后重试。")?;
-        let preview_url = self.get_resource_download_url(&resource_id).await?;
+        let preview_url = self
+            .get_resource_download_url(&resource_id, access_token)
+            .await?;
         Ok(AssignmentUploadResponse {
             assignment_id: assignment.id.clone(),
             file_name: file_name.to_string(),
@@ -257,19 +259,23 @@ where
             .filter_map(|item| value_to_string_opt(item.resource_id))
             .collect::<Vec<_>>();
         let details = self.get_resource_details_by_ids(&ids, access_token).await?;
-        self.assignment_resources_from_details(details).await
+        self.assignment_resources_from_details(details, access_token)
+            .await
     }
 
     async fn assignment_resources_from_details(
         &self,
         resources: Vec<RawResourceDetail>,
+        access_token: &str,
     ) -> Result<Vec<AssignmentResource>, AuthError> {
         let mut output = Vec::new();
         for detail in resources {
             let Some(resource_id) = raw_resource_id(&detail) else {
                 continue;
             };
-            let preview_url = self.get_resource_download_url(&resource_id).await?;
+            let preview_url = self
+                .get_resource_download_url(&resource_id, access_token)
+                .await?;
             output.push(AssignmentResource {
                 ext: detail.ext,
                 name: pick_string([detail.name, detail.file_name, Some(resource_id.clone())])
