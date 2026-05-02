@@ -248,6 +248,37 @@ async fn upload_assignment_file_sends_multipart_and_preview_url() {
 }
 
 #[tokio::test]
+async fn upload_assignment_file_escapes_multipart_filename() {
+    let http = MockHttp::with(vec![
+        response(200, r#"{"success":true,"data":"resource-1"}"#),
+        response(
+            200,
+            r#"{"success":true,"data":{"previewUrl":"https://files.example/report"}}"#,
+        ),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let result = client
+        .upload_assignment_file(
+            "报告\"\\\r\nX-Test: injected.pdf",
+            b"pdf-bytes",
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect("upload succeeds");
+
+    assert_eq!(result.resource_id, "resource-1");
+    let request = http.requests().first().expect("upload request").clone();
+    let body = body_text(&request);
+    assert!(body.contains(r#"filename="报告\"\\__X-Test: injected.pdf""#));
+    assert!(
+        body.contains("filename*=UTF-8''%E6%8A%A5%E5%91%8A%22%5C%0D%0AX-Test%3A%20injected.pdf")
+    );
+    assert!(!body.contains("\r\nX-Test: injected.pdf"));
+}
+
+#[tokio::test]
 async fn get_course_resources_flattens_tree_and_dedupes() {
     let http = MockHttp::with(vec![response(
         200,
