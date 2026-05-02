@@ -81,6 +81,7 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
         r#"{"success":true,"data":{"records":[
           {"id":"work-1","assignmentTitle":"实验报告","siteId":1001,"siteName":"软件测试","assignmentBeginTime":"2026-05-01","assignmentEndTime":"2099-05-03","isCommit":0},
           {"id":"work-2","title":"已提交作业","siteId":"site-1","statusName":"已提交","startTime":"2026-05-01","endTime":"2099-05-03"},
+          {"id":"work-3","assignmentTitle":"省略课程 ID","assignmentEndTime":"2099-05-03"},
           {"id":"","assignmentTitle":"空 ID","siteId":"site-1"}
         ]}}"#,
     )]);
@@ -91,12 +92,15 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
         .await
         .expect("assignments load");
 
-    assert_eq!(result.records.len(), 2);
+    assert_eq!(result.records.len(), 3);
     assert_eq!(result.records[0].id, "work-1");
     assert_eq!(result.records[0].site_id, "1001");
     assert_eq!(result.records[0].site_name, "软件测试");
     assert_eq!(result.records[0].status, AssignmentStatus::Pending);
     assert_eq!(result.records[1].status, AssignmentStatus::Submitted);
+    assert_eq!(result.records[2].id, "work-3");
+    assert_eq!(result.records[2].site_id, "site-1");
+    assert_eq!(result.records[2].site_name, "软件测试");
 
     let request = http.requests().pop().expect("assignment request");
     assert_eq!(request.method, HttpMethod::Post);

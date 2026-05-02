@@ -48,7 +48,7 @@ where
                 .records
                 .unwrap_or_default()
                 .into_iter()
-                .filter_map(|record| to_assignment_summary(record, "course", site_name))
+                .filter_map(|record| to_assignment_summary(record, "course", site_id, site_name))
                 .collect(),
         })
     }
@@ -89,6 +89,7 @@ where
                             ..RawAssignmentSummary::default()
                         },
                         "undone",
+                        "",
                         "",
                     )
                 })
@@ -397,6 +398,7 @@ struct RawAssignmentResourceRef {
 fn to_assignment_summary(
     record: RawAssignmentSummary,
     source: &str,
+    fallback_site_id: &str,
     fallback_site_name: &str,
 ) -> Option<AssignmentSummary> {
     let id = value_to_string_opt(record.id.clone())?;
@@ -407,7 +409,9 @@ fn to_assignment_summary(
         end_time: pick_string([record.assignment_end_time.clone(), record.end_time.clone()])
             .unwrap_or_default(),
         id,
-        site_id: value_to_string_opt(record.site_id.clone()).unwrap_or_default(),
+        site_id: value_to_string_opt(record.site_id.clone())
+            .or_else(|| (!fallback_site_id.is_empty()).then(|| fallback_site_id.to_string()))
+            .unwrap_or_default(),
         site_name: pick_string([
             record.site_name.clone(),
             Some(fallback_site_name.to_string()),
