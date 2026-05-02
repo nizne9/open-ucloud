@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 
 const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
+const MAX_DOWNLOAD_REDIRECTS: usize = 10;
 
 impl<C> OpenCloudClient<C>
 where
@@ -92,22 +93,34 @@ where
     }
 
     pub async fn download_url_bytes(&self, url: &str) -> Result<Vec<u8>, AuthError> {
-        let response = self
-            .http
-            .send(HttpRequest {
-                method: HttpMethod::Get,
-                url: url.to_string(),
-                headers: Vec::new(),
-                body: None,
-            })
-            .await?;
-        if !(200..300).contains(&response.status) {
+        let mut next_url = url.to_string();
+        for _ in 0..=MAX_DOWNLOAD_REDIRECTS {
+            let response = self
+                .http
+                .send(HttpRequest {
+                    method: HttpMethod::Get,
+                    url: next_url.clone(),
+                    headers: Vec::new(),
+                    body: None,
+                })
+                .await?;
+            if (200..300).contains(&response.status) {
+                return Ok(response.body);
+            }
+            if is_download_redirect(response.status) {
+                let location = response
+                    .header("Location")
+                    .ok_or_else(|| AuthError::upstream("资料下载重定向缺少 Location。"))?
+                    .to_string();
+                next_url = resolve_download_redirect(&next_url, &location)?;
+                continue;
+            }
             return Err(AuthError::upstream(format!(
                 "资料下载失败。 HTTP status {}.",
                 response.status
             )));
         }
-        Ok(response.body)
+        Err(AuthError::upstream("资料下载重定向次数过多。"))
     }
 
     pub(crate) async fn get_resource_details_by_ids(
@@ -171,6 +184,17 @@ where
                 .unwrap_or_default(),
         })
     }
+}
+
+fn is_download_redirect(status: u16) -> bool {
+    matches!(status, 301 | 302 | 303 | 307 | 308)
+}
+
+fn resolve_download_redirect(current_url: &str, location: &str) -> Result<String, AuthError> {
+    url::Url::parse(current_url)
+        .and_then(|base| base.join(location))
+        .map(|url| url.to_string())
+        .map_err(|error| AuthError::upstream(error.to_string()))
 }
 
 pub(crate) fn portal_json_headers(access_token: &str) -> Vec<(String, String)> {

@@ -46,6 +46,17 @@ fn response(status: u16, body: &str) -> HttpResponse {
     }
 }
 
+fn response_with_headers(status: u16, headers: &[(&str, &str)], body: &str) -> HttpResponse {
+    HttpResponse {
+        status,
+        headers: headers
+            .iter()
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .collect(),
+        body: body.as_bytes().to_vec(),
+    }
+}
+
 fn body_text(request: &HttpRequest) -> String {
     match request.body.as_ref().expect("request body") {
         HttpBody::Text(value) => value.clone(),
@@ -533,4 +544,27 @@ async fn get_resource_detail_adds_download_url() {
     );
     let requests = http.requests();
     assert!(has_header(&requests[1], "Blade-Auth", "access-token"));
+}
+
+#[tokio::test]
+async fn download_url_bytes_follows_download_redirects() {
+    let http = MockHttp::with(vec![
+        response_with_headers(
+            302,
+            &[("Location", "https://files.example/object/resource-1")],
+            "",
+        ),
+        response(200, "file bytes"),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let bytes = client
+        .download_url_bytes("https://files.example/download/resource-1")
+        .await
+        .expect("download follows redirect");
+
+    assert_eq!(bytes, b"file bytes");
+    let requests = http.requests();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[1].url, "https://files.example/object/resource-1");
 }
