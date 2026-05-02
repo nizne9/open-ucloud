@@ -673,11 +673,13 @@ where
 {
     let json = assignment_json_flag(&command);
     if assignment_requires_yes(&command) {
-        return Err(error(
-            AuthErrorCode::UnknownAuthError,
-            "assignment write commands are mutating; rerun with --yes.",
-        )
-        .into());
+        return cli_error_response(
+            error(
+                AuthErrorCode::UnknownAuthError,
+                "assignment write commands are mutating; rerun with --yes.",
+            ),
+            json,
+        );
     }
     let http = ReqwestHttpClient::new().map_err(to_response_error)?;
     let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
@@ -819,11 +821,13 @@ where
 {
     let json = resource_json_flag(&command);
     if resource_requires_yes(&command) {
-        return Err(error(
-            AuthErrorCode::UnknownAuthError,
-            "resource batch download is mutating; rerun with --yes.",
-        )
-        .into());
+        return cli_error_response(
+            error(
+                AuthErrorCode::UnknownAuthError,
+                "resource batch download is mutating; rerun with --yes.",
+            ),
+            json,
+        );
     }
     let http = ReqwestHttpClient::new().map_err(to_response_error)?;
     let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());

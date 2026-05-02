@@ -259,6 +259,53 @@ async fn assignment_writes_require_yes_before_session_load() {
     assert!(err.response().message.contains("--yes"));
 }
 
+#[tokio::test]
+async fn assignment_writes_preserve_json_errors_for_missing_yes() {
+    let cli = Cli::try_parse_from([
+        "open-cloud",
+        "assignments",
+        "submit",
+        "work-1",
+        "--content",
+        "答案",
+        "--json",
+    ])
+    .expect("submit parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_cloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing yes fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::UnknownAuthError);
+    assert!(err.response().message.contains("--yes"));
+}
+
+#[tokio::test]
+async fn resource_batch_writes_preserve_json_errors_for_missing_yes() {
+    let cli = Cli::try_parse_from([
+        "open-cloud",
+        "resources",
+        "download-course",
+        "--site",
+        "site-1",
+        "--out-dir",
+        ".",
+        "--json",
+    ])
+    .expect("download-course parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_cloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing yes fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::UnknownAuthError);
+    assert!(err.response().message.contains("--yes"));
+}
+
 #[test]
 fn allocates_non_overwriting_download_paths() {
     let dir = std::env::temp_dir().join(format!("open-cloud-cli-test-{}", uuid::Uuid::new_v4()));
