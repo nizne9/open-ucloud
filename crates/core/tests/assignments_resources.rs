@@ -53,6 +53,15 @@ fn body_text(request: &HttpRequest) -> String {
     }
 }
 
+fn header_value<'a>(request: &'a HttpRequest, header: &str) -> &'a str {
+    request
+        .headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(header))
+        .map(|(_, value)| value.as_str())
+        .expect("header exists")
+}
+
 fn assignment_detail(status: AssignmentStatus) -> AssignmentDetailResponse {
     AssignmentDetailResponse {
         class_name: "1 班".to_string(),
@@ -307,6 +316,82 @@ async fn upload_assignment_file_sends_multipart_and_preview_url() {
     let body = body_text(&request);
     assert!(body.contains(r#"name="bizType""#));
     assert!(body.contains(r#"name="file"; filename="report.pdf""#));
+}
+
+#[tokio::test]
+async fn upload_assignment_file_uses_boundary_that_does_not_collide_with_file_bytes() {
+    let http = MockHttp::with(vec![
+        response(200, r#"{"success":true,"data":"resource-1"}"#),
+        response(
+            200,
+            r#"{"success":true,"data":{"previewUrl":"https://files.example/report"}}"#,
+        ),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let bytes = b"before\r\n------open-cloud-assignment-upload-boundary\r\nafter";
+
+    client
+        .upload_assignment_file(
+            &assignment_detail(AssignmentStatus::Pending),
+            "report.pdf",
+            bytes,
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect("upload succeeds");
+
+    let request = http.requests().first().expect("upload request").clone();
+    let boundary = header_value(&request, "content-type")
+        .strip_prefix("multipart/form-data; boundary=")
+        .expect("multipart boundary");
+    let delimiter = format!("--{boundary}");
+
+    assert!(!bytes
+        .windows(delimiter.len())
+        .any(|window| window == delimiter.as_bytes()));
+}
+
+#[tokio::test]
+async fn upload_assignment_file_derives_boundary_from_upload_values() {
+    let http = MockHttp::with(vec![
+        response(200, r#"{"success":true,"data":"resource-1"}"#),
+        response(200, r#"{"success":true,"data":{"previewUrl":"one"}}"#),
+        response(200, r#"{"success":true,"data":"resource-2"}"#),
+        response(200, r#"{"success":true,"data":{"previewUrl":"two"}}"#),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    client
+        .upload_assignment_file(
+            &assignment_detail(AssignmentStatus::Pending),
+            "one.pdf",
+            b"one",
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect("first upload succeeds");
+    client
+        .upload_assignment_file(
+            &assignment_detail(AssignmentStatus::Pending),
+            "two.pdf",
+            b"two",
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect("second upload succeeds");
+
+    let requests = http.requests();
+    let first_boundary = header_value(&requests[0], "content-type")
+        .strip_prefix("multipart/form-data; boundary=")
+        .expect("first multipart boundary");
+    let second_boundary = header_value(&requests[2], "content-type")
+        .strip_prefix("multipart/form-data; boundary=")
+        .expect("second multipart boundary");
+
+    assert_ne!(first_boundary, second_boundary);
 }
 
 #[tokio::test]

@@ -6,6 +6,7 @@ use open_cloud_api::{
     AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse, AuthErrorCode,
 };
 use serde::Deserialize;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
 const MAX_ASSIGNMENT_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
@@ -548,11 +549,19 @@ fn json_headers(access_token: &str) -> Vec<(String, String)> {
 }
 
 fn multipart_upload_body(file_name: &str, bytes: &[u8], user_id: &str) -> (String, Vec<u8>) {
-    let boundary = "----open-cloud-assignment-upload-boundary";
     let filename = multipart_quoted_string(file_name);
+    let boundary = multipart_boundary(
+        [
+            user_id.as_bytes(),
+            b"3".as_slice(),
+            filename.as_bytes(),
+            bytes,
+        ]
+        .as_slice(),
+    );
     let mut body = Vec::new();
-    push_field(&mut body, boundary, "userId", user_id.as_bytes());
-    push_field(&mut body, boundary, "bizType", b"3");
+    push_field(&mut body, &boundary, "userId", user_id.as_bytes());
+    push_field(&mut body, &boundary, "bizType", b"3");
     body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
     body.extend_from_slice(
         format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n\r\n")
@@ -562,6 +571,35 @@ fn multipart_upload_body(file_name: &str, bytes: &[u8], user_id: &str) -> (Strin
     body.extend_from_slice(b"\r\n");
     body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
     (format!("multipart/form-data; boundary={boundary}"), body)
+}
+
+fn multipart_boundary(values: &[&[u8]]) -> String {
+    let seed = multipart_boundary_seed(values);
+    let base = format!("----open-cloud-assignment-upload-boundary-{seed:016x}");
+    for suffix in 0.. {
+        let boundary = if suffix == 0 {
+            base.clone()
+        } else {
+            format!("{base}-{suffix}")
+        };
+        let delimiter = format!("--{boundary}");
+        if values
+            .iter()
+            .all(|value| !contains_bytes(value, delimiter.as_bytes()))
+        {
+            return boundary;
+        }
+    }
+    unreachable!("unbounded boundary suffix search")
+}
+
+fn multipart_boundary_seed(values: &[&[u8]]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for value in values {
+        value.len().hash(&mut hasher);
+        value.hash(&mut hasher);
+    }
+    hasher.finish()
 }
 
 fn multipart_quoted_string(value: &str) -> String {
@@ -574,6 +612,10 @@ fn multipart_quoted_string(value: &str) -> String {
         }
     }
     output
+}
+
+fn contains_bytes(value: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty() && value.windows(needle.len()).any(|window| window == needle)
 }
 
 fn push_field(body: &mut Vec<u8>, boundary: &str, name: &str, value: &[u8]) {
