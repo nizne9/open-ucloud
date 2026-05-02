@@ -15,6 +15,7 @@ Current workspace:
 - `crates/core`: `OpenCloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, assignments, resources, and session access refresh.
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
 - `crates/cli`: `open-cloud` command-line harness.
+- `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication and course DTOs.
 
 The first CLI login is intentionally interactive and persists its session through the system credential store:
 
@@ -44,6 +45,12 @@ cargo run -p open-cloud-cli -- logout --yes
 `courses --json` reads the stored session, refreshes the access token when needed, and returns the current student course list as stable DTOs without printing access tokens, refresh tokens, cookies, or upstream session data.
 
 `courses --with-going --json` also queries the current in-progress course attendance state and returns `goingSites` records with `siteId` and `groupId`. The plain-text form prints `id<TAB>siteName<TAB>going|idle`.
+
+The Flutter-facing FFI facade returns opaque session payloads for Dart secure storage. Flutter stores and returns those payloads unchanged; Rust core still owns login, token expiration checks, and token refresh. Regenerate Dart bindings after FFI API changes with:
+
+```bash
+flutter_rust_bridge_codegen generate
+```
 
 `course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or prepare QR signing data.
 

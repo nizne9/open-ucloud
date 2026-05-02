@@ -1,0 +1,10 @@
+name: open_cloud_ffi
+description: Dart bindings for the Open UCloud Rust facade.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter_rust_bridge: ^2.12.0

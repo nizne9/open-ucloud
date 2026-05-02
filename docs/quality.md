@@ -22,6 +22,12 @@ Flutter work should also run:
 flutter test
 ```
 
+FFI API changes should also regenerate Flutter Rust Bridge bindings:
+
+```bash
+flutter_rust_bridge_codegen generate
+```
+
 Document any new required command in this file and `README.md`.
 
 ## Linux Release Credential Matrix
