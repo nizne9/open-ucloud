@@ -18,7 +18,7 @@ open-cloud attendance --site <site-id> --json
 open-cloud assignments list --site <site-id> --json
 open-cloud assignments undone --json
 open-cloud assignments detail <assignment-id> --json
-open-cloud assignments upload --file <path> --yes --json
+open-cloud assignments upload <assignment-id> --file <path> --yes --json
 open-cloud assignments submit <assignment-id> --content <text> --yes --json
 open-cloud resources list --site <site-id> --json
 open-cloud resources detail <resource-id> --site <site-id> --json
@@ -103,7 +103,20 @@ This command does not submit sign-ins, prepare QR signing data, fake location, o
 
 `assignments undone --json` returns the same shape with `source: "undone"`. `assignments detail <assignment-id> --json` returns assignment content, status, score, teacher resources, submitted content, and submitted attachments without tokens.
 
-`assignments upload --file <path> --yes --json` uploads one attachment and prints `{ "fileName": "...", "resourceId": "...", "previewUrl": "..." }`. `assignments submit <assignment-id> --content <text> --attachment <resource-id> --yes --json` submits live assignment content and returns `{ "ok": true }`. These commands are mutating and must require `--yes`.
+`assignments upload <assignment-id> --file <path> --yes --json` loads the assignment detail first, rejects missing or expired assignments before uploading, uploads one attachment resource, and prints:
+
+```json
+{
+  "assignmentId": "work-1",
+  "fileName": "report.pdf",
+  "previewUrl": "https://files.example/report",
+  "resourceId": "resource-1",
+  "siteId": "site-1",
+  "siteName": "软件测试"
+}
+```
+
+`assignments submit <assignment-id> --content <text> --attachment <resource-id> --yes --json` submits live assignment content and returns `{ "ok": true }`. Upload and submit commands are mutating and must require `--yes`.
 
 `resources list --site <site-id> --json` prints:
 

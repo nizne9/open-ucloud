@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use open_cloud_api::{AssignmentStatus, AuthErrorCode};
+use open_cloud_api::{AssignmentDetailResponse, AssignmentStatus, AuthErrorCode};
 use open_cloud_core::{
     AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, HttpResponse, OpenCloudClient,
     OpenCloudEndpoints,
@@ -50,6 +50,27 @@ fn body_text(request: &HttpRequest) -> String {
     match request.body.as_ref().expect("request body") {
         HttpBody::Text(value) => value.clone(),
         HttpBody::Bytes(bytes) => String::from_utf8(bytes.clone()).expect("body utf8"),
+    }
+}
+
+fn assignment_detail(status: AssignmentStatus) -> AssignmentDetailResponse {
+    AssignmentDetailResponse {
+        class_name: "1 班".to_string(),
+        comment: String::new(),
+        content: "完成报告".to_string(),
+        end_time: "2099-05-03".to_string(),
+        id: "work-1".to_string(),
+        is_overtime_commit: false,
+        score: None,
+        site_id: "site-1".to_string(),
+        site_name: "软件测试".to_string(),
+        start_time: "2026-05-01".to_string(),
+        status,
+        submitted_at: String::new(),
+        submitted_attachments: Vec::new(),
+        submitted_content: String::new(),
+        teacher_resources: Vec::new(),
+        title: "实验报告".to_string(),
     }
 }
 
@@ -222,12 +243,20 @@ async fn upload_assignment_file_sends_multipart_and_preview_url() {
     let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
 
     let result = client
-        .upload_assignment_file("report.pdf", b"pdf-bytes", "u-1", "access-token")
+        .upload_assignment_file(
+            &assignment_detail(AssignmentStatus::Pending),
+            "report.pdf",
+            b"pdf-bytes",
+            "u-1",
+            "access-token",
+        )
         .await
         .expect("upload succeeds");
 
+    assert_eq!(result.assignment_id, "work-1");
     assert_eq!(result.file_name, "report.pdf");
     assert_eq!(result.resource_id, "resource-1");
+    assert_eq!(result.site_id, "site-1");
     assert_eq!(
         result.preview_url.as_deref(),
         Some("https://files.example/report")
@@ -260,6 +289,7 @@ async fn upload_assignment_file_escapes_multipart_filename() {
 
     let result = client
         .upload_assignment_file(
+            &assignment_detail(AssignmentStatus::Pending),
             "报告\"\\\r\nX-Test: injected.pdf",
             b"pdf-bytes",
             "u-1",

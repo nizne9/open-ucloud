@@ -61,6 +61,7 @@ fn exposes_documented_commands() {
             "open-cloud",
             "assignments",
             "upload",
+            "work-1",
             "--file",
             "report.pdf",
             "--yes",

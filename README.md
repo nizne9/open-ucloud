@@ -30,7 +30,7 @@ cargo run -p open-cloud-cli -- attendance --site <site-id> --json
 cargo run -p open-cloud-cli -- assignments list --site <site-id> --json
 cargo run -p open-cloud-cli -- assignments undone --json
 cargo run -p open-cloud-cli -- assignments detail <assignment-id> --json
-cargo run -p open-cloud-cli -- assignments upload --file <path> --yes --json
+cargo run -p open-cloud-cli -- assignments upload <assignment-id> --file <path> --yes --json
 cargo run -p open-cloud-cli -- assignments submit <assignment-id> --content <text> --yes --json
 cargo run -p open-cloud-cli -- resources list --site <site-id> --json
 cargo run -p open-cloud-cli -- resources detail <resource-id> --site <site-id> --json
@@ -47,7 +47,7 @@ cargo run -p open-cloud-cli -- logout --yes
 
 `course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or prepare QR signing data.
 
-`assignments` supports course assignment lists, unfinished assignments, assignment detail, attachment upload, and explicit assignment submission. Upload and submit are live write operations and require `--yes`.
+`assignments` supports course assignment lists, unfinished assignments, assignment detail, assignment-scoped attachment upload, and explicit assignment submission. Upload validates the target assignment before creating an attachment resource. Upload and submit are live write operations and require `--yes`.
 
 `resources` supports course resource lists, resource detail, single-resource download, and explicit full-course batch download. Downloads require `--out-dir`, create the directory if needed, never overwrite existing files, and print or return the actual written paths.
 

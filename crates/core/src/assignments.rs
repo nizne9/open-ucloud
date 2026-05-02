@@ -212,6 +212,7 @@ where
 
     pub async fn upload_assignment_file(
         &self,
+        assignment: &AssignmentDetailResponse,
         file_name: &str,
         bytes: &[u8],
         user_id: &str,
@@ -235,9 +236,12 @@ where
         let resource_id: String = parse_ucloud_envelope(response, "附件上传失败，请稍后重试。")?;
         let preview_url = self.get_resource_download_url(&resource_id).await?;
         Ok(AssignmentUploadResponse {
+            assignment_id: assignment.id.clone(),
             file_name: file_name.to_string(),
             preview_url,
             resource_id,
+            site_id: assignment.site_id.clone(),
+            site_name: assignment.site_name.clone(),
         })
     }
 

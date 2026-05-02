@@ -155,17 +155,22 @@ fn serializes_assignment_summary_and_detail_without_tokens() {
 #[test]
 fn serializes_assignment_upload_and_submit_without_tokens() {
     let upload = AssignmentUploadResponse {
+        assignment_id: "work-1".to_string(),
         file_name: "report.pdf".to_string(),
         preview_url: Some("https://files.example/report".to_string()),
         resource_id: "resource-1".to_string(),
+        site_id: "site-1".to_string(),
+        site_name: "软件测试".to_string(),
     };
     let submit = AssignmentSubmitResponse { ok: true };
 
     let upload_json = serde_json::to_value(upload).expect("upload response serializes");
     let submit_json = serde_json::to_value(submit).expect("submit response serializes");
 
+    assert_eq!(upload_json["assignmentId"], "work-1");
     assert_eq!(upload_json["fileName"], "report.pdf");
     assert_eq!(upload_json["resourceId"], "resource-1");
+    assert_eq!(upload_json["siteId"], "site-1");
     assert_eq!(submit_json["ok"], true);
     assert!(upload_json.get("accessToken").is_none());
     assert!(submit_json.get("refreshToken").is_none());

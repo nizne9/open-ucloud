@@ -111,6 +111,7 @@ pub enum AssignmentCommands {
     },
     /// Upload an assignment attachment.
     Upload {
+        assignment_id: String,
         #[arg(long)]
         file: PathBuf,
         #[arg(long)]
@@ -725,7 +726,28 @@ where
             )?;
             print_assignment_detail(&detail, json)?;
         }
-        AssignmentCommands::Upload { file, json, .. } => {
+        AssignmentCommands::Upload {
+            assignment_id,
+            file,
+            json,
+            ..
+        } => {
+            let detail = json_cli_result(
+                client
+                    .get_assignment_detail(&assignment_id, &session.access_token)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
+            if detail.status == open_cloud_api::AssignmentStatus::Expired {
+                return cli_error_response(
+                    error(
+                        AuthErrorCode::UnknownAuthError,
+                        "当前作业已截止，不能继续上传附件。",
+                    ),
+                    json,
+                );
+            }
             let bytes = json_cli_result(
                 std::fs::read(&file)
                     .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string())),
@@ -739,6 +761,7 @@ where
             let response = json_cli_result(
                 client
                     .upload_assignment_file(
+                        &detail,
                         file_name,
                         &bytes,
                         &session.user.user_id,
