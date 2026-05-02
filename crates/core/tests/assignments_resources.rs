@@ -121,6 +121,24 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
 }
 
 #[tokio::test]
+async fn submitted_assignment_with_past_deadline_is_expired() {
+    let http = MockHttp::with(vec![response(
+        200,
+        r#"{"success":true,"data":{"records":[
+          {"id":"work-1","title":"已提交但已截止","siteId":"site-1","statusName":"已提交","commitTime":"2026-05-01","endTime":"2000-01-01"}
+        ]}}"#,
+    )]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+
+    let result = client
+        .get_course_assignments("site-1", "软件测试", "access-token", "")
+        .await
+        .expect("assignments load");
+
+    assert_eq!(result.records[0].status, AssignmentStatus::Expired);
+}
+
+#[tokio::test]
 async fn get_undone_assignments_keeps_only_assignment_items() {
     let http = MockHttp::with(vec![response(
         200,

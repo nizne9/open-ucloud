@@ -445,6 +445,20 @@ fn to_assignment_summary(
 
 fn resolve_assignment_status(record: &RawAssignmentSummary) -> AssignmentStatus {
     if text_matches(
+        ["已截止", "已结束", "已关闭", "已过期"],
+        [
+            record.status_self.as_deref(),
+            record.status_name.as_deref(),
+            record.assignment_status_name.as_deref(),
+        ],
+    ) {
+        return AssignmentStatus::Expired;
+    }
+    let end_time = pick_string([record.assignment_end_time.clone(), record.end_time.clone()]);
+    if end_time.as_deref().is_some_and(is_past_time) {
+        return AssignmentStatus::Expired;
+    }
+    if text_matches(
         ["已提交", "已完成", "已交"],
         [
             record.status_self.as_deref(),
@@ -465,20 +479,6 @@ fn resolve_assignment_status(record: &RawAssignmentSummary) -> AssignmentStatus 
             .is_some_and(|value| !value.trim().is_empty())
     {
         return AssignmentStatus::Submitted;
-    }
-    if text_matches(
-        ["已截止", "已结束", "已关闭", "已过期"],
-        [
-            record.status_self.as_deref(),
-            record.status_name.as_deref(),
-            record.assignment_status_name.as_deref(),
-        ],
-    ) {
-        return AssignmentStatus::Expired;
-    }
-    let end_time = pick_string([record.assignment_end_time.clone(), record.end_time.clone()]);
-    if end_time.as_deref().is_some_and(is_past_time) {
-        return AssignmentStatus::Expired;
     }
     AssignmentStatus::Pending
 }
