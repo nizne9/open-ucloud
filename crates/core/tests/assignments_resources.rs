@@ -224,7 +224,7 @@ async fn get_assignment_detail_loads_teacher_and_submitted_resources() {
     assert_eq!(detail.id, "work-1");
     assert_eq!(detail.title, "实验报告");
     assert_eq!(detail.status, AssignmentStatus::Submitted);
-    assert_eq!(detail.score, Some(95));
+    assert_eq!(detail.score, Some(95.0));
     assert_eq!(
         detail.teacher_resources[0].resource_id,
         "2050487502087970817"
@@ -237,6 +237,25 @@ async fn get_assignment_detail_loads_teacher_and_submitted_resources() {
     let requests = http.requests();
     assert!(has_header(&requests[2], "Blade-Auth", "access-token"));
     assert!(has_header(&requests[3], "Blade-Auth", "access-token"));
+}
+
+#[tokio::test]
+async fn get_assignment_detail_accepts_fractional_score() {
+    let http = MockHttp::with(vec![response(
+        200,
+        r#"{"success":true,"data":{
+          "id":"work-1","title":"实验报告","assignmentContent":"完成报告","assignmentBeginTime":"2026-05-01","assignmentEndTime":"2099-05-03",
+          "siteId":"site-1","siteName":"软件测试","assignmentScore":95.5
+        }}"#,
+    )]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+
+    let detail = client
+        .get_assignment_detail("work-1", "access-token")
+        .await
+        .expect("detail loads with fractional score");
+
+    assert_eq!(detail.score, Some(95.5));
 }
 
 #[tokio::test]

@@ -141,7 +141,7 @@ where
                 .unwrap_or_default(),
             id: value_to_string_opt(detail.id.clone()).unwrap_or_else(|| assignment_id.to_string()),
             is_overtime_commit: detail.is_overtime_commit == Some(1),
-            score: detail.assignment_score,
+            score: score_value(detail.assignment_score.as_ref()),
             site_id: value_to_string_opt(detail.site_id.clone()).unwrap_or_default(),
             site_name: pick_string([detail.site_name.clone()]).unwrap_or_default(),
             start_time: pick_string([
@@ -354,7 +354,7 @@ struct RawAssignmentDetail {
     assignment_content: Option<String>,
     assignment_end_time: Option<String>,
     assignment_resource: Option<Vec<RawAssignmentResourceRef>>,
-    assignment_score: Option<i64>,
+    assignment_score: Option<serde_json::Value>,
     assignment_status_name: Option<String>,
     assignment_submit_content: Option<String>,
     assignment_title: Option<String>,
@@ -637,6 +637,14 @@ fn value_to_string_opt(value: Option<serde_json::Value>) -> Option<String> {
     value
         .and_then(value_to_string)
         .filter(|value| !value.is_empty())
+}
+
+fn score_value(value: Option<&serde_json::Value>) -> Option<f64> {
+    match value {
+        Some(serde_json::Value::Number(value)) => value.as_f64(),
+        Some(serde_json::Value::String(value)) => value.trim().parse().ok(),
+        _ => None,
+    }
 }
 
 fn pick_string<const N: usize>(values: [Option<String>; N]) -> Option<String> {

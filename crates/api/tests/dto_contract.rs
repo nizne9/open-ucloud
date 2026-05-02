@@ -125,7 +125,7 @@ fn serializes_assignment_summary_and_detail_without_tokens() {
         end_time: summary.end_time.clone(),
         id: summary.id.clone(),
         is_overtime_commit: false,
-        score: Some(95),
+        score: Some(95.5),
         site_id: summary.site_id.clone(),
         site_name: summary.site_name.clone(),
         start_time: summary.start_time.clone(),

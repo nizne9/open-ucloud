@@ -207,7 +207,7 @@ pub struct AssignmentResource {
     pub storage_id: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssignmentDetailResponse {
     pub class_name: String,
@@ -216,7 +216,7 @@ pub struct AssignmentDetailResponse {
     pub end_time: String,
     pub id: String,
     pub is_overtime_commit: bool,
-    pub score: Option<i64>,
+    pub score: Option<f64>,
     pub site_id: String,
     pub site_name: String,
     pub start_time: String,
