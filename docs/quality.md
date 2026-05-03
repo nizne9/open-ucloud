@@ -19,6 +19,8 @@ cargo run -p open-cloud-cli -- doctor
 Flutter work should also run:
 
 ```bash
+cd apps/client
+dart analyze
 flutter test
 ```
 

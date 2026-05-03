@@ -16,6 +16,7 @@ Current workspace:
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
 - `crates/cli`: `open-cloud` command-line harness.
 - `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication and course DTOs.
+- `apps/client`: Linux-focused Flutter client shell for login, secure session storage, and course listing.
 
 The first CLI login is intentionally interactive and persists its session through the system credential store:
 
@@ -50,6 +51,14 @@ The Flutter-facing FFI facade returns opaque session payloads for Dart secure st
 
 ```bash
 flutter_rust_bridge_codegen generate
+```
+
+The Flutter client currently targets Linux desktop first. For local development, build the Rust library and run the client:
+
+```bash
+cargo build -p open-cloud-ffi
+cd apps/client
+flutter run -d linux
 ```
 
 `course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or prepare QR signing data.

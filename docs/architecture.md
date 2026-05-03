@@ -11,7 +11,7 @@ Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Fl
 - `crates/ffi/`: Dart-facing facade for Flutter. It must hide Rust lifetimes, traits, generics, and internal session types.
 - `apps/client/`: Flutter UI, navigation, local presentation state, permissions, and platform UX.
 
-The current implemented harness contains `api`, `core`, `store`, and `cli`. `ffi` and `apps/client` remain planned boundaries.
+The current implemented harness contains `api`, `core`, `store`, `cli`, `ffi`, and the first Linux-focused Flutter client shell.
 
 ## Core Internal Boundaries
 

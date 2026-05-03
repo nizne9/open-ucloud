@@ -6,6 +6,7 @@ build/
 .flutter-plugins-dependencies
 .packages
 pubspec.lock
+!apps/client/pubspec.lock
 
 .env
 .env.*
