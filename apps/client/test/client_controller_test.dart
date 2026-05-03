@@ -59,6 +59,28 @@ void main() {
     expect(gateway.initialized, isFalse);
   });
 
+  test('refresh storage read failures keep existing courses visible', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: const FfiCourseResponse(
+        records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+        goingSites: [],
+      ),
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    await container.read(clientControllerProvider.notifier).bootstrap();
+    storage.readError = Exception('locked');
+
+    await container.read(clientControllerProvider.notifier).refreshCourses();
+
+    final state = container.read(clientControllerProvider);
+    expect(state.phase, ClientPhase.authenticated);
+    expect(state.courses.single.name, '软件测试');
+    expect(state.errorMessage, contains('无法读取安全存储'));
+    expect(gateway.coursesCalls, 1);
+  });
+
   test('logout clears secure storage', () async {
     final storage = MemorySessionStorage('payload');
     final container = _container(

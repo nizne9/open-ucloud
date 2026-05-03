@@ -38,6 +38,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiCourseResponse courseResponse;
   final FfiAuthError? sessionSummaryError;
   bool initialized = false;
+  int coursesCalls = 0;
 
   @override
   Future<void> init() async {
@@ -100,6 +101,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String sessionPayload,
     required bool withGoing,
   }) async {
+    coursesCalls += 1;
     return courseResponse;
   }
 

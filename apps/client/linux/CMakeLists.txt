@@ -74,6 +74,22 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+  set(OPEN_CLOUD_FFI_LIBRARY
+    "${REPO_ROOT}/target/debug/libopen_cloud_ffi.so")
+else()
+  set(OPEN_CLOUD_FFI_LIBRARY
+    "${REPO_ROOT}/target/release/libopen_cloud_ffi.so")
+endif()
+
+if(NOT EXISTS "${OPEN_CLOUD_FFI_LIBRARY}")
+  message(FATAL_ERROR
+    "Missing ${OPEN_CLOUD_FFI_LIBRARY}. Run `cargo build -p open-cloud-ffi` "
+    "for debug builds or `cargo build --release -p open-cloud-ffi` for "
+    "profile/release Flutter builds before building the Linux client.")
+endif()
+
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
@@ -105,6 +121,10 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endforeach(bundled_library)
+
+install(FILES "${OPEN_CLOUD_FFI_LIBRARY}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")

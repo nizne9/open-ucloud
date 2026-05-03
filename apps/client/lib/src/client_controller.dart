@@ -243,7 +243,18 @@ class ClientController extends Notifier<ClientState> {
 
   Future<void> refreshCourses() async {
     final storage = ref.read(sessionStorageProvider);
-    final payload = await storage.readSessionPayload();
+    final String? payload;
+    try {
+      payload = await storage.readSessionPayload();
+    } catch (error) {
+      state = state.copyWith(
+        phase: state.session == null
+            ? ClientPhase.unauthenticated
+            : ClientPhase.authenticated,
+        errorMessage: '无法读取安全存储：$error',
+      );
+      return;
+    }
     final session = state.session;
     if (payload == null || session == null) {
       state = const ClientState(phase: ClientPhase.unauthenticated);
