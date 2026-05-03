@@ -27,9 +27,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
   FfiAuthFinishRequest dco_decode_box_autoadd_ffi_auth_finish_request(
-    dynamic raw,
-  );
+      dynamic raw);
 
   @protected
   FfiLoginFlow dco_decode_box_autoadd_ffi_login_flow(dynamic raw);
@@ -39,6 +41,34 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
+  FfiAssignmentDetailResponse dco_decode_ffi_assignment_detail_response(
+      dynamic raw);
+
+  @protected
+  FfiAssignmentListResponse dco_decode_ffi_assignment_list_response(
+      dynamic raw);
+
+  @protected
+  FfiAssignmentResource dco_decode_ffi_assignment_resource(dynamic raw);
+
+  @protected
+  FfiAssignmentStatus dco_decode_ffi_assignment_status(dynamic raw);
+
+  @protected
+  FfiAssignmentSubmitResponse dco_decode_ffi_assignment_submit_response(
+      dynamic raw);
+
+  @protected
+  FfiAssignmentSummary dco_decode_ffi_assignment_summary(dynamic raw);
+
+  @protected
+  FfiAssignmentUploadResponse dco_decode_ffi_assignment_upload_response(
+      dynamic raw);
 
   @protected
   FfiAuthError dco_decode_ffi_auth_error(dynamic raw);
@@ -63,6 +93,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FfiAuthStartResult dco_decode_ffi_auth_start_result(dynamic raw);
+
+  @protected
+  FfiCourseResourceDetail dco_decode_ffi_course_resource_detail(dynamic raw);
+
+  @protected
+  FfiCourseResourceDetailResponse
+      dco_decode_ffi_course_resource_detail_response(dynamic raw);
+
+  @protected
+  FfiCourseResourceDownloadResponse
+      dco_decode_ffi_course_resource_download_response(dynamic raw);
+
+  @protected
+  FfiCourseResourceSummary dco_decode_ffi_course_resource_summary(dynamic raw);
+
+  @protected
+  FfiCourseResourcesResponse dco_decode_ffi_course_resources_response(
+      dynamic raw);
 
   @protected
   FfiCourseResponse dco_decode_ffi_course_response(dynamic raw);
@@ -92,6 +140,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int dco_decode_i_32(dynamic raw);
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<FfiAssignmentResource> dco_decode_list_ffi_assignment_resource(
+      dynamic raw);
+
+  @protected
+  List<FfiAssignmentSummary> dco_decode_list_ffi_assignment_summary(
+      dynamic raw);
+
+  @protected
+  List<FfiCourseResourceDetail> dco_decode_list_ffi_course_resource_detail(
+      dynamic raw);
+
+  @protected
+  List<FfiCourseResourceSummary> dco_decode_list_ffi_course_resource_summary(
+      dynamic raw);
+
+  @protected
   List<FfiCourseSite> dco_decode_list_ffi_course_site(dynamic raw);
 
   @protected
@@ -105,6 +172,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
   FfiRoleName? dco_decode_opt_box_autoadd_ffi_role_name(dynamic raw);
@@ -128,22 +198,53 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   FfiAuthFinishRequest sse_decode_box_autoadd_ffi_auth_finish_request(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiLoginFlow sse_decode_box_autoadd_ffi_login_flow(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiRoleName sse_decode_box_autoadd_ffi_role_name(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  FfiAssignmentDetailResponse sse_decode_ffi_assignment_detail_response(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiAssignmentListResponse sse_decode_ffi_assignment_list_response(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiAssignmentResource sse_decode_ffi_assignment_resource(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiAssignmentStatus sse_decode_ffi_assignment_status(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiAssignmentSubmitResponse sse_decode_ffi_assignment_submit_response(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiAssignmentSummary sse_decode_ffi_assignment_summary(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiAssignmentUploadResponse sse_decode_ffi_assignment_upload_response(
+      SseDeserializer deserializer);
 
   @protected
   FfiAuthError sse_decode_ffi_auth_error(SseDeserializer deserializer);
@@ -153,38 +254,53 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FfiAuthFinishRequest sse_decode_ffi_auth_finish_request(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiAuthFinishResponse sse_decode_ffi_auth_finish_response(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiAuthFinishResult sse_decode_ffi_auth_finish_result(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiAuthSessionResponse sse_decode_ffi_auth_session_response(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiAuthStartResponse sse_decode_ffi_auth_start_response(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiAuthStartResult sse_decode_ffi_auth_start_result(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
+
+  @protected
+  FfiCourseResourceDetail sse_decode_ffi_course_resource_detail(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiCourseResourceDetailResponse
+      sse_decode_ffi_course_resource_detail_response(
+          SseDeserializer deserializer);
+
+  @protected
+  FfiCourseResourceDownloadResponse
+      sse_decode_ffi_course_resource_download_response(
+          SseDeserializer deserializer);
+
+  @protected
+  FfiCourseResourceSummary sse_decode_ffi_course_resource_summary(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiCourseResourcesResponse sse_decode_ffi_course_resources_response(
+      SseDeserializer deserializer);
 
   @protected
   FfiCourseResponse sse_decode_ffi_course_response(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiCourseSite sse_decode_ffi_course_site(SseDeserializer deserializer);
@@ -197,8 +313,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FfiLogoutResponse sse_decode_ffi_logout_response(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   FfiRoleInfo sse_decode_ffi_role_info(SseDeserializer deserializer);
@@ -213,14 +328,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<FfiAssignmentResource> sse_decode_list_ffi_assignment_resource(
+      SseDeserializer deserializer);
+
+  @protected
+  List<FfiAssignmentSummary> sse_decode_list_ffi_assignment_summary(
+      SseDeserializer deserializer);
+
+  @protected
+  List<FfiCourseResourceDetail> sse_decode_list_ffi_course_resource_detail(
+      SseDeserializer deserializer);
+
+  @protected
+  List<FfiCourseResourceSummary> sse_decode_list_ffi_course_resource_summary(
+      SseDeserializer deserializer);
+
+  @protected
   List<FfiCourseSite> sse_decode_list_ffi_course_site(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<FfiGoingSite> sse_decode_list_ffi_going_site(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   List<FfiRoleInfo> sse_decode_list_ffi_role_info(SseDeserializer deserializer);
@@ -232,9 +364,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   FfiRoleName? sse_decode_opt_box_autoadd_ffi_role_name(
-    SseDeserializer deserializer,
-  );
+      SseDeserializer deserializer);
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
@@ -255,76 +389,108 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_ffi_auth_finish_request(
-    FfiAuthFinishRequest self,
-    SseSerializer serializer,
-  );
+      FfiAuthFinishRequest self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_ffi_login_flow(
-    FfiLoginFlow self,
-    SseSerializer serializer,
-  );
+      FfiLoginFlow self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_ffi_role_name(
-    FfiRoleName self,
-    SseSerializer serializer,
-  );
+      FfiRoleName self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_assignment_detail_response(
+      FfiAssignmentDetailResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_assignment_list_response(
+      FfiAssignmentListResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_assignment_resource(
+      FfiAssignmentResource self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_assignment_status(
+      FfiAssignmentStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_assignment_submit_response(
+      FfiAssignmentSubmitResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_assignment_summary(
+      FfiAssignmentSummary self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_assignment_upload_response(
+      FfiAssignmentUploadResponse self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_error(FfiAuthError self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_error_code(
-    FfiAuthErrorCode self,
-    SseSerializer serializer,
-  );
+      FfiAuthErrorCode self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_finish_request(
-    FfiAuthFinishRequest self,
-    SseSerializer serializer,
-  );
+      FfiAuthFinishRequest self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_finish_response(
-    FfiAuthFinishResponse self,
-    SseSerializer serializer,
-  );
+      FfiAuthFinishResponse self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_finish_result(
-    FfiAuthFinishResult self,
-    SseSerializer serializer,
-  );
+      FfiAuthFinishResult self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_session_response(
-    FfiAuthSessionResponse self,
-    SseSerializer serializer,
-  );
+      FfiAuthSessionResponse self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_start_response(
-    FfiAuthStartResponse self,
-    SseSerializer serializer,
-  );
+      FfiAuthStartResponse self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_start_result(
-    FfiAuthStartResult self,
-    SseSerializer serializer,
-  );
+      FfiAuthStartResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_course_resource_detail(
+      FfiCourseResourceDetail self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_course_resource_detail_response(
+      FfiCourseResourceDetailResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_course_resource_download_response(
+      FfiCourseResourceDownloadResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_course_resource_summary(
+      FfiCourseResourceSummary self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_course_resources_response(
+      FfiCourseResourcesResponse self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_course_response(
-    FfiCourseResponse self,
-    SseSerializer serializer,
-  );
+      FfiCourseResponse self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_course_site(FfiCourseSite self, SseSerializer serializer);
@@ -337,9 +503,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ffi_logout_response(
-    FfiLogoutResponse self,
-    SseSerializer serializer,
-  );
+      FfiLogoutResponse self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_role_info(FfiRoleInfo self, SseSerializer serializer);
@@ -349,45 +513,55 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ffi_session_user(
-    FfiSessionUser self,
-    SseSerializer serializer,
-  );
+      FfiSessionUser self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_ffi_assignment_resource(
+      List<FfiAssignmentResource> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_ffi_assignment_summary(
+      List<FfiAssignmentSummary> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_ffi_course_resource_detail(
+      List<FfiCourseResourceDetail> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_ffi_course_resource_summary(
+      List<FfiCourseResourceSummary> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_ffi_course_site(
-    List<FfiCourseSite> self,
-    SseSerializer serializer,
-  );
+      List<FfiCourseSite> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_ffi_going_site(
-    List<FfiGoingSite> self,
-    SseSerializer serializer,
-  );
+      List<FfiGoingSite> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_ffi_role_info(
-    List<FfiRoleInfo> self,
-    SseSerializer serializer,
-  );
+      List<FfiRoleInfo> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
-    Uint8List self,
-    SseSerializer serializer,
-  );
+      Uint8List self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_ffi_role_name(
-    FfiRoleName? self,
-    SseSerializer serializer,
-  );
+      FfiRoleName? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);

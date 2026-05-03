@@ -24,6 +24,64 @@ abstract interface class OpenCloudGateway {
     required bool withGoing,
   });
 
+  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsUndone({
+    required String sessionPayload,
+  });
+
+  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsForCourse({
+    required String sessionPayload,
+    required String siteId,
+    required String siteName,
+    required String keyword,
+  });
+
+  Future<open_cloud_ffi.FfiAssignmentDetailResponse> assignmentDetail({
+    required String sessionPayload,
+    required String assignmentId,
+  });
+
+  Future<open_cloud_ffi.FfiAssignmentUploadResponse> assignmentUpload({
+    required String sessionPayload,
+    required String assignmentId,
+    required String filePath,
+  });
+
+  Future<open_cloud_ffi.FfiAssignmentSubmitResponse> assignmentSubmit({
+    required String sessionPayload,
+    required String assignmentId,
+    required String content,
+    required List<String> attachmentIds,
+  });
+
+  Future<open_cloud_ffi.FfiCourseResourcesResponse> resourcesForCourse({
+    required String sessionPayload,
+    required String siteId,
+    required String siteName,
+  });
+
+  Future<open_cloud_ffi.FfiCourseResourceDetailResponse> resourceDetail({
+    required String sessionPayload,
+    required String resourceId,
+    required String siteId,
+    required String siteName,
+  });
+
+  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse> resourceDownload({
+    required String sessionPayload,
+    required String resourceId,
+    required String siteId,
+    required String siteName,
+    required String outputPath,
+  });
+
+  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse>
+  resourceDownloadCourse({
+    required String sessionPayload,
+    required String siteId,
+    required String siteName,
+    required String outputDir,
+  });
+
   Future<open_cloud_ffi.FfiLogoutResponse> logout();
 }
 
@@ -75,6 +133,128 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
     return open_cloud_ffi.courses(
       sessionPayload: sessionPayload,
       withGoing: withGoing,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsUndone({
+    required String sessionPayload,
+  }) {
+    return open_cloud_ffi.assignmentsUndone(sessionPayload: sessionPayload);
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsForCourse({
+    required String sessionPayload,
+    required String siteId,
+    required String siteName,
+    required String keyword,
+  }) {
+    return open_cloud_ffi.assignmentsForCourse(
+      sessionPayload: sessionPayload,
+      siteId: siteId,
+      siteName: siteName,
+      keyword: keyword,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiAssignmentDetailResponse> assignmentDetail({
+    required String sessionPayload,
+    required String assignmentId,
+  }) {
+    return open_cloud_ffi.assignmentDetail(
+      sessionPayload: sessionPayload,
+      assignmentId: assignmentId,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiAssignmentUploadResponse> assignmentUpload({
+    required String sessionPayload,
+    required String assignmentId,
+    required String filePath,
+  }) {
+    return open_cloud_ffi.assignmentUpload(
+      sessionPayload: sessionPayload,
+      assignmentId: assignmentId,
+      filePath: filePath,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiAssignmentSubmitResponse> assignmentSubmit({
+    required String sessionPayload,
+    required String assignmentId,
+    required String content,
+    required List<String> attachmentIds,
+  }) {
+    return open_cloud_ffi.assignmentSubmit(
+      sessionPayload: sessionPayload,
+      assignmentId: assignmentId,
+      content: content,
+      attachmentIds: attachmentIds,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiCourseResourcesResponse> resourcesForCourse({
+    required String sessionPayload,
+    required String siteId,
+    required String siteName,
+  }) {
+    return open_cloud_ffi.resourcesForCourse(
+      sessionPayload: sessionPayload,
+      siteId: siteId,
+      siteName: siteName,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiCourseResourceDetailResponse> resourceDetail({
+    required String sessionPayload,
+    required String resourceId,
+    required String siteId,
+    required String siteName,
+  }) {
+    return open_cloud_ffi.resourceDetail(
+      sessionPayload: sessionPayload,
+      resourceId: resourceId,
+      siteId: siteId,
+      siteName: siteName,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse> resourceDownload({
+    required String sessionPayload,
+    required String resourceId,
+    required String siteId,
+    required String siteName,
+    required String outputPath,
+  }) {
+    return open_cloud_ffi.resourceDownload(
+      sessionPayload: sessionPayload,
+      resourceId: resourceId,
+      siteId: siteId,
+      siteName: siteName,
+      outputPath: outputPath,
+    );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse>
+  resourceDownloadCourse({
+    required String sessionPayload,
+    required String siteId,
+    required String siteName,
+    required String outputDir,
+  }) {
+    return open_cloud_ffi.resourceDownloadCourse(
+      sessionPayload: sessionPayload,
+      siteId: siteId,
+      siteName: siteName,
+      outputDir: outputDir,
     );
   }
 

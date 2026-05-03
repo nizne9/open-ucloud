@@ -63,4 +63,88 @@ void main() {
     expect(find.text('软件测试'), findsOneWidget);
     expect(find.byIcon(Icons.notifications_active_outlined), findsOneWidget);
   });
+
+  testWidgets('assignment refresh uses selected course', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('计算机网络').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('刷新作业'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.lastCourseAssignmentsSiteId, 'site-2');
+  });
+
+  testWidgets('resource refresh uses selected course', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('计算机网络').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('刷新资料'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.lastResourcesSiteId, 'site-2');
+  });
+}
+
+FfiAuthSessionResponse _session() {
+  return const FfiAuthSessionResponse(
+    selectedRole: FfiRoleName.student,
+    user: FfiSessionUser(
+      account: '2024000000',
+      realName: 'Alice',
+      userId: 'u-1',
+      userName: '2024000000',
+    ),
+  );
+}
+
+FfiCourseResponse _twoCourseResponse() {
+  return const FfiCourseResponse(
+    records: [
+      FfiCourseSite(id: 'site-1', siteName: '软件测试'),
+      FfiCourseSite(id: 'site-2', siteName: '计算机网络'),
+    ],
+    goingSites: [],
+  );
 }

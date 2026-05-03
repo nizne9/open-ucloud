@@ -96,6 +96,375 @@ void main() {
       ClientPhase.unauthenticated,
     );
   });
+
+  test(
+    'loads assignment detail, uploads attachment, and submits draft',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        undoneAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '2026-05-03 23:59:59',
+              id: 'work-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '实验报告',
+            ),
+          ],
+        ),
+        assignmentDetailResponse: const FfiAssignmentDetailResponse(
+          className: '',
+          comment: '',
+          content: '完成实验',
+          endTime: '2026-05-03 23:59:59',
+          id: 'work-1',
+          isOvertimeCommit: false,
+          siteId: 'site-1',
+          siteName: '软件测试',
+          startTime: '',
+          status: FfiAssignmentStatus.pending,
+          submittedAt: '',
+          submittedAttachments: [],
+          submittedContent: '',
+          teacherResources: [],
+          title: '实验报告',
+        ),
+        assignmentUploadResponse: const FfiAssignmentUploadResponse(
+          assignmentId: 'work-1',
+          fileName: 'report.pdf',
+          resourceId: 'res-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedSessionPayload: 'upload-payload',
+        ),
+        assignmentSubmitResponse: const FfiAssignmentSubmitResponse(
+          ok: true,
+          updatedSessionPayload: 'submit-payload',
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .loadUndoneAssignments();
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectAssignment(
+            container.read(clientControllerProvider).assignments.single,
+          );
+      container
+          .read(clientControllerProvider.notifier)
+          .updateAssignmentDraft('答案');
+      await container
+          .read(clientControllerProvider.notifier)
+          .uploadAssignmentAttachment('/tmp/report.pdf');
+      await container
+          .read(clientControllerProvider.notifier)
+          .submitAssignmentDraft();
+
+      final state = container.read(clientControllerProvider);
+      expect(state.assignmentDetail?.status, FfiAssignmentStatus.submitted);
+      expect(state.assignmentAttachments.single.resourceId, 'res-1');
+      expect(gateway.submittedAttachmentIds, ['res-1']);
+      expect(storage.payload, 'submit-payload');
+    },
+  );
+
+  test('downloads all resources and persists refreshed payload', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+        writtenPaths: ['/tmp/课件.pdf'],
+        updatedSessionPayload: 'download-payload',
+      ),
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    await container.read(clientControllerProvider.notifier).bootstrap();
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .loadResourcesForCourse('site-1');
+    await container
+        .read(clientControllerProvider.notifier)
+        .downloadCourseResources('/tmp/downloads');
+
+    final state = container.read(clientControllerProvider);
+    expect(state.downloadedPaths, ['/tmp/课件.pdf']);
+    expect(state.resourceDownloadProgressCurrent, 1);
+    expect(state.resourceDownloadProgressTotal, 1);
+    expect(storage.payload, 'download-payload');
+  });
+
+  test('clears assignment loading state when session read fails', () async {
+    final storage = MemorySessionStorage('payload', Exception('locked'));
+    final container = _container(
+      storage: storage,
+      gateway: FakeOpenCloudGateway(session: _session()),
+    );
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .loadUndoneAssignments();
+
+    final state = container.read(clientControllerProvider);
+    expect(state.assignmentsLoading, isFalse);
+    expect(state.errorMessage, contains('无法读取安全存储'));
+  });
+
+  test('clears resource loading state when session read fails', () async {
+    final storage = MemorySessionStorage('payload', Exception('locked'));
+    final container = _container(
+      storage: storage,
+      gateway: FakeOpenCloudGateway(session: _session()),
+    );
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .loadResourcesForCourse('site-1');
+
+    final state = container.read(clientControllerProvider);
+    expect(state.resourcesLoading, isFalse);
+    expect(state.errorMessage, contains('无法读取安全存储'));
+  });
+
+  test('clears detail loading state when session read fails', () async {
+    final storage = MemorySessionStorage('payload', Exception('locked'));
+    final container = _container(
+      storage: storage,
+      gateway: FakeOpenCloudGateway(session: _session()),
+    );
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .selectResource(
+          const FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        );
+
+    final state = container.read(clientControllerProvider);
+    expect(state.resourceDetailLoading, isFalse);
+    expect(state.errorMessage, contains('无法读取安全存储'));
+  });
+
+  test(
+    'clears stale assignments when switching lists and session read fails',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        undoneAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '',
+              id: 'work-old',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '旧作业',
+            ),
+          ],
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      await container
+          .read(clientControllerProvider.notifier)
+          .loadUndoneAssignments();
+      storage.readError = Exception('locked');
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .loadCourseAssignments('site-2');
+
+      final state = container.read(clientControllerProvider);
+      expect(state.assignmentView, AssignmentView.course);
+      expect(state.selectedAssignmentCourseId, 'site-2');
+      expect(state.assignments, isEmpty);
+      expect(state.assignmentsLoading, isFalse);
+    },
+  );
+
+  test(
+    'clears stale assignment detail when selecting another assignment fails',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        assignmentDetailResponse: const FfiAssignmentDetailResponse(
+          className: '',
+          comment: '',
+          content: '',
+          endTime: '',
+          id: 'work-old',
+          isOvertimeCommit: false,
+          siteId: 'site-1',
+          siteName: '软件测试',
+          startTime: '',
+          status: FfiAssignmentStatus.pending,
+          submittedAt: '',
+          submittedAttachments: [],
+          submittedContent: '旧答案',
+          teacherResources: [],
+          title: '旧作业',
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectAssignment(
+            const FfiAssignmentSummary(
+              endTime: '',
+              id: 'work-old',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '旧作业',
+            ),
+          );
+      storage.readError = Exception('locked');
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectAssignment(
+            const FfiAssignmentSummary(
+              endTime: '',
+              id: 'work-new',
+              siteId: 'site-2',
+              siteName: '计算机网络',
+              source: 'course',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '新作业',
+            ),
+          );
+
+      final state = container.read(clientControllerProvider);
+      expect(state.selectedAssignmentId, 'work-new');
+      expect(state.assignmentDetail, isNull);
+      expect(state.assignmentDraft, isEmpty);
+      expect(state.assignmentAttachments, isEmpty);
+      expect(state.assignmentDetailLoading, isFalse);
+    },
+  );
+
+  test(
+    'clears stale resources when switching courses and session read fails',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        resourcesResponse: const FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      await container
+          .read(clientControllerProvider.notifier)
+          .loadResourcesForCourse('site-1');
+      storage.readError = Exception('locked');
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .loadResourcesForCourse('site-2');
+
+      final state = container.read(clientControllerProvider);
+      expect(state.selectedResourceCourseId, 'site-2');
+      expect(state.resources, isEmpty);
+      expect(state.downloadedPaths, isEmpty);
+      expect(state.resourcesLoading, isFalse);
+    },
+  );
+
+  test(
+    'clears stale resource detail when selecting another resource fails',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        resourceDetailResponse: const FfiCourseResourceDetailResponse(
+          detail: FfiCourseResourceDetail(
+            name: '旧课件.pdf',
+            resourceId: 'resource-old',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectResource(
+            const FfiCourseResourceSummary(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          );
+      storage.readError = Exception('locked');
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectResource(
+            const FfiCourseResourceSummary(
+              name: '新课件.pdf',
+              resourceId: 'resource-new',
+              siteId: 'site-2',
+              siteName: '计算机网络',
+              updatedAt: '',
+            ),
+          );
+
+      final state = container.read(clientControllerProvider);
+      expect(state.selectedResourceId, 'resource-new');
+      expect(state.resourceDetail, isNull);
+      expect(state.resourceDetailLoading, isFalse);
+    },
+  );
 }
 
 ProviderContainer _container({

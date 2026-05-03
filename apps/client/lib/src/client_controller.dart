@@ -14,6 +14,10 @@ enum ClientPhase {
   authenticated,
 }
 
+enum ClientTab { courses, assignments, resources }
+
+enum AssignmentView { undone, course }
+
 class CourseItem {
   const CourseItem({
     required this.id,
@@ -28,27 +32,85 @@ class CourseItem {
   final String? groupId;
 }
 
+class AssignmentAttachmentState {
+  const AssignmentAttachmentState({
+    required this.name,
+    required this.resourceId,
+    this.previewUrl,
+    this.status = 'uploaded',
+    this.errorMessage,
+  });
+
+  final String name;
+  final String resourceId;
+  final String? previewUrl;
+  final String status;
+  final String? errorMessage;
+}
+
 class ClientState {
   const ClientState({
     required this.phase,
+    this.selectedTab = ClientTab.courses,
     this.session,
     this.loginFlow,
     this.pendingUsername,
     this.pendingPassword,
     this.captchaImage,
     this.courses = const [],
+    this.assignmentView = AssignmentView.undone,
+    this.assignments = const [],
+    this.assignmentsLoading = false,
+    this.assignmentDetailLoading = false,
+    this.assignmentSubmitting = false,
+    this.selectedAssignmentCourseId,
+    this.selectedAssignmentId,
+    this.assignmentDetail,
+    this.assignmentDraft = '',
+    this.assignmentAttachments = const [],
+    this.resources = const [],
+    this.resourcesLoading = false,
+    this.resourceDetailLoading = false,
+    this.resourceDownloading = false,
+    this.selectedResourceCourseId,
+    this.selectedResourceId,
+    this.resourceDetail,
+    this.downloadedPaths = const [],
+    this.resourceDownloadProgressCurrent = 0,
+    this.resourceDownloadProgressTotal = 0,
     this.errorMessage,
   });
 
   const ClientState.bootstrapping() : this(phase: ClientPhase.bootstrapping);
 
   final ClientPhase phase;
+  final ClientTab selectedTab;
   final FfiAuthSessionResponse? session;
   final FfiLoginFlow? loginFlow;
   final String? pendingUsername;
   final String? pendingPassword;
   final String? captchaImage;
   final List<CourseItem> courses;
+  final AssignmentView assignmentView;
+  final List<FfiAssignmentSummary> assignments;
+  final bool assignmentsLoading;
+  final bool assignmentDetailLoading;
+  final bool assignmentSubmitting;
+  final String? selectedAssignmentCourseId;
+  final String? selectedAssignmentId;
+  final FfiAssignmentDetailResponse? assignmentDetail;
+  final String assignmentDraft;
+  final List<AssignmentAttachmentState> assignmentAttachments;
+  final List<FfiCourseResourceSummary> resources;
+  final bool resourcesLoading;
+  final bool resourceDetailLoading;
+  final bool resourceDownloading;
+  final String? selectedResourceCourseId;
+  final String? selectedResourceId;
+  final FfiCourseResourceDetail? resourceDetail;
+  final List<String> downloadedPaths;
+  final int resourceDownloadProgressCurrent;
+  final int resourceDownloadProgressTotal;
   final String? errorMessage;
 
   bool get isBusy =>
@@ -59,19 +121,45 @@ class ClientState {
 
   ClientState copyWith({
     ClientPhase? phase,
+    ClientTab? selectedTab,
     FfiAuthSessionResponse? session,
     FfiLoginFlow? loginFlow,
     String? pendingUsername,
     String? pendingPassword,
     String? captchaImage,
     List<CourseItem>? courses,
+    AssignmentView? assignmentView,
+    List<FfiAssignmentSummary>? assignments,
+    bool? assignmentsLoading,
+    bool? assignmentDetailLoading,
+    bool? assignmentSubmitting,
+    String? selectedAssignmentCourseId,
+    String? selectedAssignmentId,
+    FfiAssignmentDetailResponse? assignmentDetail,
+    String? assignmentDraft,
+    List<AssignmentAttachmentState>? assignmentAttachments,
+    List<FfiCourseResourceSummary>? resources,
+    bool? resourcesLoading,
+    bool? resourceDetailLoading,
+    bool? resourceDownloading,
+    String? selectedResourceCourseId,
+    String? selectedResourceId,
+    FfiCourseResourceDetail? resourceDetail,
+    List<String>? downloadedPaths,
+    int? resourceDownloadProgressCurrent,
+    int? resourceDownloadProgressTotal,
     String? errorMessage,
     bool clearSession = false,
     bool clearLogin = false,
+    bool clearAssignmentSelection = false,
+    bool clearAssignmentDetail = false,
+    bool clearResourceSelection = false,
+    bool clearResourceDetail = false,
     bool clearError = false,
   }) {
     return ClientState(
       phase: phase ?? this.phase,
+      selectedTab: selectedTab ?? this.selectedTab,
       session: clearSession ? null : session ?? this.session,
       loginFlow: clearLogin ? null : loginFlow ?? this.loginFlow,
       pendingUsername: clearLogin
@@ -82,6 +170,45 @@ class ClientState {
           : pendingPassword ?? this.pendingPassword,
       captchaImage: clearLogin ? null : captchaImage ?? this.captchaImage,
       courses: courses ?? this.courses,
+      assignmentView: assignmentView ?? this.assignmentView,
+      assignments: assignments ?? this.assignments,
+      assignmentsLoading: assignmentsLoading ?? this.assignmentsLoading,
+      assignmentDetailLoading:
+          assignmentDetailLoading ?? this.assignmentDetailLoading,
+      assignmentSubmitting: assignmentSubmitting ?? this.assignmentSubmitting,
+      selectedAssignmentCourseId:
+          selectedAssignmentCourseId ?? this.selectedAssignmentCourseId,
+      selectedAssignmentId: clearAssignmentSelection
+          ? null
+          : selectedAssignmentId ?? this.selectedAssignmentId,
+      assignmentDetail: clearAssignmentSelection || clearAssignmentDetail
+          ? null
+          : assignmentDetail ?? this.assignmentDetail,
+      assignmentDraft: clearAssignmentSelection || clearAssignmentDetail
+          ? ''
+          : assignmentDraft ?? this.assignmentDraft,
+      assignmentAttachments: clearAssignmentSelection || clearAssignmentDetail
+          ? const []
+          : assignmentAttachments ?? this.assignmentAttachments,
+      resources: resources ?? this.resources,
+      resourcesLoading: resourcesLoading ?? this.resourcesLoading,
+      resourceDetailLoading:
+          resourceDetailLoading ?? this.resourceDetailLoading,
+      resourceDownloading: resourceDownloading ?? this.resourceDownloading,
+      selectedResourceCourseId:
+          selectedResourceCourseId ?? this.selectedResourceCourseId,
+      selectedResourceId: clearResourceSelection
+          ? null
+          : selectedResourceId ?? this.selectedResourceId,
+      resourceDetail: clearResourceSelection || clearResourceDetail
+          ? null
+          : resourceDetail ?? this.resourceDetail,
+      downloadedPaths: downloadedPaths ?? this.downloadedPaths,
+      resourceDownloadProgressCurrent:
+          resourceDownloadProgressCurrent ??
+          this.resourceDownloadProgressCurrent,
+      resourceDownloadProgressTotal:
+          resourceDownloadProgressTotal ?? this.resourceDownloadProgressTotal,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
   }
@@ -277,6 +404,426 @@ class ClientController extends Notifier<ClientState> {
     }
   }
 
+  void selectTab(ClientTab tab) {
+    state = state.copyWith(selectedTab: tab, clearError: true);
+  }
+
+  Future<void> loadUndoneAssignments() async {
+    state = state.copyWith(
+      selectedTab: ClientTab.assignments,
+      assignmentView: AssignmentView.undone,
+      assignments: const [],
+      assignmentsLoading: true,
+      clearAssignmentSelection: true,
+      clearError: true,
+    );
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      state = state.copyWith(assignmentsLoading: false);
+      return;
+    }
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final response = await gateway.assignmentsUndone(sessionPayload: payload);
+      await _persistUpdatedPayload(response.updatedSessionPayload);
+      state = state.copyWith(
+        assignments: response.records,
+        assignmentsLoading: false,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(assignmentsLoading: false);
+    } catch (error) {
+      state = state.copyWith(
+        assignmentsLoading: false,
+        errorMessage: '未完成作业加载失败：$error',
+      );
+    }
+  }
+
+  Future<void> loadCourseAssignments(String siteId) async {
+    final course = _courseById(siteId);
+    state = state.copyWith(
+      selectedTab: ClientTab.assignments,
+      assignmentView: AssignmentView.course,
+      selectedAssignmentCourseId: siteId,
+      assignments: const [],
+      assignmentsLoading: true,
+      clearAssignmentSelection: true,
+      clearError: true,
+    );
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      state = state.copyWith(assignmentsLoading: false);
+      return;
+    }
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final response = await gateway.assignmentsForCourse(
+        sessionPayload: payload,
+        siteId: siteId,
+        siteName: course?.name ?? '',
+        keyword: '',
+      );
+      await _persistUpdatedPayload(response.updatedSessionPayload);
+      state = state.copyWith(
+        assignments: response.records,
+        assignmentsLoading: false,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(assignmentsLoading: false);
+    } catch (error) {
+      state = state.copyWith(
+        assignmentsLoading: false,
+        errorMessage: '课程作业加载失败：$error',
+      );
+    }
+  }
+
+  Future<void> selectAssignment(FfiAssignmentSummary assignment) async {
+    state = state.copyWith(
+      selectedAssignmentId: assignment.id,
+      assignmentDetailLoading: true,
+      clearAssignmentDetail: true,
+      clearError: true,
+    );
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      state = state.copyWith(assignmentDetailLoading: false);
+      return;
+    }
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final detail = await gateway.assignmentDetail(
+        sessionPayload: payload,
+        assignmentId: assignment.id,
+      );
+      await _persistUpdatedPayload(detail.updatedSessionPayload);
+      state = state.copyWith(
+        assignmentDetail: detail,
+        assignmentDraft: detail.submittedContent,
+        assignmentAttachments: [
+          for (final attachment in detail.submittedAttachments)
+            AssignmentAttachmentState(
+              name: attachment.name,
+              resourceId: attachment.resourceId,
+              previewUrl: attachment.previewUrl,
+            ),
+        ],
+        assignmentDetailLoading: false,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(assignmentDetailLoading: false);
+    } catch (error) {
+      state = state.copyWith(
+        assignmentDetailLoading: false,
+        errorMessage: '作业详情加载失败：$error',
+      );
+    }
+  }
+
+  void updateAssignmentDraft(String value) {
+    state = state.copyWith(assignmentDraft: value);
+  }
+
+  Future<void> uploadAssignmentAttachment(String filePath) async {
+    final detail = state.assignmentDetail;
+    if (detail == null) {
+      state = state.copyWith(errorMessage: '请先选择一个作业。');
+      return;
+    }
+    if (detail.status == FfiAssignmentStatus.expired) {
+      state = state.copyWith(errorMessage: '当前作业已截止，不能继续上传附件。');
+      return;
+    }
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      return;
+    }
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final uploaded = await gateway.assignmentUpload(
+        sessionPayload: payload,
+        assignmentId: detail.id,
+        filePath: filePath,
+      );
+      await _persistUpdatedPayload(uploaded.updatedSessionPayload);
+      state = state.copyWith(
+        assignmentAttachments: [
+          ...state.assignmentAttachments,
+          AssignmentAttachmentState(
+            name: uploaded.fileName,
+            resourceId: uploaded.resourceId,
+            previewUrl: uploaded.previewUrl,
+          ),
+        ],
+        clearError: true,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: '附件上传失败：$error');
+    }
+  }
+
+  Future<void> submitAssignmentDraft() async {
+    final detail = state.assignmentDetail;
+    if (detail == null) {
+      state = state.copyWith(errorMessage: '请先选择一个作业。');
+      return;
+    }
+    if (detail.status == FfiAssignmentStatus.expired) {
+      state = state.copyWith(errorMessage: '当前作业已截止，不能继续提交。');
+      return;
+    }
+    final attachmentIds = [
+      for (final attachment in state.assignmentAttachments)
+        if (attachment.status == 'uploaded') attachment.resourceId,
+    ];
+    if (state.assignmentDraft.trim().isEmpty && attachmentIds.isEmpty) {
+      state = state.copyWith(errorMessage: '请先填写作业内容或上传附件。');
+      return;
+    }
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      return;
+    }
+    state = state.copyWith(assignmentSubmitting: true, clearError: true);
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final response = await gateway.assignmentSubmit(
+        sessionPayload: payload,
+        assignmentId: detail.id,
+        content: state.assignmentDraft,
+        attachmentIds: attachmentIds,
+      );
+      await _persistUpdatedPayload(response.updatedSessionPayload);
+      state = state.copyWith(
+        assignmentSubmitting: false,
+        assignmentDetail: FfiAssignmentDetailResponse(
+          className: detail.className,
+          comment: detail.comment,
+          content: detail.content,
+          endTime: detail.endTime,
+          id: detail.id,
+          isOvertimeCommit: detail.isOvertimeCommit,
+          score: detail.score,
+          siteId: detail.siteId,
+          siteName: detail.siteName,
+          startTime: detail.startTime,
+          status: FfiAssignmentStatus.submitted,
+          submittedAt: DateTime.now().toIso8601String(),
+          submittedAttachments: [
+            for (final attachment in state.assignmentAttachments)
+              FfiAssignmentResource(
+                name: attachment.name,
+                previewUrl: attachment.previewUrl,
+                resourceId: attachment.resourceId,
+              ),
+          ],
+          submittedContent: state.assignmentDraft,
+          teacherResources: detail.teacherResources,
+          title: detail.title,
+        ),
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(assignmentSubmitting: false);
+    } catch (error) {
+      state = state.copyWith(
+        assignmentSubmitting: false,
+        errorMessage: '作业提交失败：$error',
+      );
+    }
+  }
+
+  Future<void> loadResourcesForCourse(String siteId) async {
+    final course = _courseById(siteId);
+    state = state.copyWith(
+      selectedTab: ClientTab.resources,
+      selectedResourceCourseId: siteId,
+      resources: const [],
+      resourcesLoading: true,
+      downloadedPaths: const [],
+      resourceDownloadProgressCurrent: 0,
+      resourceDownloadProgressTotal: 0,
+      clearResourceSelection: true,
+      clearError: true,
+    );
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      state = state.copyWith(resourcesLoading: false);
+      return;
+    }
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final response = await gateway.resourcesForCourse(
+        sessionPayload: payload,
+        siteId: siteId,
+        siteName: course?.name ?? '',
+      );
+      await _persistUpdatedPayload(response.updatedSessionPayload);
+      state = state.copyWith(
+        resources: response.records,
+        resourcesLoading: false,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(resourcesLoading: false);
+    } catch (error) {
+      state = state.copyWith(
+        resourcesLoading: false,
+        errorMessage: '课程资料加载失败：$error',
+      );
+    }
+  }
+
+  Future<void> selectResource(FfiCourseResourceSummary resource) async {
+    state = state.copyWith(
+      selectedResourceId: resource.resourceId,
+      resourceDetailLoading: true,
+      clearResourceDetail: true,
+      clearError: true,
+    );
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      state = state.copyWith(resourceDetailLoading: false);
+      return;
+    }
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final response = await gateway.resourceDetail(
+        sessionPayload: payload,
+        resourceId: resource.resourceId,
+        siteId: resource.siteId,
+        siteName: resource.siteName,
+      );
+      await _persistUpdatedPayload(response.updatedSessionPayload);
+      state = state.copyWith(
+        resourceDetail: response.detail,
+        resourceDetailLoading: false,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(resourceDetailLoading: false);
+    } catch (error) {
+      state = state.copyWith(
+        resourceDetailLoading: false,
+        errorMessage: '资料详情加载失败：$error',
+      );
+    }
+  }
+
+  Future<void> downloadResource(String outputPath) async {
+    final detail = state.resourceDetail;
+    if (detail == null) {
+      state = state.copyWith(errorMessage: '请先选择一个资料。');
+      return;
+    }
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      return;
+    }
+    state = state.copyWith(resourceDownloading: true, clearError: true);
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final response = await gateway.resourceDownload(
+        sessionPayload: payload,
+        resourceId: detail.resourceId,
+        siteId: detail.siteId,
+        siteName: detail.siteName,
+        outputPath: outputPath,
+      );
+      await _persistUpdatedPayload(response.updatedSessionPayload);
+      state = state.copyWith(
+        resourceDownloading: false,
+        downloadedPaths: response.writtenPaths,
+        resourceDownloadProgressCurrent: response.writtenPaths.length,
+        resourceDownloadProgressTotal: response.records.length,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(resourceDownloading: false);
+    } catch (error) {
+      state = state.copyWith(
+        resourceDownloading: false,
+        errorMessage: '资料下载失败：$error',
+      );
+    }
+  }
+
+  Future<void> downloadCourseResources(String outputDir) async {
+    if (state.resources.isEmpty) {
+      state = state.copyWith(errorMessage: '当前课程暂无可下载资料。');
+      return;
+    }
+    final first = state.resources.first;
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      return;
+    }
+    state = state.copyWith(
+      resourceDownloading: true,
+      resourceDownloadProgressCurrent: 0,
+      resourceDownloadProgressTotal: state.resources.length,
+      downloadedPaths: const [],
+      clearError: true,
+    );
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final response = await gateway.resourceDownloadCourse(
+        sessionPayload: payload,
+        siteId: first.siteId,
+        siteName: first.siteName,
+        outputDir: outputDir,
+      );
+      await _persistUpdatedPayload(response.updatedSessionPayload);
+      state = state.copyWith(
+        resourceDownloading: false,
+        downloadedPaths: response.writtenPaths,
+        resourceDownloadProgressCurrent: response.writtenPaths.length,
+        resourceDownloadProgressTotal: response.records.length,
+      );
+    } on FfiAuthError catch (error) {
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      state = state.copyWith(resourceDownloading: false);
+    } catch (error) {
+      state = state.copyWith(
+        resourceDownloading: false,
+        errorMessage: '课程资料下载失败：$error',
+      );
+    }
+  }
+
   Future<void> _loadCourses(
     String sessionPayload,
     FfiAuthSessionResponse session,
@@ -331,5 +878,50 @@ class ClientController extends Notifier<ClientState> {
         errorMessage: '课程加载失败：$error',
       );
     }
+  }
+
+  Future<String?> _readSessionPayloadOrUnauthenticated() async {
+    final storage = ref.read(sessionStorageProvider);
+    try {
+      final payload = await storage.readSessionPayload();
+      if (payload == null || payload.isEmpty) {
+        state = const ClientState(phase: ClientPhase.unauthenticated);
+        return null;
+      }
+      return payload;
+    } catch (error) {
+      state = state.copyWith(errorMessage: '无法读取安全存储：$error');
+      return null;
+    }
+  }
+
+  Future<void> _persistUpdatedPayload(String? payload) async {
+    if (payload != null) {
+      await ref.read(sessionStorageProvider).writeSessionPayload(payload);
+    }
+  }
+
+  Future<void> _handleSessionError(
+    FfiAuthError error, {
+    required ClientPhase fallbackPhase,
+  }) async {
+    if (error.code == FfiAuthErrorCode.sessionExpired) {
+      await ref.read(sessionStorageProvider).clearSessionPayload();
+      state = ClientState(
+        phase: ClientPhase.unauthenticated,
+        errorMessage: error.message,
+      );
+      return;
+    }
+    state = state.copyWith(phase: fallbackPhase, errorMessage: error.message);
+  }
+
+  CourseItem? _courseById(String siteId) {
+    for (final course in state.courses) {
+      if (course.id == siteId) {
+        return course;
+      }
+    }
+    return null;
   }
 }

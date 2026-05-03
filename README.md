@@ -15,8 +15,8 @@ Current workspace:
 - `crates/core`: `OpenCloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, assignments, resources, and session access refresh.
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
 - `crates/cli`: `open-cloud` command-line harness.
-- `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication and course DTOs.
-- `apps/client`: Linux-focused Flutter client shell for login, secure session storage, and course listing.
+- `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication, course, assignment, and resource DTOs.
+- `apps/client`: Linux-focused Flutter client shell for login, secure session storage, course listing, assignments, and resources.
 
 The first CLI login is intentionally interactive and persists its session through the system credential store:
 
@@ -60,6 +60,11 @@ cargo build -p open-cloud-ffi
 cd apps/client
 flutter run -d linux
 ```
+
+The Flutter client uses `file_selector` for Linux desktop file picking and save
+locations. Assignment attachment upload reads the user-selected file path through
+the Rust FFI boundary. Resource downloads write through Rust so the same
+non-overwriting file allocation rules as the CLI are preserved.
 
 `course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or prepare QR signing data.
 

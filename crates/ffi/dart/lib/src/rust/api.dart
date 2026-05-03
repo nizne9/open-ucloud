@@ -6,31 +6,366 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `auth_finish_with_client`, `auth_start_with_client`, `courses_with_client`, `decode_session_payload`, `default_client`, `encode_session_payload`, `error`, `now_ms`, `to_ffi_error`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `assignment_detail_with_client`, `assignment_submit_with_client`, `assignment_upload_with_client`, `assignments_for_course_with_client`, `assignments_undone_with_client`, `auth_finish_with_client`, `auth_start_with_client`, `courses_with_client`, `decode_session_payload`, `default_client`, `download_resource_to_path`, `encode_session_payload`, `error`, `fs_error`, `next_download_path`, `now_ms`, `refreshed_session`, `resource_detail_with_client`, `resource_download_course_with_client`, `resource_download_with_client`, `resources_for_course_with_client`, `to_ffi_error`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 Future<FfiAuthStartResponse> authStart({required String username}) =>
     RustLib.instance.api.crateApiAuthStart(username: username);
 
-Future<FfiAuthFinishResponse> authFinish({
-  required FfiAuthFinishRequest request,
-  required FfiLoginFlow flow,
-}) => RustLib.instance.api.crateApiAuthFinish(request: request, flow: flow);
+Future<FfiAuthFinishResponse> authFinish(
+        {required FfiAuthFinishRequest request, required FfiLoginFlow flow}) =>
+    RustLib.instance.api.crateApiAuthFinish(request: request, flow: flow);
 
-Future<FfiAuthSessionResponse> sessionSummary({
-  required String sessionPayload,
-}) =>
+Future<FfiAuthSessionResponse> sessionSummary(
+        {required String sessionPayload}) =>
     RustLib.instance.api.crateApiSessionSummary(sessionPayload: sessionPayload);
 
-Future<FfiCourseResponse> courses({
-  required String sessionPayload,
-  required bool withGoing,
-}) => RustLib.instance.api.crateApiCourses(
-  sessionPayload: sessionPayload,
-  withGoing: withGoing,
-);
+Future<FfiCourseResponse> courses(
+        {required String sessionPayload, required bool withGoing}) =>
+    RustLib.instance.api
+        .crateApiCourses(sessionPayload: sessionPayload, withGoing: withGoing);
+
+Future<FfiAssignmentListResponse> assignmentsUndone(
+        {required String sessionPayload}) =>
+    RustLib.instance.api
+        .crateApiAssignmentsUndone(sessionPayload: sessionPayload);
+
+Future<FfiAssignmentListResponse> assignmentsForCourse(
+        {required String sessionPayload,
+        required String siteId,
+        required String siteName,
+        required String keyword}) =>
+    RustLib.instance.api.crateApiAssignmentsForCourse(
+        sessionPayload: sessionPayload,
+        siteId: siteId,
+        siteName: siteName,
+        keyword: keyword);
+
+Future<FfiAssignmentDetailResponse> assignmentDetail(
+        {required String sessionPayload, required String assignmentId}) =>
+    RustLib.instance.api.crateApiAssignmentDetail(
+        sessionPayload: sessionPayload, assignmentId: assignmentId);
+
+Future<FfiAssignmentUploadResponse> assignmentUpload(
+        {required String sessionPayload,
+        required String assignmentId,
+        required String filePath}) =>
+    RustLib.instance.api.crateApiAssignmentUpload(
+        sessionPayload: sessionPayload,
+        assignmentId: assignmentId,
+        filePath: filePath);
+
+Future<FfiAssignmentSubmitResponse> assignmentSubmit(
+        {required String sessionPayload,
+        required String assignmentId,
+        required String content,
+        required List<String> attachmentIds}) =>
+    RustLib.instance.api.crateApiAssignmentSubmit(
+        sessionPayload: sessionPayload,
+        assignmentId: assignmentId,
+        content: content,
+        attachmentIds: attachmentIds);
+
+Future<FfiCourseResourcesResponse> resourcesForCourse(
+        {required String sessionPayload,
+        required String siteId,
+        required String siteName}) =>
+    RustLib.instance.api.crateApiResourcesForCourse(
+        sessionPayload: sessionPayload, siteId: siteId, siteName: siteName);
+
+Future<FfiCourseResourceDetailResponse> resourceDetail(
+        {required String sessionPayload,
+        required String resourceId,
+        required String siteId,
+        required String siteName}) =>
+    RustLib.instance.api.crateApiResourceDetail(
+        sessionPayload: sessionPayload,
+        resourceId: resourceId,
+        siteId: siteId,
+        siteName: siteName);
+
+Future<FfiCourseResourceDownloadResponse> resourceDownload(
+        {required String sessionPayload,
+        required String resourceId,
+        required String siteId,
+        required String siteName,
+        required String outputPath}) =>
+    RustLib.instance.api.crateApiResourceDownload(
+        sessionPayload: sessionPayload,
+        resourceId: resourceId,
+        siteId: siteId,
+        siteName: siteName,
+        outputPath: outputPath);
+
+Future<FfiCourseResourceDownloadResponse> resourceDownloadCourse(
+        {required String sessionPayload,
+        required String siteId,
+        required String siteName,
+        required String outputDir}) =>
+    RustLib.instance.api.crateApiResourceDownloadCourse(
+        sessionPayload: sessionPayload,
+        siteId: siteId,
+        siteName: siteName,
+        outputDir: outputDir);
 
 Future<FfiLogoutResponse> logout() => RustLib.instance.api.crateApiLogout();
+
+class FfiAssignmentDetailResponse {
+  final String className;
+  final String comment;
+  final String content;
+  final String endTime;
+  final String id;
+  final bool isOvertimeCommit;
+  final double? score;
+  final String siteId;
+  final String siteName;
+  final String startTime;
+  final FfiAssignmentStatus status;
+  final String submittedAt;
+  final List<FfiAssignmentResource> submittedAttachments;
+  final String submittedContent;
+  final List<FfiAssignmentResource> teacherResources;
+  final String title;
+  final String? updatedSessionPayload;
+
+  const FfiAssignmentDetailResponse({
+    required this.className,
+    required this.comment,
+    required this.content,
+    required this.endTime,
+    required this.id,
+    required this.isOvertimeCommit,
+    this.score,
+    required this.siteId,
+    required this.siteName,
+    required this.startTime,
+    required this.status,
+    required this.submittedAt,
+    required this.submittedAttachments,
+    required this.submittedContent,
+    required this.teacherResources,
+    required this.title,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode =>
+      className.hashCode ^
+      comment.hashCode ^
+      content.hashCode ^
+      endTime.hashCode ^
+      id.hashCode ^
+      isOvertimeCommit.hashCode ^
+      score.hashCode ^
+      siteId.hashCode ^
+      siteName.hashCode ^
+      startTime.hashCode ^
+      status.hashCode ^
+      submittedAt.hashCode ^
+      submittedAttachments.hashCode ^
+      submittedContent.hashCode ^
+      teacherResources.hashCode ^
+      title.hashCode ^
+      updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiAssignmentDetailResponse &&
+          runtimeType == other.runtimeType &&
+          className == other.className &&
+          comment == other.comment &&
+          content == other.content &&
+          endTime == other.endTime &&
+          id == other.id &&
+          isOvertimeCommit == other.isOvertimeCommit &&
+          score == other.score &&
+          siteId == other.siteId &&
+          siteName == other.siteName &&
+          startTime == other.startTime &&
+          status == other.status &&
+          submittedAt == other.submittedAt &&
+          submittedAttachments == other.submittedAttachments &&
+          submittedContent == other.submittedContent &&
+          teacherResources == other.teacherResources &&
+          title == other.title &&
+          updatedSessionPayload == other.updatedSessionPayload;
+}
+
+class FfiAssignmentListResponse {
+  final List<FfiAssignmentSummary> records;
+  final String? updatedSessionPayload;
+
+  const FfiAssignmentListResponse({
+    required this.records,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode => records.hashCode ^ updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiAssignmentListResponse &&
+          runtimeType == other.runtimeType &&
+          records == other.records &&
+          updatedSessionPayload == other.updatedSessionPayload;
+}
+
+class FfiAssignmentResource {
+  final String? ext;
+  final String name;
+  final String? previewUrl;
+  final String resourceId;
+  final String? storageId;
+
+  const FfiAssignmentResource({
+    this.ext,
+    required this.name,
+    this.previewUrl,
+    required this.resourceId,
+    this.storageId,
+  });
+
+  @override
+  int get hashCode =>
+      ext.hashCode ^
+      name.hashCode ^
+      previewUrl.hashCode ^
+      resourceId.hashCode ^
+      storageId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiAssignmentResource &&
+          runtimeType == other.runtimeType &&
+          ext == other.ext &&
+          name == other.name &&
+          previewUrl == other.previewUrl &&
+          resourceId == other.resourceId &&
+          storageId == other.storageId;
+}
+
+enum FfiAssignmentStatus {
+  pending,
+  submitted,
+  expired,
+  ;
+}
+
+class FfiAssignmentSubmitResponse {
+  final bool ok;
+  final String? updatedSessionPayload;
+
+  const FfiAssignmentSubmitResponse({
+    required this.ok,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode => ok.hashCode ^ updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiAssignmentSubmitResponse &&
+          runtimeType == other.runtimeType &&
+          ok == other.ok &&
+          updatedSessionPayload == other.updatedSessionPayload;
+}
+
+class FfiAssignmentSummary {
+  final String endTime;
+  final String id;
+  final String siteId;
+  final String siteName;
+  final String source;
+  final String startTime;
+  final FfiAssignmentStatus status;
+  final String title;
+
+  const FfiAssignmentSummary({
+    required this.endTime,
+    required this.id,
+    required this.siteId,
+    required this.siteName,
+    required this.source,
+    required this.startTime,
+    required this.status,
+    required this.title,
+  });
+
+  @override
+  int get hashCode =>
+      endTime.hashCode ^
+      id.hashCode ^
+      siteId.hashCode ^
+      siteName.hashCode ^
+      source.hashCode ^
+      startTime.hashCode ^
+      status.hashCode ^
+      title.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiAssignmentSummary &&
+          runtimeType == other.runtimeType &&
+          endTime == other.endTime &&
+          id == other.id &&
+          siteId == other.siteId &&
+          siteName == other.siteName &&
+          source == other.source &&
+          startTime == other.startTime &&
+          status == other.status &&
+          title == other.title;
+}
+
+class FfiAssignmentUploadResponse {
+  final String assignmentId;
+  final String fileName;
+  final String? previewUrl;
+  final String resourceId;
+  final String siteId;
+  final String siteName;
+  final String? updatedSessionPayload;
+
+  const FfiAssignmentUploadResponse({
+    required this.assignmentId,
+    required this.fileName,
+    this.previewUrl,
+    required this.resourceId,
+    required this.siteId,
+    required this.siteName,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode =>
+      assignmentId.hashCode ^
+      fileName.hashCode ^
+      previewUrl.hashCode ^
+      resourceId.hashCode ^
+      siteId.hashCode ^
+      siteName.hashCode ^
+      updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiAssignmentUploadResponse &&
+          runtimeType == other.runtimeType &&
+          assignmentId == other.assignmentId &&
+          fileName == other.fileName &&
+          previewUrl == other.previewUrl &&
+          resourceId == other.resourceId &&
+          siteId == other.siteId &&
+          siteName == other.siteName &&
+          updatedSessionPayload == other.updatedSessionPayload;
+}
 
 class FfiAuthError implements FrbException {
   final FfiAuthErrorCode code;
@@ -71,6 +406,7 @@ enum FfiAuthErrorCode {
   sessionExpired,
   upstreamUnavailable,
   unknownAuthError,
+  ;
 }
 
 class FfiAuthFinishRequest {
@@ -178,7 +514,10 @@ class FfiAuthStartResponse {
   final FfiAuthStartResult auth;
   final FfiLoginFlow flow;
 
-  const FfiAuthStartResponse({required this.auth, required this.flow});
+  const FfiAuthStartResponse({
+    required this.auth,
+    required this.flow,
+  });
 
   @override
   int get hashCode => auth.hashCode ^ flow.hashCode;
@@ -217,6 +556,167 @@ class FfiAuthStartResult {
           requiresCaptcha == other.requiresCaptcha;
 }
 
+class FfiCourseResourceDetail {
+  final String? description;
+  final String? downloadUrl;
+  final String? ext;
+  final String name;
+  final String resourceId;
+  final String siteId;
+  final String siteName;
+  final BigInt? sizeBytes;
+  final String updatedAt;
+
+  const FfiCourseResourceDetail({
+    this.description,
+    this.downloadUrl,
+    this.ext,
+    required this.name,
+    required this.resourceId,
+    required this.siteId,
+    required this.siteName,
+    this.sizeBytes,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      description.hashCode ^
+      downloadUrl.hashCode ^
+      ext.hashCode ^
+      name.hashCode ^
+      resourceId.hashCode ^
+      siteId.hashCode ^
+      siteName.hashCode ^
+      sizeBytes.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiCourseResourceDetail &&
+          runtimeType == other.runtimeType &&
+          description == other.description &&
+          downloadUrl == other.downloadUrl &&
+          ext == other.ext &&
+          name == other.name &&
+          resourceId == other.resourceId &&
+          siteId == other.siteId &&
+          siteName == other.siteName &&
+          sizeBytes == other.sizeBytes &&
+          updatedAt == other.updatedAt;
+}
+
+class FfiCourseResourceDetailResponse {
+  final FfiCourseResourceDetail detail;
+  final String? updatedSessionPayload;
+
+  const FfiCourseResourceDetailResponse({
+    required this.detail,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode => detail.hashCode ^ updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiCourseResourceDetailResponse &&
+          runtimeType == other.runtimeType &&
+          detail == other.detail &&
+          updatedSessionPayload == other.updatedSessionPayload;
+}
+
+class FfiCourseResourceDownloadResponse {
+  final List<FfiCourseResourceDetail> records;
+  final List<String> writtenPaths;
+  final String? updatedSessionPayload;
+
+  const FfiCourseResourceDownloadResponse({
+    required this.records,
+    required this.writtenPaths,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode =>
+      records.hashCode ^ writtenPaths.hashCode ^ updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiCourseResourceDownloadResponse &&
+          runtimeType == other.runtimeType &&
+          records == other.records &&
+          writtenPaths == other.writtenPaths &&
+          updatedSessionPayload == other.updatedSessionPayload;
+}
+
+class FfiCourseResourceSummary {
+  final String? ext;
+  final String name;
+  final String resourceId;
+  final String siteId;
+  final String siteName;
+  final BigInt? sizeBytes;
+  final String updatedAt;
+
+  const FfiCourseResourceSummary({
+    this.ext,
+    required this.name,
+    required this.resourceId,
+    required this.siteId,
+    required this.siteName,
+    this.sizeBytes,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      ext.hashCode ^
+      name.hashCode ^
+      resourceId.hashCode ^
+      siteId.hashCode ^
+      siteName.hashCode ^
+      sizeBytes.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiCourseResourceSummary &&
+          runtimeType == other.runtimeType &&
+          ext == other.ext &&
+          name == other.name &&
+          resourceId == other.resourceId &&
+          siteId == other.siteId &&
+          siteName == other.siteName &&
+          sizeBytes == other.sizeBytes &&
+          updatedAt == other.updatedAt;
+}
+
+class FfiCourseResourcesResponse {
+  final List<FfiCourseResourceSummary> records;
+  final String? updatedSessionPayload;
+
+  const FfiCourseResourcesResponse({
+    required this.records,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode => records.hashCode ^ updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiCourseResourcesResponse &&
+          runtimeType == other.runtimeType &&
+          records == other.records &&
+          updatedSessionPayload == other.updatedSessionPayload;
+}
+
 class FfiCourseResponse {
   final List<FfiCourseSite> records;
   final List<FfiGoingSite> goingSites;
@@ -246,7 +746,10 @@ class FfiCourseSite {
   final String id;
   final String siteName;
 
-  const FfiCourseSite({required this.id, required this.siteName});
+  const FfiCourseSite({
+    required this.id,
+    required this.siteName,
+  });
 
   @override
   int get hashCode => id.hashCode ^ siteName.hashCode;
@@ -264,7 +767,10 @@ class FfiGoingSite {
   final String groupId;
   final String siteId;
 
-  const FfiGoingSite({required this.groupId, required this.siteId});
+  const FfiGoingSite({
+    required this.groupId,
+    required this.siteId,
+  });
 
   @override
   int get hashCode => groupId.hashCode ^ siteId.hashCode;
@@ -320,7 +826,9 @@ class FfiLoginFlow {
 class FfiLogoutResponse {
   final bool clearSession;
 
-  const FfiLogoutResponse({required this.clearSession});
+  const FfiLogoutResponse({
+    required this.clearSession,
+  });
 
   @override
   int get hashCode => clearSession.hashCode;
@@ -372,7 +880,12 @@ class FfiRoleInfo {
           roleName == other.roleName;
 }
 
-enum FfiRoleName { student, teacher, assistant }
+enum FfiRoleName {
+  student,
+  teacher,
+  assistant,
+  ;
+}
 
 class FfiSessionUser {
   final String account;

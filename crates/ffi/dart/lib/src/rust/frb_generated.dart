@@ -35,8 +35,12 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   /// Initialize flutter_rust_bridge in mock mode.
   /// No libraries for FFI are loaded.
-  static void initMock({required RustLibApi api}) {
-    instance.initMockImpl(api: api);
+  static void initMock({
+    required RustLibApi api,
+  }) {
+    instance.initMockImpl(
+      api: api,
+    );
   }
 
   /// Dispose flutter_rust_bridge
@@ -64,35 +68,77 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -982138870;
+  int get rustContentHash => 567354790;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
-        stem: 'open_cloud_ffi',
-        ioDirectory: '../target/release/',
-        webPrefix: 'pkg/',
-        wasmBindgenName: 'wasm_bindgen',
-      );
+    stem: 'open_cloud_ffi',
+    ioDirectory: '../target/release/',
+    webPrefix: 'pkg/',
+    wasmBindgenName: 'wasm_bindgen',
+  );
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<FfiAuthFinishResponse> crateApiAuthFinish({
-    required FfiAuthFinishRequest request,
-    required FfiLoginFlow flow,
-  });
+  Future<FfiAssignmentDetailResponse> crateApiAssignmentDetail(
+      {required String sessionPayload, required String assignmentId});
+
+  Future<FfiAssignmentSubmitResponse> crateApiAssignmentSubmit(
+      {required String sessionPayload,
+      required String assignmentId,
+      required String content,
+      required List<String> attachmentIds});
+
+  Future<FfiAssignmentUploadResponse> crateApiAssignmentUpload(
+      {required String sessionPayload,
+      required String assignmentId,
+      required String filePath});
+
+  Future<FfiAssignmentListResponse> crateApiAssignmentsForCourse(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName,
+      required String keyword});
+
+  Future<FfiAssignmentListResponse> crateApiAssignmentsUndone(
+      {required String sessionPayload});
+
+  Future<FfiAuthFinishResponse> crateApiAuthFinish(
+      {required FfiAuthFinishRequest request, required FfiLoginFlow flow});
 
   Future<FfiAuthStartResponse> crateApiAuthStart({required String username});
 
-  Future<FfiCourseResponse> crateApiCourses({
-    required String sessionPayload,
-    required bool withGoing,
-  });
+  Future<FfiCourseResponse> crateApiCourses(
+      {required String sessionPayload, required bool withGoing});
 
   Future<FfiLogoutResponse> crateApiLogout();
 
-  Future<FfiAuthSessionResponse> crateApiSessionSummary({
-    required String sessionPayload,
-  });
+  Future<FfiCourseResourceDetailResponse> crateApiResourceDetail(
+      {required String sessionPayload,
+      required String resourceId,
+      required String siteId,
+      required String siteName});
+
+  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownload(
+      {required String sessionPayload,
+      required String resourceId,
+      required String siteId,
+      required String siteName,
+      required String outputPath});
+
+  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownloadCourse(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName,
+      required String outputDir});
+
+  Future<FfiCourseResourcesResponse> crateApiResourcesForCourse(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName});
+
+  Future<FfiAuthSessionResponse> crateApiSessionSummary(
+      {required String sessionPayload});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -104,159 +150,407 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<FfiAuthFinishResponse> crateApiAuthFinish({
-    required FfiAuthFinishRequest request,
-    required FfiLoginFlow flow,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_box_autoadd_ffi_auth_finish_request(request, serializer);
-          sse_encode_box_autoadd_ffi_login_flow(flow, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 1,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_ffi_auth_finish_response,
-          decodeErrorData: sse_decode_ffi_auth_error,
-        ),
-        constMeta: kCrateApiAuthFinishConstMeta,
-        argValues: [request, flow],
-        apiImpl: this,
+  Future<FfiAssignmentDetailResponse> crateApiAssignmentDetail(
+      {required String sessionPayload, required String assignmentId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(assignmentId, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 1, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_assignment_detail_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
       ),
-    );
+      constMeta: kCrateApiAssignmentDetailConstMeta,
+      argValues: [sessionPayload, assignmentId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAssignmentDetailConstMeta => const TaskConstMeta(
+        debugName: "assignment_detail",
+        argNames: ["sessionPayload", "assignmentId"],
+      );
+
+  @override
+  Future<FfiAssignmentSubmitResponse> crateApiAssignmentSubmit(
+      {required String sessionPayload,
+      required String assignmentId,
+      required String content,
+      required List<String> attachmentIds}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(assignmentId, serializer);
+        sse_encode_String(content, serializer);
+        sse_encode_list_String(attachmentIds, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 2, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_assignment_submit_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiAssignmentSubmitConstMeta,
+      argValues: [sessionPayload, assignmentId, content, attachmentIds],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAssignmentSubmitConstMeta => const TaskConstMeta(
+        debugName: "assignment_submit",
+        argNames: [
+          "sessionPayload",
+          "assignmentId",
+          "content",
+          "attachmentIds"
+        ],
+      );
+
+  @override
+  Future<FfiAssignmentUploadResponse> crateApiAssignmentUpload(
+      {required String sessionPayload,
+      required String assignmentId,
+      required String filePath}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(assignmentId, serializer);
+        sse_encode_String(filePath, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 3, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_assignment_upload_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiAssignmentUploadConstMeta,
+      argValues: [sessionPayload, assignmentId, filePath],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAssignmentUploadConstMeta => const TaskConstMeta(
+        debugName: "assignment_upload",
+        argNames: ["sessionPayload", "assignmentId", "filePath"],
+      );
+
+  @override
+  Future<FfiAssignmentListResponse> crateApiAssignmentsForCourse(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName,
+      required String keyword}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(siteId, serializer);
+        sse_encode_String(siteName, serializer);
+        sse_encode_String(keyword, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 4, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_assignment_list_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiAssignmentsForCourseConstMeta,
+      argValues: [sessionPayload, siteId, siteName, keyword],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAssignmentsForCourseConstMeta =>
+      const TaskConstMeta(
+        debugName: "assignments_for_course",
+        argNames: ["sessionPayload", "siteId", "siteName", "keyword"],
+      );
+
+  @override
+  Future<FfiAssignmentListResponse> crateApiAssignmentsUndone(
+      {required String sessionPayload}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 5, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_assignment_list_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiAssignmentsUndoneConstMeta,
+      argValues: [sessionPayload],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiAssignmentsUndoneConstMeta => const TaskConstMeta(
+        debugName: "assignments_undone",
+        argNames: ["sessionPayload"],
+      );
+
+  @override
+  Future<FfiAuthFinishResponse> crateApiAuthFinish(
+      {required FfiAuthFinishRequest request, required FfiLoginFlow flow}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_box_autoadd_ffi_auth_finish_request(request, serializer);
+        sse_encode_box_autoadd_ffi_login_flow(flow, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 6, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_auth_finish_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiAuthFinishConstMeta,
+      argValues: [request, flow],
+      apiImpl: this,
+    ));
   }
 
   TaskConstMeta get kCrateApiAuthFinishConstMeta => const TaskConstMeta(
-    debugName: "auth_finish",
-    argNames: ["request", "flow"],
-  );
+        debugName: "auth_finish",
+        argNames: ["request", "flow"],
+      );
 
   @override
   Future<FfiAuthStartResponse> crateApiAuthStart({required String username}) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(username, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 2,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_ffi_auth_start_response,
-          decodeErrorData: sse_decode_ffi_auth_error,
-        ),
-        constMeta: kCrateApiAuthStartConstMeta,
-        argValues: [username],
-        apiImpl: this,
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(username, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 7, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_auth_start_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
       ),
-    );
+      constMeta: kCrateApiAuthStartConstMeta,
+      argValues: [username],
+      apiImpl: this,
+    ));
   }
 
-  TaskConstMeta get kCrateApiAuthStartConstMeta =>
-      const TaskConstMeta(debugName: "auth_start", argNames: ["username"]);
+  TaskConstMeta get kCrateApiAuthStartConstMeta => const TaskConstMeta(
+        debugName: "auth_start",
+        argNames: ["username"],
+      );
 
   @override
-  Future<FfiCourseResponse> crateApiCourses({
-    required String sessionPayload,
-    required bool withGoing,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(sessionPayload, serializer);
-          sse_encode_bool(withGoing, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 3,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_ffi_course_response,
-          decodeErrorData: sse_decode_ffi_auth_error,
-        ),
-        constMeta: kCrateApiCoursesConstMeta,
-        argValues: [sessionPayload, withGoing],
-        apiImpl: this,
+  Future<FfiCourseResponse> crateApiCourses(
+      {required String sessionPayload, required bool withGoing}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_bool(withGoing, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 8, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_course_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
       ),
-    );
+      constMeta: kCrateApiCoursesConstMeta,
+      argValues: [sessionPayload, withGoing],
+      apiImpl: this,
+    ));
   }
 
   TaskConstMeta get kCrateApiCoursesConstMeta => const TaskConstMeta(
-    debugName: "courses",
-    argNames: ["sessionPayload", "withGoing"],
-  );
+        debugName: "courses",
+        argNames: ["sessionPayload", "withGoing"],
+      );
 
   @override
   Future<FfiLogoutResponse> crateApiLogout() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 4,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_ffi_logout_response,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiLogoutConstMeta,
-        argValues: [],
-        apiImpl: this,
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 9, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_logout_response,
+        decodeErrorData: null,
       ),
-    );
+      constMeta: kCrateApiLogoutConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
   }
 
-  TaskConstMeta get kCrateApiLogoutConstMeta =>
-      const TaskConstMeta(debugName: "logout", argNames: []);
+  TaskConstMeta get kCrateApiLogoutConstMeta => const TaskConstMeta(
+        debugName: "logout",
+        argNames: [],
+      );
 
   @override
-  Future<FfiAuthSessionResponse> crateApiSessionSummary({
-    required String sessionPayload,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(sessionPayload, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 5,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_ffi_auth_session_response,
-          decodeErrorData: sse_decode_ffi_auth_error,
-        ),
-        constMeta: kCrateApiSessionSummaryConstMeta,
-        argValues: [sessionPayload],
-        apiImpl: this,
+  Future<FfiCourseResourceDetailResponse> crateApiResourceDetail(
+      {required String sessionPayload,
+      required String resourceId,
+      required String siteId,
+      required String siteName}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(resourceId, serializer);
+        sse_encode_String(siteId, serializer);
+        sse_encode_String(siteName, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 10, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_course_resource_detail_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
       ),
-    );
+      constMeta: kCrateApiResourceDetailConstMeta,
+      argValues: [sessionPayload, resourceId, siteId, siteName],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiResourceDetailConstMeta => const TaskConstMeta(
+        debugName: "resource_detail",
+        argNames: ["sessionPayload", "resourceId", "siteId", "siteName"],
+      );
+
+  @override
+  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownload(
+      {required String sessionPayload,
+      required String resourceId,
+      required String siteId,
+      required String siteName,
+      required String outputPath}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(resourceId, serializer);
+        sse_encode_String(siteId, serializer);
+        sse_encode_String(siteName, serializer);
+        sse_encode_String(outputPath, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 11, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_course_resource_download_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiResourceDownloadConstMeta,
+      argValues: [sessionPayload, resourceId, siteId, siteName, outputPath],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiResourceDownloadConstMeta => const TaskConstMeta(
+        debugName: "resource_download",
+        argNames: [
+          "sessionPayload",
+          "resourceId",
+          "siteId",
+          "siteName",
+          "outputPath"
+        ],
+      );
+
+  @override
+  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownloadCourse(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName,
+      required String outputDir}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(siteId, serializer);
+        sse_encode_String(siteName, serializer);
+        sse_encode_String(outputDir, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 12, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_course_resource_download_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiResourceDownloadCourseConstMeta,
+      argValues: [sessionPayload, siteId, siteName, outputDir],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiResourceDownloadCourseConstMeta =>
+      const TaskConstMeta(
+        debugName: "resource_download_course",
+        argNames: ["sessionPayload", "siteId", "siteName", "outputDir"],
+      );
+
+  @override
+  Future<FfiCourseResourcesResponse> crateApiResourcesForCourse(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(siteId, serializer);
+        sse_encode_String(siteName, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 13, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_course_resources_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiResourcesForCourseConstMeta,
+      argValues: [sessionPayload, siteId, siteName],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiResourcesForCourseConstMeta => const TaskConstMeta(
+        debugName: "resources_for_course",
+        argNames: ["sessionPayload", "siteId", "siteName"],
+      );
+
+  @override
+  Future<FfiAuthSessionResponse> crateApiSessionSummary(
+      {required String sessionPayload}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 14, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_auth_session_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiSessionSummaryConstMeta,
+      argValues: [sessionPayload],
+      apiImpl: this,
+    ));
   }
 
   TaskConstMeta get kCrateApiSessionSummaryConstMeta => const TaskConstMeta(
-    debugName: "session_summary",
-    argNames: ["sessionPayload"],
-  );
+        debugName: "session_summary",
+        argNames: ["sessionPayload"],
+      );
 
   @protected
   String dco_decode_String(dynamic raw) {
@@ -271,9 +565,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
   FfiAuthFinishRequest dco_decode_box_autoadd_ffi_auth_finish_request(
-    dynamic raw,
-  ) {
+      dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ffi_auth_finish_request(raw);
   }
@@ -294,6 +593,123 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_u_64(raw);
+  }
+
+  @protected
+  double dco_decode_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
+  FfiAssignmentDetailResponse dco_decode_ffi_assignment_detail_response(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 17)
+      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
+    return FfiAssignmentDetailResponse(
+      className: dco_decode_String(arr[0]),
+      comment: dco_decode_String(arr[1]),
+      content: dco_decode_String(arr[2]),
+      endTime: dco_decode_String(arr[3]),
+      id: dco_decode_String(arr[4]),
+      isOvertimeCommit: dco_decode_bool(arr[5]),
+      score: dco_decode_opt_box_autoadd_f_64(arr[6]),
+      siteId: dco_decode_String(arr[7]),
+      siteName: dco_decode_String(arr[8]),
+      startTime: dco_decode_String(arr[9]),
+      status: dco_decode_ffi_assignment_status(arr[10]),
+      submittedAt: dco_decode_String(arr[11]),
+      submittedAttachments: dco_decode_list_ffi_assignment_resource(arr[12]),
+      submittedContent: dco_decode_String(arr[13]),
+      teacherResources: dco_decode_list_ffi_assignment_resource(arr[14]),
+      title: dco_decode_String(arr[15]),
+      updatedSessionPayload: dco_decode_opt_String(arr[16]),
+    );
+  }
+
+  @protected
+  FfiAssignmentListResponse dco_decode_ffi_assignment_list_response(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return FfiAssignmentListResponse(
+      records: dco_decode_list_ffi_assignment_summary(arr[0]),
+      updatedSessionPayload: dco_decode_opt_String(arr[1]),
+    );
+  }
+
+  @protected
+  FfiAssignmentResource dco_decode_ffi_assignment_resource(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return FfiAssignmentResource(
+      ext: dco_decode_opt_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      previewUrl: dco_decode_opt_String(arr[2]),
+      resourceId: dco_decode_String(arr[3]),
+      storageId: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
+  FfiAssignmentStatus dco_decode_ffi_assignment_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return FfiAssignmentStatus.values[raw as int];
+  }
+
+  @protected
+  FfiAssignmentSubmitResponse dco_decode_ffi_assignment_submit_response(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return FfiAssignmentSubmitResponse(
+      ok: dco_decode_bool(arr[0]),
+      updatedSessionPayload: dco_decode_opt_String(arr[1]),
+    );
+  }
+
+  @protected
+  FfiAssignmentSummary dco_decode_ffi_assignment_summary(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return FfiAssignmentSummary(
+      endTime: dco_decode_String(arr[0]),
+      id: dco_decode_String(arr[1]),
+      siteId: dco_decode_String(arr[2]),
+      siteName: dco_decode_String(arr[3]),
+      source: dco_decode_String(arr[4]),
+      startTime: dco_decode_String(arr[5]),
+      status: dco_decode_ffi_assignment_status(arr[6]),
+      title: dco_decode_String(arr[7]),
+    );
+  }
+
+  @protected
+  FfiAssignmentUploadResponse dco_decode_ffi_assignment_upload_response(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return FfiAssignmentUploadResponse(
+      assignmentId: dco_decode_String(arr[0]),
+      fileName: dco_decode_String(arr[1]),
+      previewUrl: dco_decode_opt_String(arr[2]),
+      resourceId: dco_decode_String(arr[3]),
+      siteId: dco_decode_String(arr[4]),
+      siteName: dco_decode_String(arr[5]),
+      updatedSessionPayload: dco_decode_opt_String(arr[6]),
+    );
   }
 
   @protected
@@ -393,6 +809,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FfiCourseResourceDetail dco_decode_ffi_course_resource_detail(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return FfiCourseResourceDetail(
+      description: dco_decode_opt_String(arr[0]),
+      downloadUrl: dco_decode_opt_String(arr[1]),
+      ext: dco_decode_opt_String(arr[2]),
+      name: dco_decode_String(arr[3]),
+      resourceId: dco_decode_String(arr[4]),
+      siteId: dco_decode_String(arr[5]),
+      siteName: dco_decode_String(arr[6]),
+      sizeBytes: dco_decode_opt_box_autoadd_u_64(arr[7]),
+      updatedAt: dco_decode_String(arr[8]),
+    );
+  }
+
+  @protected
+  FfiCourseResourceDetailResponse
+      dco_decode_ffi_course_resource_detail_response(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return FfiCourseResourceDetailResponse(
+      detail: dco_decode_ffi_course_resource_detail(arr[0]),
+      updatedSessionPayload: dco_decode_opt_String(arr[1]),
+    );
+  }
+
+  @protected
+  FfiCourseResourceDownloadResponse
+      dco_decode_ffi_course_resource_download_response(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return FfiCourseResourceDownloadResponse(
+      records: dco_decode_list_ffi_course_resource_detail(arr[0]),
+      writtenPaths: dco_decode_list_String(arr[1]),
+      updatedSessionPayload: dco_decode_opt_String(arr[2]),
+    );
+  }
+
+  @protected
+  FfiCourseResourceSummary dco_decode_ffi_course_resource_summary(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return FfiCourseResourceSummary(
+      ext: dco_decode_opt_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      resourceId: dco_decode_String(arr[2]),
+      siteId: dco_decode_String(arr[3]),
+      siteName: dco_decode_String(arr[4]),
+      sizeBytes: dco_decode_opt_box_autoadd_u_64(arr[5]),
+      updatedAt: dco_decode_String(arr[6]),
+    );
+  }
+
+  @protected
+  FfiCourseResourcesResponse dco_decode_ffi_course_resources_response(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return FfiCourseResourcesResponse(
+      records: dco_decode_list_ffi_course_resource_summary(arr[0]),
+      updatedSessionPayload: dco_decode_opt_String(arr[1]),
+    );
+  }
+
+  @protected
   FfiCourseResponse dco_decode_ffi_course_response(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -451,7 +943,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     final arr = raw as List<dynamic>;
     if (arr.length != 1)
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return FfiLogoutResponse(clearSession: dco_decode_bool(arr[0]));
+    return FfiLogoutResponse(
+      clearSession: dco_decode_bool(arr[0]),
+    );
   }
 
   @protected
@@ -497,6 +991,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<FfiAssignmentResource> dco_decode_list_ffi_assignment_resource(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_ffi_assignment_resource)
+        .toList();
+  }
+
+  @protected
+  List<FfiAssignmentSummary> dco_decode_list_ffi_assignment_summary(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_ffi_assignment_summary)
+        .toList();
+  }
+
+  @protected
+  List<FfiCourseResourceDetail> dco_decode_list_ffi_course_resource_detail(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_ffi_course_resource_detail)
+        .toList();
+  }
+
+  @protected
+  List<FfiCourseResourceSummary> dco_decode_list_ffi_course_resource_summary(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_ffi_course_resource_summary)
+        .toList();
+  }
+
+  @protected
   List<FfiCourseSite> dco_decode_list_ffi_course_site(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_ffi_course_site).toList();
@@ -524,6 +1060,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_f_64(raw);
   }
 
   @protected
@@ -570,25 +1112,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_f_64(deserializer));
+  }
+
+  @protected
   FfiAuthFinishRequest sse_decode_box_autoadd_ffi_auth_finish_request(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ffi_auth_finish_request(deserializer));
   }
 
   @protected
   FfiLoginFlow sse_decode_box_autoadd_ffi_login_flow(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ffi_login_flow(deserializer));
   }
 
   @protected
   FfiRoleName sse_decode_box_autoadd_ffi_role_name(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_ffi_role_name(deserializer));
   }
@@ -600,22 +1145,158 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double sse_decode_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat64();
+  }
+
+  @protected
+  FfiAssignmentDetailResponse sse_decode_ffi_assignment_detail_response(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_className = sse_decode_String(deserializer);
+    var var_comment = sse_decode_String(deserializer);
+    var var_content = sse_decode_String(deserializer);
+    var var_endTime = sse_decode_String(deserializer);
+    var var_id = sse_decode_String(deserializer);
+    var var_isOvertimeCommit = sse_decode_bool(deserializer);
+    var var_score = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_siteId = sse_decode_String(deserializer);
+    var var_siteName = sse_decode_String(deserializer);
+    var var_startTime = sse_decode_String(deserializer);
+    var var_status = sse_decode_ffi_assignment_status(deserializer);
+    var var_submittedAt = sse_decode_String(deserializer);
+    var var_submittedAttachments =
+        sse_decode_list_ffi_assignment_resource(deserializer);
+    var var_submittedContent = sse_decode_String(deserializer);
+    var var_teacherResources =
+        sse_decode_list_ffi_assignment_resource(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiAssignmentDetailResponse(
+        className: var_className,
+        comment: var_comment,
+        content: var_content,
+        endTime: var_endTime,
+        id: var_id,
+        isOvertimeCommit: var_isOvertimeCommit,
+        score: var_score,
+        siteId: var_siteId,
+        siteName: var_siteName,
+        startTime: var_startTime,
+        status: var_status,
+        submittedAt: var_submittedAt,
+        submittedAttachments: var_submittedAttachments,
+        submittedContent: var_submittedContent,
+        teacherResources: var_teacherResources,
+        title: var_title,
+        updatedSessionPayload: var_updatedSessionPayload);
+  }
+
+  @protected
+  FfiAssignmentListResponse sse_decode_ffi_assignment_list_response(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_records = sse_decode_list_ffi_assignment_summary(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiAssignmentListResponse(
+        records: var_records, updatedSessionPayload: var_updatedSessionPayload);
+  }
+
+  @protected
+  FfiAssignmentResource sse_decode_ffi_assignment_resource(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ext = sse_decode_opt_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_previewUrl = sse_decode_opt_String(deserializer);
+    var var_resourceId = sse_decode_String(deserializer);
+    var var_storageId = sse_decode_opt_String(deserializer);
+    return FfiAssignmentResource(
+        ext: var_ext,
+        name: var_name,
+        previewUrl: var_previewUrl,
+        resourceId: var_resourceId,
+        storageId: var_storageId);
+  }
+
+  @protected
+  FfiAssignmentStatus sse_decode_ffi_assignment_status(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return FfiAssignmentStatus.values[inner];
+  }
+
+  @protected
+  FfiAssignmentSubmitResponse sse_decode_ffi_assignment_submit_response(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ok = sse_decode_bool(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiAssignmentSubmitResponse(
+        ok: var_ok, updatedSessionPayload: var_updatedSessionPayload);
+  }
+
+  @protected
+  FfiAssignmentSummary sse_decode_ffi_assignment_summary(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_endTime = sse_decode_String(deserializer);
+    var var_id = sse_decode_String(deserializer);
+    var var_siteId = sse_decode_String(deserializer);
+    var var_siteName = sse_decode_String(deserializer);
+    var var_source = sse_decode_String(deserializer);
+    var var_startTime = sse_decode_String(deserializer);
+    var var_status = sse_decode_ffi_assignment_status(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    return FfiAssignmentSummary(
+        endTime: var_endTime,
+        id: var_id,
+        siteId: var_siteId,
+        siteName: var_siteName,
+        source: var_source,
+        startTime: var_startTime,
+        status: var_status,
+        title: var_title);
+  }
+
+  @protected
+  FfiAssignmentUploadResponse sse_decode_ffi_assignment_upload_response(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_assignmentId = sse_decode_String(deserializer);
+    var var_fileName = sse_decode_String(deserializer);
+    var var_previewUrl = sse_decode_opt_String(deserializer);
+    var var_resourceId = sse_decode_String(deserializer);
+    var var_siteId = sse_decode_String(deserializer);
+    var var_siteName = sse_decode_String(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiAssignmentUploadResponse(
+        assignmentId: var_assignmentId,
+        fileName: var_fileName,
+        previewUrl: var_previewUrl,
+        resourceId: var_resourceId,
+        siteId: var_siteId,
+        siteName: var_siteName,
+        updatedSessionPayload: var_updatedSessionPayload);
+  }
+
+  @protected
   FfiAuthError sse_decode_ffi_auth_error(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_code = sse_decode_ffi_auth_error_code(deserializer);
     var var_message = sse_decode_String(deserializer);
     var var_retryAfterSeconds = sse_decode_opt_box_autoadd_u_64(deserializer);
     return FfiAuthError(
-      code: var_code,
-      message: var_message,
-      retryAfterSeconds: var_retryAfterSeconds,
-    );
+        code: var_code,
+        message: var_message,
+        retryAfterSeconds: var_retryAfterSeconds);
   }
 
   @protected
   FfiAuthErrorCode sse_decode_ffi_auth_error_code(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
     return FfiAuthErrorCode.values[inner];
@@ -623,8 +1304,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   FfiAuthFinishRequest sse_decode_ffi_auth_finish_request(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_captcha = sse_decode_opt_String(deserializer);
     var var_flowId = sse_decode_String(deserializer);
@@ -632,59 +1312,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_role = sse_decode_opt_box_autoadd_ffi_role_name(deserializer);
     var var_username = sse_decode_String(deserializer);
     return FfiAuthFinishRequest(
-      captcha: var_captcha,
-      flowId: var_flowId,
-      password: var_password,
-      role: var_role,
-      username: var_username,
-    );
+        captcha: var_captcha,
+        flowId: var_flowId,
+        password: var_password,
+        role: var_role,
+        username: var_username);
   }
 
   @protected
   FfiAuthFinishResponse sse_decode_ffi_auth_finish_response(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_auth = sse_decode_ffi_auth_finish_result(deserializer);
     var var_sessionPayload = sse_decode_String(deserializer);
     return FfiAuthFinishResponse(
-      auth: var_auth,
-      sessionPayload: var_sessionPayload,
-    );
+        auth: var_auth, sessionPayload: var_sessionPayload);
   }
 
   @protected
   FfiAuthFinishResult sse_decode_ffi_auth_finish_result(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_roles = sse_decode_list_ffi_role_info(deserializer);
     var var_selectedRole = sse_decode_ffi_role_name(deserializer);
     var var_user = sse_decode_ffi_session_user(deserializer);
     return FfiAuthFinishResult(
-      roles: var_roles,
-      selectedRole: var_selectedRole,
-      user: var_user,
-    );
+        roles: var_roles, selectedRole: var_selectedRole, user: var_user);
   }
 
   @protected
   FfiAuthSessionResponse sse_decode_ffi_auth_session_response(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_selectedRole = sse_decode_ffi_role_name(deserializer);
     var var_user = sse_decode_ffi_session_user(deserializer);
     return FfiAuthSessionResponse(
-      selectedRole: var_selectedRole,
-      user: var_user,
-    );
+        selectedRole: var_selectedRole, user: var_user);
   }
 
   @protected
   FfiAuthStartResponse sse_decode_ffi_auth_start_response(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_auth = sse_decode_ffi_auth_start_result(deserializer);
     var var_flow = sse_decode_ffi_login_flow(deserializer);
@@ -693,32 +1361,109 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   FfiAuthStartResult sse_decode_ffi_auth_start_result(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_captchaImage = sse_decode_opt_String(deserializer);
     var var_flowId = sse_decode_String(deserializer);
     var var_requiresCaptcha = sse_decode_bool(deserializer);
     return FfiAuthStartResult(
-      captchaImage: var_captchaImage,
-      flowId: var_flowId,
-      requiresCaptcha: var_requiresCaptcha,
-    );
+        captchaImage: var_captchaImage,
+        flowId: var_flowId,
+        requiresCaptcha: var_requiresCaptcha);
+  }
+
+  @protected
+  FfiCourseResourceDetail sse_decode_ffi_course_resource_detail(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_description = sse_decode_opt_String(deserializer);
+    var var_downloadUrl = sse_decode_opt_String(deserializer);
+    var var_ext = sse_decode_opt_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_resourceId = sse_decode_String(deserializer);
+    var var_siteId = sse_decode_String(deserializer);
+    var var_siteName = sse_decode_String(deserializer);
+    var var_sizeBytes = sse_decode_opt_box_autoadd_u_64(deserializer);
+    var var_updatedAt = sse_decode_String(deserializer);
+    return FfiCourseResourceDetail(
+        description: var_description,
+        downloadUrl: var_downloadUrl,
+        ext: var_ext,
+        name: var_name,
+        resourceId: var_resourceId,
+        siteId: var_siteId,
+        siteName: var_siteName,
+        sizeBytes: var_sizeBytes,
+        updatedAt: var_updatedAt);
+  }
+
+  @protected
+  FfiCourseResourceDetailResponse
+      sse_decode_ffi_course_resource_detail_response(
+          SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_detail = sse_decode_ffi_course_resource_detail(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiCourseResourceDetailResponse(
+        detail: var_detail, updatedSessionPayload: var_updatedSessionPayload);
+  }
+
+  @protected
+  FfiCourseResourceDownloadResponse
+      sse_decode_ffi_course_resource_download_response(
+          SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_records = sse_decode_list_ffi_course_resource_detail(deserializer);
+    var var_writtenPaths = sse_decode_list_String(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiCourseResourceDownloadResponse(
+        records: var_records,
+        writtenPaths: var_writtenPaths,
+        updatedSessionPayload: var_updatedSessionPayload);
+  }
+
+  @protected
+  FfiCourseResourceSummary sse_decode_ffi_course_resource_summary(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_ext = sse_decode_opt_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_resourceId = sse_decode_String(deserializer);
+    var var_siteId = sse_decode_String(deserializer);
+    var var_siteName = sse_decode_String(deserializer);
+    var var_sizeBytes = sse_decode_opt_box_autoadd_u_64(deserializer);
+    var var_updatedAt = sse_decode_String(deserializer);
+    return FfiCourseResourceSummary(
+        ext: var_ext,
+        name: var_name,
+        resourceId: var_resourceId,
+        siteId: var_siteId,
+        siteName: var_siteName,
+        sizeBytes: var_sizeBytes,
+        updatedAt: var_updatedAt);
+  }
+
+  @protected
+  FfiCourseResourcesResponse sse_decode_ffi_course_resources_response(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_records = sse_decode_list_ffi_course_resource_summary(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiCourseResourcesResponse(
+        records: var_records, updatedSessionPayload: var_updatedSessionPayload);
   }
 
   @protected
   FfiCourseResponse sse_decode_ffi_course_response(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_records = sse_decode_list_ffi_course_site(deserializer);
     var var_goingSites = sse_decode_list_ffi_going_site(deserializer);
     var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
     return FfiCourseResponse(
-      records: var_records,
-      goingSites: var_goingSites,
-      updatedSessionPayload: var_updatedSessionPayload,
-    );
+        records: var_records,
+        goingSites: var_goingSites,
+        updatedSessionPayload: var_updatedSessionPayload);
   }
 
   @protected
@@ -747,19 +1492,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_execution = sse_decode_String(deserializer);
     var var_username = sse_decode_String(deserializer);
     return FfiLoginFlow(
-      captchaId: var_captchaId,
-      captchaImage: var_captchaImage,
-      cookie: var_cookie,
-      createdAtMs: var_createdAtMs,
-      execution: var_execution,
-      username: var_username,
-    );
+        captchaId: var_captchaId,
+        captchaImage: var_captchaImage,
+        cookie: var_cookie,
+        createdAtMs: var_createdAtMs,
+        execution: var_execution,
+        username: var_username);
   }
 
   @protected
   FfiLogoutResponse sse_decode_ffi_logout_response(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_clearSession = sse_decode_bool(deserializer);
     return FfiLogoutResponse(clearSession: var_clearSession);
@@ -775,13 +1518,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_roleId = sse_decode_String(deserializer);
     var var_roleName = sse_decode_ffi_role_name(deserializer);
     return FfiRoleInfo(
-      domainId: var_domainId,
-      domainName: var_domainName,
-      id: var_id,
-      roleAliase: var_roleAliase,
-      roleId: var_roleId,
-      roleName: var_roleName,
-    );
+        domainId: var_domainId,
+        domainName: var_domainName,
+        id: var_id,
+        roleAliase: var_roleAliase,
+        roleId: var_roleId,
+        roleName: var_roleName);
   }
 
   @protected
@@ -799,11 +1541,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_userId = sse_decode_String(deserializer);
     var var_userName = sse_decode_String(deserializer);
     return FfiSessionUser(
-      account: var_account,
-      realName: var_realName,
-      userId: var_userId,
-      userName: var_userName,
-    );
+        account: var_account,
+        realName: var_realName,
+        userId: var_userId,
+        userName: var_userName);
   }
 
   @protected
@@ -813,9 +1554,72 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <String>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<FfiAssignmentResource> sse_decode_list_ffi_assignment_resource(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <FfiAssignmentResource>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ffi_assignment_resource(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<FfiAssignmentSummary> sse_decode_list_ffi_assignment_summary(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <FfiAssignmentSummary>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ffi_assignment_summary(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<FfiCourseResourceDetail> sse_decode_list_ffi_course_resource_detail(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <FfiCourseResourceDetail>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ffi_course_resource_detail(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<FfiCourseResourceSummary> sse_decode_list_ffi_course_resource_summary(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <FfiCourseResourceSummary>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ffi_course_resource_summary(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<FfiCourseSite> sse_decode_list_ffi_course_site(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
@@ -828,8 +1632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   List<FfiGoingSite> sse_decode_list_ffi_going_site(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
@@ -842,8 +1645,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   List<FfiRoleInfo> sse_decode_list_ffi_role_info(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
@@ -873,9 +1675,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_f_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   FfiRoleName? sse_decode_opt_box_autoadd_ffi_role_name(
-    SseDeserializer deserializer,
-  ) {
+      SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
@@ -926,28 +1738,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_ffi_auth_finish_request(
-    FfiAuthFinishRequest self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthFinishRequest self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ffi_auth_finish_request(self, serializer);
   }
 
   @protected
   void sse_encode_box_autoadd_ffi_login_flow(
-    FfiLoginFlow self,
-    SseSerializer serializer,
-  ) {
+      FfiLoginFlow self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ffi_login_flow(self, serializer);
   }
 
   @protected
   void sse_encode_box_autoadd_ffi_role_name(
-    FfiRoleName self,
-    SseSerializer serializer,
-  ) {
+      FfiRoleName self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ffi_role_name(self, serializer);
   }
@@ -956,6 +1768,97 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat64(self);
+  }
+
+  @protected
+  void sse_encode_ffi_assignment_detail_response(
+      FfiAssignmentDetailResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.className, serializer);
+    sse_encode_String(self.comment, serializer);
+    sse_encode_String(self.content, serializer);
+    sse_encode_String(self.endTime, serializer);
+    sse_encode_String(self.id, serializer);
+    sse_encode_bool(self.isOvertimeCommit, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.score, serializer);
+    sse_encode_String(self.siteId, serializer);
+    sse_encode_String(self.siteName, serializer);
+    sse_encode_String(self.startTime, serializer);
+    sse_encode_ffi_assignment_status(self.status, serializer);
+    sse_encode_String(self.submittedAt, serializer);
+    sse_encode_list_ffi_assignment_resource(
+        self.submittedAttachments, serializer);
+    sse_encode_String(self.submittedContent, serializer);
+    sse_encode_list_ffi_assignment_resource(self.teacherResources, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_assignment_list_response(
+      FfiAssignmentListResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_ffi_assignment_summary(self.records, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_assignment_resource(
+      FfiAssignmentResource self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.ext, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_opt_String(self.previewUrl, serializer);
+    sse_encode_String(self.resourceId, serializer);
+    sse_encode_opt_String(self.storageId, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_assignment_status(
+      FfiAssignmentStatus self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_assignment_submit_response(
+      FfiAssignmentSubmitResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.ok, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_assignment_summary(
+      FfiAssignmentSummary self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.endTime, serializer);
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.siteId, serializer);
+    sse_encode_String(self.siteName, serializer);
+    sse_encode_String(self.source, serializer);
+    sse_encode_String(self.startTime, serializer);
+    sse_encode_ffi_assignment_status(self.status, serializer);
+    sse_encode_String(self.title, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_assignment_upload_response(
+      FfiAssignmentUploadResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.assignmentId, serializer);
+    sse_encode_String(self.fileName, serializer);
+    sse_encode_opt_String(self.previewUrl, serializer);
+    sse_encode_String(self.resourceId, serializer);
+    sse_encode_String(self.siteId, serializer);
+    sse_encode_String(self.siteName, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
   }
 
   @protected
@@ -968,18 +1871,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_auth_error_code(
-    FfiAuthErrorCode self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthErrorCode self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
   }
 
   @protected
   void sse_encode_ffi_auth_finish_request(
-    FfiAuthFinishRequest self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthFinishRequest self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.captcha, serializer);
     sse_encode_String(self.flowId, serializer);
@@ -990,9 +1889,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_auth_finish_response(
-    FfiAuthFinishResponse self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthFinishResponse self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ffi_auth_finish_result(self.auth, serializer);
     sse_encode_String(self.sessionPayload, serializer);
@@ -1000,9 +1897,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_auth_finish_result(
-    FfiAuthFinishResult self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthFinishResult self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_ffi_role_info(self.roles, serializer);
     sse_encode_ffi_role_name(self.selectedRole, serializer);
@@ -1011,9 +1906,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_auth_session_response(
-    FfiAuthSessionResponse self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthSessionResponse self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ffi_role_name(self.selectedRole, serializer);
     sse_encode_ffi_session_user(self.user, serializer);
@@ -1021,9 +1914,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_auth_start_response(
-    FfiAuthStartResponse self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthStartResponse self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ffi_auth_start_result(self.auth, serializer);
     sse_encode_ffi_login_flow(self.flow, serializer);
@@ -1031,9 +1922,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_auth_start_result(
-    FfiAuthStartResult self,
-    SseSerializer serializer,
-  ) {
+      FfiAuthStartResult self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_opt_String(self.captchaImage, serializer);
     sse_encode_String(self.flowId, serializer);
@@ -1041,10 +1930,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_ffi_course_resource_detail(
+      FfiCourseResourceDetail self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.description, serializer);
+    sse_encode_opt_String(self.downloadUrl, serializer);
+    sse_encode_opt_String(self.ext, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.resourceId, serializer);
+    sse_encode_String(self.siteId, serializer);
+    sse_encode_String(self.siteName, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.sizeBytes, serializer);
+    sse_encode_String(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_course_resource_detail_response(
+      FfiCourseResourceDetailResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ffi_course_resource_detail(self.detail, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_course_resource_download_response(
+      FfiCourseResourceDownloadResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_ffi_course_resource_detail(self.records, serializer);
+    sse_encode_list_String(self.writtenPaths, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_course_resource_summary(
+      FfiCourseResourceSummary self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.ext, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.resourceId, serializer);
+    sse_encode_String(self.siteId, serializer);
+    sse_encode_String(self.siteName, serializer);
+    sse_encode_opt_box_autoadd_u_64(self.sizeBytes, serializer);
+    sse_encode_String(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_course_resources_response(
+      FfiCourseResourcesResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_ffi_course_resource_summary(self.records, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
+  }
+
+  @protected
   void sse_encode_ffi_course_response(
-    FfiCourseResponse self,
-    SseSerializer serializer,
-  ) {
+      FfiCourseResponse self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_ffi_course_site(self.records, serializer);
     sse_encode_list_ffi_going_site(self.goingSites, serializer);
@@ -1053,9 +1993,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_course_site(
-    FfiCourseSite self,
-    SseSerializer serializer,
-  ) {
+      FfiCourseSite self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.siteName, serializer);
@@ -1081,9 +2019,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_logout_response(
-    FfiLogoutResponse self,
-    SseSerializer serializer,
-  ) {
+      FfiLogoutResponse self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.clearSession, serializer);
   }
@@ -1107,9 +2043,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_ffi_session_user(
-    FfiSessionUser self,
-    SseSerializer serializer,
-  ) {
+      FfiSessionUser self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.account, serializer);
     sse_encode_String(self.realName, serializer);
@@ -1124,10 +2058,57 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ffi_assignment_resource(
+      List<FfiAssignmentResource> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ffi_assignment_resource(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ffi_assignment_summary(
+      List<FfiAssignmentSummary> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ffi_assignment_summary(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ffi_course_resource_detail(
+      List<FfiCourseResourceDetail> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ffi_course_resource_detail(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_ffi_course_resource_summary(
+      List<FfiCourseResourceSummary> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ffi_course_resource_summary(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_ffi_course_site(
-    List<FfiCourseSite> self,
-    SseSerializer serializer,
-  ) {
+      List<FfiCourseSite> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
@@ -1137,9 +2118,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_list_ffi_going_site(
-    List<FfiGoingSite> self,
-    SseSerializer serializer,
-  ) {
+      List<FfiGoingSite> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
@@ -1149,9 +2128,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_list_ffi_role_info(
-    List<FfiRoleInfo> self,
-    SseSerializer serializer,
-  ) {
+      List<FfiRoleInfo> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
@@ -1161,9 +2138,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_list_prim_u_8_strict(
-    Uint8List self,
-    SseSerializer serializer,
-  ) {
+      Uint8List self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
@@ -1180,10 +2155,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_f_64(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_ffi_role_name(
-    FfiRoleName? self,
-    SseSerializer serializer,
-  ) {
+      FfiRoleName? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);

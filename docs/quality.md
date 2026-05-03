@@ -20,6 +20,7 @@ Flutter work should also run:
 
 ```bash
 cd apps/client
+flutter pub get
 dart analyze
 flutter test
 ```
