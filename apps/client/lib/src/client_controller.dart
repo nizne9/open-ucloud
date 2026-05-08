@@ -18,6 +18,11 @@ enum ClientTab { courses, assignments, resources }
 
 enum AssignmentView { undone, course }
 
+const _defaultCapabilities = FfiClientCapabilities(
+  selfAttendance: false,
+  attendanceQrPayloadParsing: false,
+);
+
 class CourseItem {
   const CourseItem({
     required this.id,
@@ -78,6 +83,9 @@ class ClientState {
     this.downloadedPaths = const [],
     this.resourceDownloadProgressCurrent = 0,
     this.resourceDownloadProgressTotal = 0,
+    this.capabilities = _defaultCapabilities,
+    this.parsedAttendanceQrPayload,
+    this.attendanceQrInputError,
     this.errorMessage,
   });
 
@@ -111,6 +119,9 @@ class ClientState {
   final List<String> downloadedPaths;
   final int resourceDownloadProgressCurrent;
   final int resourceDownloadProgressTotal;
+  final FfiClientCapabilities capabilities;
+  final FfiAttendanceQrPayload? parsedAttendanceQrPayload;
+  final String? attendanceQrInputError;
   final String? errorMessage;
 
   bool get isBusy =>
@@ -148,6 +159,9 @@ class ClientState {
     List<String>? downloadedPaths,
     int? resourceDownloadProgressCurrent,
     int? resourceDownloadProgressTotal,
+    FfiClientCapabilities? capabilities,
+    FfiAttendanceQrPayload? parsedAttendanceQrPayload,
+    String? attendanceQrInputError,
     String? errorMessage,
     bool clearSession = false,
     bool clearLogin = false,
@@ -155,6 +169,8 @@ class ClientState {
     bool clearAssignmentDetail = false,
     bool clearResourceSelection = false,
     bool clearResourceDetail = false,
+    bool clearAttendanceQrResult = false,
+    bool clearAttendanceQrError = false,
     bool clearError = false,
   }) {
     return ClientState(
@@ -209,6 +225,13 @@ class ClientState {
           this.resourceDownloadProgressCurrent,
       resourceDownloadProgressTotal:
           resourceDownloadProgressTotal ?? this.resourceDownloadProgressTotal,
+      capabilities: capabilities ?? this.capabilities,
+      parsedAttendanceQrPayload: clearAttendanceQrResult
+          ? null
+          : parsedAttendanceQrPayload ?? this.parsedAttendanceQrPayload,
+      attendanceQrInputError: clearAttendanceQrError
+          ? null
+          : attendanceQrInputError ?? this.attendanceQrInputError,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
   }
@@ -253,9 +276,14 @@ class ClientController extends Notifier<ClientState> {
     final gateway = ref.read(openCloudGatewayProvider);
     try {
       await gateway.init();
+      final capabilities = await _loadCapabilitiesOrDefault(gateway);
       final session = await gateway.sessionSummary(payload);
-      state = ClientState(phase: ClientPhase.loadingCourses, session: session);
-      await _loadCourses(payload, session);
+      state = ClientState(
+        phase: ClientPhase.loadingCourses,
+        session: session,
+        capabilities: capabilities,
+      );
+      await _loadCourses(payload, session, capabilities);
     } on FfiAuthError catch (error) {
       await storage.clearSessionPayload();
       state = ClientState(
@@ -349,8 +377,13 @@ class ClientController extends Notifier<ClientState> {
         selectedRole: result.auth.selectedRole,
         user: result.auth.user,
       );
-      state = ClientState(phase: ClientPhase.loadingCourses, session: session);
-      await _loadCourses(result.sessionPayload, session);
+      final capabilities = await _loadCapabilitiesOrDefault(gateway);
+      state = ClientState(
+        phase: ClientPhase.loadingCourses,
+        session: session,
+        capabilities: capabilities,
+      );
+      await _loadCourses(result.sessionPayload, session, capabilities);
     } on FfiAuthError catch (error) {
       state = state.copyWith(
         phase: activeFlow.captchaId == null
@@ -389,6 +422,38 @@ class ClientController extends Notifier<ClientState> {
     }
     state = state.copyWith(phase: ClientPhase.loadingCourses, clearError: true);
     await _loadCourses(payload, session);
+  }
+
+  Future<void> parseAttendanceQrPayloadText(String payload) async {
+    state = state.copyWith(
+      clearAttendanceQrResult: true,
+      clearAttendanceQrError: true,
+    );
+    final gateway = ref.read(openCloudGatewayProvider);
+    try {
+      final parsed = await gateway.parseAttendanceQrPayloadText(payload);
+      state = state.copyWith(
+        parsedAttendanceQrPayload: parsed,
+        clearAttendanceQrError: true,
+      );
+    } on FfiAuthError catch (error) {
+      state = state.copyWith(
+        attendanceQrInputError: error.message,
+        clearAttendanceQrResult: true,
+      );
+    } catch (error) {
+      state = state.copyWith(
+        attendanceQrInputError: '二维码文本解析失败：$error',
+        clearAttendanceQrResult: true,
+      );
+    }
+  }
+
+  void clearAttendanceQrPayloadParseState() {
+    state = state.copyWith(
+      clearAttendanceQrResult: true,
+      clearAttendanceQrError: true,
+    );
   }
 
   Future<void> logout() async {
@@ -826,8 +891,9 @@ class ClientController extends Notifier<ClientState> {
 
   Future<void> _loadCourses(
     String sessionPayload,
-    FfiAuthSessionResponse session,
-  ) async {
+    FfiAuthSessionResponse session, [
+    FfiClientCapabilities? capabilities,
+  ]) async {
     final gateway = ref.read(openCloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
     try {
@@ -845,6 +911,7 @@ class ClientController extends Notifier<ClientState> {
       state = ClientState(
         phase: ClientPhase.authenticated,
         session: session,
+        capabilities: capabilities ?? state.capabilities,
         courses: [
           for (final course in response.records)
             CourseItem(
@@ -867,6 +934,7 @@ class ClientController extends Notifier<ClientState> {
       state = ClientState(
         phase: ClientPhase.authenticated,
         session: session,
+        capabilities: capabilities ?? state.capabilities,
         courses: state.courses,
         errorMessage: error.message,
       );
@@ -874,9 +942,20 @@ class ClientController extends Notifier<ClientState> {
       state = ClientState(
         phase: ClientPhase.authenticated,
         session: session,
+        capabilities: capabilities ?? state.capabilities,
         courses: state.courses,
         errorMessage: '课程加载失败：$error',
       );
+    }
+  }
+
+  Future<FfiClientCapabilities> _loadCapabilitiesOrDefault(
+    OpenCloudGateway gateway,
+  ) async {
+    try {
+      return await gateway.capabilities();
+    } catch (_) {
+      return _defaultCapabilities;
     }
   }
 

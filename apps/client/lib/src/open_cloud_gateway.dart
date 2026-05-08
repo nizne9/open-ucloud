@@ -19,6 +19,12 @@ abstract interface class OpenCloudGateway {
     String sessionPayload,
   );
 
+  Future<open_cloud_ffi.FfiClientCapabilities> capabilities();
+
+  Future<open_cloud_ffi.FfiAttendanceQrPayload> parseAttendanceQrPayloadText(
+    String payload,
+  );
+
   Future<open_cloud_ffi.FfiCourseResponse> courses({
     required String sessionPayload,
     required bool withGoing,
@@ -123,6 +129,18 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
     String sessionPayload,
   ) {
     return open_cloud_ffi.sessionSummary(sessionPayload: sessionPayload);
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiClientCapabilities> capabilities() {
+    return open_cloud_ffi.capabilities();
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiAttendanceQrPayload> parseAttendanceQrPayloadText(
+    String payload,
+  ) {
+    return open_cloud_ffi.parseAttendanceQrPayloadText(payload: payload);
   }
 
   @override

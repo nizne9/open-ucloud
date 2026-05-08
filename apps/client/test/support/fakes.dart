@@ -46,6 +46,13 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
       records: [],
       writtenPaths: [],
     ),
+    this.capabilitiesResponse = const FfiClientCapabilities(
+      selfAttendance: false,
+      attendanceQrPayloadParsing: false,
+    ),
+    this.capabilitiesError,
+    this.parseAttendanceQrPayloadResponse,
+    this.parseAttendanceQrPayloadError,
     this.sessionSummaryError,
   });
 
@@ -59,6 +66,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiCourseResourcesResponse resourcesResponse;
   final FfiCourseResourceDetailResponse? resourceDetailResponse;
   final FfiCourseResourceDownloadResponse resourceDownloadResponse;
+  final FfiClientCapabilities capabilitiesResponse;
+  final Object? capabilitiesError;
+  final FfiAttendanceQrPayload? parseAttendanceQrPayloadResponse;
+  final FfiAuthError? parseAttendanceQrPayloadError;
   final FfiAuthError? sessionSummaryError;
   bool initialized = false;
   int coursesCalls = 0;
@@ -119,6 +130,32 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
             userId: 'u-1',
             userName: '2024000000',
           ),
+        );
+  }
+
+  @override
+  Future<FfiClientCapabilities> capabilities() async {
+    final error = capabilitiesError;
+    if (error != null) {
+      throw error;
+    }
+    return capabilitiesResponse;
+  }
+
+  @override
+  Future<FfiAttendanceQrPayload> parseAttendanceQrPayloadText(
+    String payload,
+  ) async {
+    final error = parseAttendanceQrPayloadError;
+    if (error != null) {
+      throw error;
+    }
+    return parseAttendanceQrPayloadResponse ??
+        const FfiAttendanceQrPayload(
+          attendanceId: 'attendance-1',
+          siteId: 'site-1',
+          createTime: '2026-05-09 10:00:00+08:00',
+          classLessonId: 'lesson-1',
         );
   }
 

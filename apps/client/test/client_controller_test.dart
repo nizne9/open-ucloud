@@ -10,6 +10,10 @@ void main() {
   test('restores session and persists refreshed payload', () async {
     final storage = MemorySessionStorage('old-payload');
     final gateway = FakeOpenCloudGateway(
+      capabilitiesResponse: const FfiClientCapabilities(
+        selfAttendance: false,
+        attendanceQrPayloadParsing: true,
+      ),
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -23,9 +27,34 @@ void main() {
 
     final state = container.read(clientControllerProvider);
     expect(state.phase, ClientPhase.authenticated);
+    expect(state.capabilities.attendanceQrPayloadParsing, isTrue);
     expect(state.courses.single.going, isTrue);
     expect(storage.payload, 'new-payload');
   });
+
+  test(
+    'capability failures fall back to disabled flags and load courses',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        capabilitiesError: Exception('not available'),
+        session: _session(),
+        courseResponse: const FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+          goingSites: [],
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+
+      await container.read(clientControllerProvider.notifier).bootstrap();
+
+      final state = container.read(clientControllerProvider);
+      expect(state.phase, ClientPhase.authenticated);
+      expect(state.capabilities.selfAttendance, isFalse);
+      expect(state.capabilities.attendanceQrPayloadParsing, isFalse);
+      expect(state.courses.single.name, '软件测试');
+    },
+  );
 
   test('clears storage when persisted session is expired', () async {
     final storage = MemorySessionStorage('expired-payload');
@@ -95,6 +124,65 @@ void main() {
       container.read(clientControllerProvider).phase,
       ClientPhase.unauthenticated,
     );
+  });
+
+  test('parses attendance QR payload and preserves plus signs', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: const FfiCourseResponse(
+        records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+        goingSites: [],
+      ),
+      parseAttendanceQrPayloadResponse: const FfiAttendanceQrPayload(
+        attendanceId: 'attendance-1',
+        siteId: 'site-1',
+        createTime: '2026-05-09 10:00:00+08:00',
+        classLessonId: 'lesson-1',
+      ),
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    await container.read(clientControllerProvider.notifier).bootstrap();
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .parseAttendanceQrPayloadText(
+          'checkwork|id=attendance-1&siteId=site-1&createTime=2026-05-09 10:00:00+08:00&classLessonId=lesson-1',
+        );
+
+    final state = container.read(clientControllerProvider);
+    expect(state.parsedAttendanceQrPayload?.attendanceId, 'attendance-1');
+    expect(
+      state.parsedAttendanceQrPayload?.createTime,
+      '2026-05-09 10:00:00+08:00',
+    );
+    expect(state.attendanceQrInputError, isNull);
+  });
+
+  test('parse attendance QR failures keep courses visible', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: const FfiCourseResponse(
+        records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+        goingSites: [],
+      ),
+      parseAttendanceQrPayloadError: const FfiAuthError(
+        code: FfiAuthErrorCode.unknownAuthError,
+        message: 'invalid checkwork payload',
+      ),
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    await container.read(clientControllerProvider.notifier).bootstrap();
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .parseAttendanceQrPayloadText('not a payload');
+
+    final state = container.read(clientControllerProvider);
+    expect(state.attendanceQrInputError, 'invalid checkwork payload');
+    expect(state.parsedAttendanceQrPayload, isNull);
+    expect(state.courses.single.name, '软件测试');
   });
 
   test(
