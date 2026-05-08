@@ -38,6 +38,8 @@ Core must not depend on CLI, FFI, Flutter, Web, or UI concepts. API must stay DT
 
 The project is a personal client and self-hosted entry point for legitimate account use. Do not add bypass, fake-location, account delegation, automatic answer generation, or unattended platform-rule evasion features.
 
+The default CLI and Flutter product surface must remain a compliant client. Capabilities that cannot be open-sourced should live in a separate private product workspace rather than in this repository behind feature flags or disabled stubs.
+
 ## Current Auth Core
 
 The Rust core owns the real login chain: unified auth page initialization, optional captcha image loading, credential POST, ticket extraction, UCloud token exchange, role lookup, role-scoped refresh, JWT expiration parsing, and access-token refresh. CLI and future FFI adapters must call this core instead of duplicating protocol logic.
