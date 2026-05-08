@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_cloud_ffi/open_cloud_ffi.dart';
 
+import 'assignment_content_view.dart';
 import 'client_controller.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -605,12 +606,16 @@ class _AssignmentsPane extends ConsumerWidget {
   }
 
   String _assignmentStatusLabel(FfiAssignmentStatus status) {
-    return switch (status) {
-      FfiAssignmentStatus.pending => '待提交',
-      FfiAssignmentStatus.submitted => '已提交',
-      FfiAssignmentStatus.expired => '已截止',
-    };
+    return _assignmentStatusText(status);
   }
+}
+
+String _assignmentStatusText(FfiAssignmentStatus status) {
+  return switch (status) {
+    FfiAssignmentStatus.pending => '待提交',
+    FfiAssignmentStatus.submitted => '已提交',
+    FfiAssignmentStatus.expired => '已截止',
+  };
 }
 
 class _AssignmentDetailCard extends ConsumerStatefulWidget {
@@ -673,6 +678,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
       return const SizedBox.shrink();
     }
     final expired = detail.status == FfiAssignmentStatus.expired;
+    final courseName = _assignmentCourseName(state, detail);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -680,9 +686,34 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(detail.title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _AssignmentMetaChip(
+                  icon: Icons.class_outlined,
+                  label: courseName,
+                ),
+                if (detail.endTime.isNotEmpty)
+                  _AssignmentMetaChip(
+                    icon: Icons.event_outlined,
+                    label: '截止 ${detail.endTime}',
+                  ),
+                _AssignmentMetaChip(
+                  icon: expired
+                      ? Icons.event_busy_outlined
+                      : Icons.edit_note_outlined,
+                  label: _assignmentStatusText(detail.status),
+                ),
+              ],
+            ),
             if (detail.content.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(detail.content),
+              const SizedBox(height: 16),
+              _AssignmentSection(
+                title: '作业要求',
+                child: AssignmentContentView(content: detail.content),
+              ),
             ],
             const SizedBox(height: 12),
             TextField(
@@ -749,6 +780,57 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
       ),
     );
   }
+}
+
+class _AssignmentSection extends StatelessWidget {
+  const _AssignmentSection({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _AssignmentMetaChip extends StatelessWidget {
+  const _AssignmentMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      avatar: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
+}
+
+String _assignmentCourseName(
+  ClientState state,
+  FfiAssignmentDetailResponse detail,
+) {
+  final detailName = detail.siteName.trim();
+  if (detailName.isNotEmpty) {
+    return detailName;
+  }
+  for (final assignment in state.assignments) {
+    if (assignment.id == detail.id && assignment.siteName.trim().isNotEmpty) {
+      return assignment.siteName;
+    }
+  }
+  return '未知课程';
 }
 
 class _ResourcesPane extends ConsumerWidget {

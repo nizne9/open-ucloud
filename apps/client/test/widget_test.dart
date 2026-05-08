@@ -229,6 +229,133 @@ void main() {
     expect(gateway.lastCourseAssignmentsSiteId, 'site-2');
   });
 
+  testWidgets('assignment detail renders html content as readable blocks', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                records: [
+                  FfiAssignmentSummary(
+                    endTime: '2026-05-03 23:59:59',
+                    id: 'work-1',
+                    siteId: 'site-1',
+                    siteName: '机器学习',
+                    source: 'undone',
+                    startTime: '',
+                    status: FfiAssignmentStatus.pending,
+                    title: 'Transformer 作业',
+                  ),
+                ],
+              ),
+              assignmentDetailResponse: const FfiAssignmentDetailResponse(
+                className: '',
+                comment: '',
+                content:
+                    '<h3><strong>任务 1：基础 Transformer 编码器的文本分类</strong></h3>'
+                    '<p>掌握&nbsp;<strong>Transformer</strong> 模型。</p>'
+                    '<ol><li>实现从零构建基础 Transformer 编码器。</li>'
+                    '<li>使用 <code>BERT</code> 进行微调。</li></ol>',
+                endTime: '2026-05-03 23:59:59',
+                id: 'work-1',
+                isOvertimeCommit: false,
+                siteId: 'site-1',
+                siteName: '机器学习',
+                startTime: '',
+                status: FfiAssignmentStatus.pending,
+                submittedAt: '',
+                submittedAttachments: [],
+                submittedContent: '',
+                teacherResources: [],
+                title: 'Transformer 作业',
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transformer 作业'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('<h3>'), findsNothing);
+    expect(find.text('任务 1：基础 Transformer 编码器的文本分类'), findsOneWidget);
+    expect(find.text('掌握 Transformer 模型。'), findsOneWidget);
+    expect(find.text('1. 实现从零构建基础 Transformer 编码器。'), findsOneWidget);
+    expect(find.text('2. 使用 BERT 进行微调。'), findsOneWidget);
+  });
+
+  testWidgets('assignment detail falls back to list course name', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                records: [
+                  FfiAssignmentSummary(
+                    endTime: '2026-06-28 23:59',
+                    id: 'work-1',
+                    siteId: 'site-1',
+                    siteName: '大语言模型算法和实践',
+                    source: 'undone',
+                    startTime: '',
+                    status: FfiAssignmentStatus.pending,
+                    title: '大语言模型相关主题调研综述报告',
+                  ),
+                ],
+              ),
+              assignmentDetailResponse: const FfiAssignmentDetailResponse(
+                className: '',
+                comment: '',
+                content: '完成调研综述报告',
+                endTime: '2026-06-28 23:59',
+                id: 'work-1',
+                isOvertimeCommit: false,
+                siteId: 'site-1',
+                siteName: '',
+                startTime: '',
+                status: FfiAssignmentStatus.pending,
+                submittedAt: '',
+                submittedAttachments: [],
+                submittedContent: '',
+                teacherResources: [],
+                title: '大语言模型相关主题调研综述报告',
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('大语言模型相关主题调研综述报告'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('未知课程'), findsNothing);
+    expect(find.text('大语言模型算法和实践'), findsWidgets);
+  });
+
   testWidgets('resource refresh uses selected course', (tester) async {
     final gateway = FakeOpenCloudGateway(
       session: _session(),
