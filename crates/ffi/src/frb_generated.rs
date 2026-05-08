@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -898633217;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1797930632;
 
 // Section: executor
 
@@ -323,6 +323,38 @@ fn wire__crate__api__auth_start_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__capabilities_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "capabilities",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(crate::api::capabilities())?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -948,6 +980,18 @@ impl SseDecode for crate::api::FfiAuthStartResult {
     }
 }
 
+impl SseDecode for crate::api::FfiClientCapabilities {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_selfAttendance = <bool>::sse_decode(deserializer);
+        let mut var_attendanceQrPayloadParsing = <bool>::sse_decode(deserializer);
+        return crate::api::FfiClientCapabilities {
+            self_attendance: var_selfAttendance,
+            attendance_qr_payload_parsing: var_attendanceQrPayloadParsing,
+        };
+    }
+}
+
 impl SseDecode for crate::api::FfiCourseResourceDetail {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1351,19 +1395,20 @@ fn pde_ffi_dispatcher_primary_impl(
         5 => wire__crate__api__assignments_undone_impl(port, ptr, rust_vec_len, data_len),
         6 => wire__crate__api__auth_finish_impl(port, ptr, rust_vec_len, data_len),
         7 => wire__crate__api__auth_start_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__courses_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__logout_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__parse_attendance_qr_payload_text_impl(
+        8 => wire__crate__api__capabilities_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__courses_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__logout_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__parse_attendance_qr_payload_text_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        11 => wire__crate__api__resource_detail_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__resource_download_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__resource_download_course_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__resources_for_course_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__session_summary_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__resource_detail_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__resource_download_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__resource_download_course_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__resources_for_course_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__session_summary_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1756,6 +1801,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiAuthStartResult>
     for crate::api::FfiAuthStartResult
 {
     fn into_into_dart(self) -> crate::api::FfiAuthStartResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::FfiClientCapabilities {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.self_attendance.into_into_dart().into_dart(),
+            self.attendance_qr_payload_parsing
+                .into_into_dart()
+                .into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::FfiClientCapabilities
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiClientCapabilities>
+    for crate::api::FfiClientCapabilities
+{
+    fn into_into_dart(self) -> crate::api::FfiClientCapabilities {
         self
     }
 }
@@ -2232,6 +2300,14 @@ impl SseEncode for crate::api::FfiAuthStartResult {
         <Option<String>>::sse_encode(self.captcha_image, serializer);
         <String>::sse_encode(self.flow_id, serializer);
         <bool>::sse_encode(self.requires_captcha, serializer);
+    }
+}
+
+impl SseEncode for crate::api::FfiClientCapabilities {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.self_attendance, serializer);
+        <bool>::sse_encode(self.attendance_qr_payload_parsing, serializer);
     }
 }
 

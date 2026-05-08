@@ -96,6 +96,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FfiAuthStartResult dco_decode_ffi_auth_start_result(dynamic raw);
 
   @protected
+  FfiClientCapabilities dco_decode_ffi_client_capabilities(dynamic raw);
+
+  @protected
   FfiCourseResourceDetail dco_decode_ffi_course_resource_detail(dynamic raw);
 
   @protected
@@ -279,6 +282,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FfiAuthStartResult sse_decode_ffi_auth_start_result(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiClientCapabilities sse_decode_ffi_client_capabilities(
       SseDeserializer deserializer);
 
   @protected
@@ -476,6 +483,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ffi_auth_start_result(
       FfiAuthStartResult self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_client_capabilities(
+      FfiClientCapabilities self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_course_resource_detail(

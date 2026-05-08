@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -898633217;
+  int get rustContentHash => 1797930632;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -107,6 +107,8 @@ abstract class RustLibApi extends BaseApi {
       {required FfiAuthFinishRequest request, required FfiLoginFlow flow});
 
   Future<FfiAuthStartResponse> crateApiAuthStart({required String username});
+
+  Future<FfiClientCapabilities> crateApiCapabilities();
 
   Future<FfiCourseResponse> crateApiCourses(
       {required String sessionPayload, required bool withGoing});
@@ -351,6 +353,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<FfiClientCapabilities> crateApiCapabilities() {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 8, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_client_capabilities,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiCapabilitiesConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiCapabilitiesConstMeta => const TaskConstMeta(
+        debugName: "capabilities",
+        argNames: [],
+      );
+
+  @override
   Future<FfiCourseResponse> crateApiCourses(
       {required String sessionPayload, required bool withGoing}) {
     return handler.executeNormal(NormalTask(
@@ -359,7 +384,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(sessionPayload, serializer);
         sse_encode_bool(withGoing, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 8, port: port_);
+            funcId: 9, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_response,
@@ -382,7 +407,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 9, port: port_);
+            funcId: 10, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_logout_response,
@@ -407,7 +432,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(payload, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 10, port: port_);
+            funcId: 11, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_attendance_qr_payload,
@@ -439,7 +464,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteId, serializer);
         sse_encode_String(siteName, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 11, port: port_);
+            funcId: 12, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resource_detail_response,
@@ -472,7 +497,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteName, serializer);
         sse_encode_String(outputPath, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 12, port: port_);
+            funcId: 13, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resource_download_response,
@@ -509,7 +534,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteName, serializer);
         sse_encode_String(outputDir, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 13, port: port_);
+            funcId: 14, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resource_download_response,
@@ -539,7 +564,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteId, serializer);
         sse_encode_String(siteName, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 14, port: port_);
+            funcId: 15, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resources_response,
@@ -564,7 +589,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(sessionPayload, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 15, port: port_);
+            funcId: 16, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_auth_session_response,
@@ -848,6 +873,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       captchaImage: dco_decode_opt_String(arr[0]),
       flowId: dco_decode_String(arr[1]),
       requiresCaptcha: dco_decode_bool(arr[2]),
+    );
+  }
+
+  @protected
+  FfiClientCapabilities dco_decode_ffi_client_capabilities(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return FfiClientCapabilities(
+      selfAttendance: dco_decode_bool(arr[0]),
+      attendanceQrPayloadParsing: dco_decode_bool(arr[1]),
     );
   }
 
@@ -1431,6 +1468,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  FfiClientCapabilities sse_decode_ffi_client_capabilities(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_selfAttendance = sse_decode_bool(deserializer);
+    var var_attendanceQrPayloadParsing = sse_decode_bool(deserializer);
+    return FfiClientCapabilities(
+        selfAttendance: var_selfAttendance,
+        attendanceQrPayloadParsing: var_attendanceQrPayloadParsing);
+  }
+
+  @protected
   FfiCourseResourceDetail sse_decode_ffi_course_resource_detail(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -1995,6 +2043,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.captchaImage, serializer);
     sse_encode_String(self.flowId, serializer);
     sse_encode_bool(self.requiresCaptcha, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_client_capabilities(
+      FfiClientCapabilities self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.selfAttendance, serializer);
+    sse_encode_bool(self.attendanceQrPayloadParsing, serializer);
   }
 
   @protected

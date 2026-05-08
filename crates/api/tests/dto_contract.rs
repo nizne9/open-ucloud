@@ -1,7 +1,7 @@
 use open_cloud_api::{
     AssignmentDetailResponse, AssignmentResource, AssignmentStatus, AssignmentSubmitResponse,
     AssignmentSummary, AssignmentUploadResponse, AttendanceQrPayload, AttendanceStatusResponse,
-    AuthErrorCode, AuthErrorResponse, AuthFinishResponse, AuthSessionResponse,
+    AuthErrorCode, AuthErrorResponse, AuthFinishResponse, AuthSessionResponse, ClientCapabilities,
     CourseActivityResponse, CourseDetailResponse, CourseListResponse, CourseResourceDetail,
     CourseResourceDownloadResponse, CourseResourceSummary, CourseSite, GoingSite, RoleInfo,
     RoleName, SessionUser,
@@ -122,6 +122,21 @@ fn serializes_attendance_qr_payload_without_tokens() {
     assert_eq!(json["siteId"], "site-1");
     assert_eq!(json["createTime"], "2026-05-08+09:30:00");
     assert_eq!(json["classLessonId"], "group-1");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_client_capabilities_without_tokens() {
+    let response = ClientCapabilities {
+        self_attendance: false,
+        attendance_qr_payload_parsing: true,
+    };
+
+    let json = serde_json::to_value(response).expect("client capabilities serializes");
+
+    assert_eq!(json["selfAttendance"], false);
+    assert_eq!(json["attendanceQrPayloadParsing"], true);
     assert!(json.get("accessToken").is_none());
     assert!(json.get("refreshToken").is_none());
 }

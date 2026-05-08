@@ -4,7 +4,7 @@ Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Fl
 
 ## Module Boundaries
 
-- `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, read-only attendance state, user-supplied attendance QR payload parsing, assignments, and resources.
+- `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, read-only attendance state, user-supplied attendance QR payload parsing, public capability defaults, assignments, and resources.
 - `crates/api/`: stable DTOs, command/response shapes, and error codes shared by CLI, FFI, and future adapters.
 - `crates/store/`: storage abstractions and implementations for secure storage, SQLite, local cache, and downloaded files.
 - `crates/cli/`: agent-friendly command-line client. It is the first integration surface and smoke-test harness for core.
@@ -24,6 +24,7 @@ The current implemented harness contains `api`, `core`, `store`, `cli`, `ffi`, a
 - `session.rs`: session refresh orchestration using store abstractions.
 - `courses.rs`: course list loading and course detail resolution.
 - `attendance.rs`: check-in/attendance state loading and pure parsing for user-supplied official QR payload text.
+- `extensions.rs`: public build capability defaults shared by adapters.
 - `assignments.rs`: assignment list/detail normalization, attachment upload, and assignment submit protocol.
 - `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, and raw download bytes.
 - `protocol.rs`: shared UCloud response envelope parsing and primitive value normalization.
@@ -41,6 +42,8 @@ The project is a personal client and self-hosted entry point for legitimate acco
 The default CLI and Flutter product surface must remain a compliant client. Capabilities that cannot be open-sourced should live in a separate private product workspace rather than in this repository behind feature flags or disabled stubs.
 
 Public attendance support is limited to read-only activity state and pure parsing of an official QR payload that the user has already scanned. This repository must not actively fetch missing QR signing fields, generate attendance QR codes, or submit attendance sign-ins.
+
+Capability reporting must keep those concepts separate: `selfAttendance` remains `false` for the public product, while `attendanceQrPayloadParsing` can be `true` so PC clients without a camera can still accept official QR payload text the user already obtained.
 
 ## Current Auth Core
 

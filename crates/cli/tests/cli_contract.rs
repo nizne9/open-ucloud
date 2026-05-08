@@ -24,6 +24,9 @@ fn exposes_documented_commands() {
         .try_get_matches_from_mut(["open-cloud", "session", "--json"])
         .expect("session parses");
     command
+        .try_get_matches_from_mut(["open-cloud", "capabilities", "--json"])
+        .expect("capabilities json parses");
+    command
         .try_get_matches_from_mut(["open-cloud", "courses", "--json"])
         .expect("courses json parses");
     command
@@ -146,6 +149,25 @@ fn doctor_json_flag_is_explicit() {
     let cli = Cli::try_parse_from(["open-cloud", "doctor", "--json"]).expect("doctor parses");
 
     assert!(matches!(cli.command, Commands::Doctor { json: true }));
+}
+
+#[test]
+fn capabilities_json_flag_is_explicit() {
+    let cli =
+        Cli::try_parse_from(["open-cloud", "capabilities", "--json"]).expect("capabilities parses");
+
+    assert!(matches!(cli.command, Commands::Capabilities { json: true }));
+}
+
+#[test]
+fn capabilities_json_declares_qr_parsing_without_self_attendance() {
+    let json = open_cloud_cli::capabilities_report_json().expect("capabilities json serializes");
+    let value: serde_json::Value = serde_json::from_str(&json).expect("valid json");
+
+    assert_eq!(value["selfAttendance"], false);
+    assert_eq!(value["attendanceQrPayloadParsing"], true);
+    assert!(value.get("accessToken").is_none());
+    assert!(value.get("refreshToken").is_none());
 }
 
 #[test]

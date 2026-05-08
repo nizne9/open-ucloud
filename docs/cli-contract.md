@@ -11,6 +11,7 @@ open-cloud doctor
 open-cloud doctor --json
 open-cloud login --interactive
 open-cloud session --json
+open-cloud capabilities --json
 open-cloud courses --json
 open-cloud courses --with-going --json
 open-cloud course <site-id> --json
@@ -30,6 +31,17 @@ open-cloud logout --yes
 Use human-readable output by default. Add `--json` for machine output. JSON fields and error codes are public contracts and require tests.
 
 `login --interactive` verifies the real login chain and stores the session in the system credential store. `session --json` reads that stored session and must not print access tokens, refresh tokens, cookies, passwords, or upstream session data. If secure storage is unavailable or locked, commands return `SECURE_STORAGE_UNAVAILABLE` instead of falling back to plaintext files.
+
+`capabilities --json` does not require a session and prints public build capability flags:
+
+```json
+{
+  "selfAttendance": false,
+  "attendanceQrPayloadParsing": true
+}
+```
+
+`selfAttendance` means the public product can complete a self-attendance submit flow; it remains `false` in this repository. `attendanceQrPayloadParsing` means core/FFI can parse official `checkwork|...` QR payload text that the user already obtained, which supports PC workflows without implying sign-in submission.
 
 `courses --json` reads the stored session, refreshes an expiring access token through core, and prints:
 

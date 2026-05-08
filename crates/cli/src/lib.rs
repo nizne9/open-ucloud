@@ -2,13 +2,13 @@ use clap::{Parser, Subcommand};
 use open_cloud_api::{
     AssignmentDetailResponse, AssignmentListResponse, AssignmentSubmitResponse, AssignmentSummary,
     AssignmentUploadResponse, AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse,
-    AuthSessionResponse, CourseActivityResponse, CourseDetailResponse, CourseListResponse,
-    CourseResourceDetail, CourseResourceDownloadResponse, CourseResourceSummary,
-    CourseResourcesResponse, CourseSite, GoingSite, RoleName,
+    AuthSessionResponse, ClientCapabilities, CourseActivityResponse, CourseDetailResponse,
+    CourseListResponse, CourseResourceDetail, CourseResourceDownloadResponse,
+    CourseResourceSummary, CourseResourcesResponse, CourseSite, GoingSite, RoleName,
 };
 use open_cloud_core::{
-    refresh_session_if_needed, resolve_course_detail, OpenCloudClient, OpenCloudEndpoints,
-    ReqwestHttpClient,
+    client_capabilities, refresh_session_if_needed, resolve_course_detail, OpenCloudClient,
+    OpenCloudEndpoints, ReqwestHttpClient,
 };
 use open_cloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
@@ -45,6 +45,11 @@ pub enum Commands {
     },
     /// Print the current in-process session.
     Session {
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print client capability flags.
+    Capabilities {
         #[arg(long)]
         json: bool,
     },
@@ -269,6 +274,14 @@ pub fn doctor_report_json_from(
     ))
 }
 
+pub fn capabilities_report_json() -> Result<String, serde_json::Error> {
+    serde_json::to_string_pretty(&client_capabilities())
+}
+
+pub fn capabilities_report() -> String {
+    format_capabilities(&client_capabilities())
+}
+
 fn doctor_report_from_diagnostics(diagnostics: DoctorDiagnostics) -> String {
     let backend = diagnostics.credential_backend.as_str();
     let persistence = diagnostics.credential_persistence.as_str();
@@ -395,6 +408,18 @@ where
                     response.user.real_name,
                     response.selected_role.as_str()
                 );
+            }
+            Ok(())
+        }
+        Commands::Capabilities { json } => {
+            if json {
+                println!(
+                    "{}",
+                    capabilities_report_json()
+                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+                );
+            } else {
+                print!("{}", capabilities_report());
             }
             Ok(())
         }
@@ -1033,6 +1058,13 @@ pub fn print_course_list(courses: &[CourseSite]) {
     for course in courses {
         println!("{}\t{}", course.id, course.site_name);
     }
+}
+
+fn format_capabilities(capabilities: &ClientCapabilities) -> String {
+    format!(
+        "selfAttendance: {}\nattendanceQrPayloadParsing: {}\n",
+        capabilities.self_attendance, capabilities.attendance_qr_payload_parsing
+    )
 }
 
 pub fn format_course_list_with_going(courses: &[CourseSite], going_sites: &[GoingSite]) -> String {

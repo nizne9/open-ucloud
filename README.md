@@ -45,6 +45,8 @@ cargo run -p open-cloud-cli -- logout --yes
 
 `courses --json` reads the stored session, refreshes the access token when needed, and returns the current student course list as stable DTOs without printing access tokens, refresh tokens, cookies, or upstream session data.
 
+`capabilities --json` does not require a session and reports the public build capability flags. The public repository declares `selfAttendance: false` and `attendanceQrPayloadParsing: true`: it can parse official QR payload text the user already has, but does not submit attendance or actively fetch/generate QR signing data.
+
 `courses --with-going --json` also queries the current in-progress course attendance state and returns `goingSites` records with `siteId` and `groupId`. The plain-text form prints `id<TAB>siteName<TAB>going|idle`.
 
 The Flutter-facing FFI facade returns opaque session payloads for Dart secure storage. Flutter stores and returns those payloads unchanged; Rust core still owns login, token expiration checks, and token refresh. Regenerate Dart bindings after FFI API changes with:

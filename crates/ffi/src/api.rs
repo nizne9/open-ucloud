@@ -1,7 +1,7 @@
 use open_cloud_api::{AuthErrorCode, AuthErrorResponse};
 use open_cloud_core::{
-    parse_attendance_qr_payload, refresh_session_if_needed, LoginFlow, OpenCloudClient,
-    OpenCloudEndpoints, ReqwestHttpClient,
+    client_capabilities, parse_attendance_qr_payload, refresh_session_if_needed, LoginFlow,
+    OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
 };
 use open_cloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
@@ -122,6 +122,13 @@ pub struct FfiAttendanceQrPayload {
     pub site_id: String,
     pub create_time: String,
     pub class_lesson_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FfiClientCapabilities {
+    pub self_attendance: bool,
+    pub attendance_qr_payload_parsing: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -315,6 +322,10 @@ pub fn session_summary(session_payload: String) -> Result<FfiAuthSessionResponse
         selected_role: session.role.into(),
         user: session.user.into(),
     })
+}
+
+pub fn capabilities() -> FfiClientCapabilities {
+    client_capabilities().into()
 }
 
 pub fn parse_attendance_qr_payload_text(
@@ -1085,6 +1096,15 @@ impl From<open_cloud_api::AttendanceQrPayload> for FfiAttendanceQrPayload {
     }
 }
 
+impl From<open_cloud_api::ClientCapabilities> for FfiClientCapabilities {
+    fn from(value: open_cloud_api::ClientCapabilities) -> Self {
+        Self {
+            self_attendance: value.self_attendance,
+            attendance_qr_payload_parsing: value.attendance_qr_payload_parsing,
+        }
+    }
+}
+
 impl From<open_cloud_api::AssignmentStatus> for FfiAssignmentStatus {
     fn from(value: open_cloud_api::AssignmentStatus) -> Self {
         match value {
@@ -1320,6 +1340,17 @@ mod tests {
             .expect_err("invalid payload fails");
 
         assert_eq!(err.code, FfiAuthErrorCode::UnknownAuthError);
+    }
+
+    #[test]
+    fn capabilities_declares_qr_parsing_without_self_attendance() {
+        assert_eq!(
+            capabilities(),
+            FfiClientCapabilities {
+                self_attendance: false,
+                attendance_qr_payload_parsing: true,
+            }
+        );
     }
 
     #[test]
