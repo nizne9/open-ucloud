@@ -825,9 +825,24 @@ String _assignmentCourseName(
   if (detailName.isNotEmpty) {
     return detailName;
   }
+  final detailSiteId = detail.siteId.trim();
+  if (detailSiteId.isNotEmpty) {
+    for (final course in state.courses) {
+      if (course.id == detailSiteId && course.name.trim().isNotEmpty) {
+        return course.name;
+      }
+    }
+  }
   for (final assignment in state.assignments) {
     if (assignment.id == detail.id && assignment.siteName.trim().isNotEmpty) {
       return assignment.siteName;
+    }
+    if (assignment.id == detail.id && assignment.siteId.trim().isNotEmpty) {
+      for (final course in state.courses) {
+        if (course.id == assignment.siteId && course.name.trim().isNotEmpty) {
+          return course.name;
+        }
+      }
     }
   }
   return '未知课程';

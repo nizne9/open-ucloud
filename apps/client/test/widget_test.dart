@@ -356,6 +356,73 @@ void main() {
     expect(find.text('大语言模型算法和实践'), findsWidgets);
   });
 
+  testWidgets(
+    'undone assignment detail falls back to loaded course by site id',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sessionStorageProvider.overrideWithValue(
+              MemorySessionStorage('payload'),
+            ),
+            openCloudGatewayProvider.overrideWithValue(
+              FakeOpenCloudGateway(
+                session: _session(),
+                courseResponse: const FfiCourseResponse(
+                  records: [
+                    FfiCourseSite(id: 'site-1', siteName: '大语言模型算法和实践'),
+                  ],
+                  goingSites: [],
+                ),
+                undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                  records: [
+                    FfiAssignmentSummary(
+                      endTime: '2026-06-28 23:59',
+                      id: 'work-1',
+                      siteId: 'site-1',
+                      siteName: '',
+                      source: 'undone',
+                      startTime: '',
+                      status: FfiAssignmentStatus.pending,
+                      title: '大语言模型相关主题调研综述报告',
+                    ),
+                  ],
+                ),
+                assignmentDetailResponse: const FfiAssignmentDetailResponse(
+                  className: '',
+                  comment: '',
+                  content: '完成调研综述报告',
+                  endTime: '2026-06-28 23:59',
+                  id: 'work-1',
+                  isOvertimeCommit: false,
+                  siteId: 'site-1',
+                  siteName: '',
+                  startTime: '',
+                  status: FfiAssignmentStatus.pending,
+                  submittedAt: '',
+                  submittedAttachments: [],
+                  submittedContent: '',
+                  teacherResources: [],
+                  title: '大语言模型相关主题调研综述报告',
+                ),
+              ),
+            ),
+          ],
+          child: const OpenCloudApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('作业'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('大语言模型相关主题调研综述报告'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('未知课程'), findsNothing);
+      expect(find.text('大语言模型算法和实践'), findsOneWidget);
+    },
+  );
+
   testWidgets('resource refresh uses selected course', (tester) async {
     final gateway = FakeOpenCloudGateway(
       session: _session(),
