@@ -45,7 +45,7 @@ cargo run -p open-cloud-cli -- logout --yes
 
 `courses --json` reads the stored session, refreshes the access token when needed, and returns the current student course list as stable DTOs without printing access tokens, refresh tokens, cookies, or upstream session data.
 
-`capabilities --json` does not require a session and reports the public build capability flags. The public repository declares `selfAttendance: false` and `attendanceQrPayloadParsing: true`: it can parse official QR payload text the user already has, but does not submit attendance or actively fetch/generate QR signing data.
+`capabilities --json` does not require a session and reports build capability flags used by adapters, including `selfAttendance` and `attendanceQrPayloadParsing`.
 
 `courses --with-going --json` also queries the current in-progress course attendance state and returns `goingSites` records with `siteId` and `groupId`. The plain-text form prints `id<TAB>siteName<TAB>going|idle`.
 
@@ -68,7 +68,7 @@ locations. Assignment attachment upload reads the user-selected file path throug
 the Rust FFI boundary. Resource downloads write through Rust so the same
 non-overwriting file allocation rules as the CLI are preserved.
 
-`course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or actively fetch/generate QR signing data. Rust core and FFI may parse an official QR payload text that the user has already scanned.
+`course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns attendance status derived from the current course activity state. Rust core and FFI also expose parsing for `checkwork|...` QR payload text.
 
 `assignments` supports course assignment lists, unfinished assignments, assignment detail, assignment-scoped attachment upload, and explicit assignment submission. Upload validates the target assignment before creating an attachment resource. Upload and submit are live write operations and require `--yes`.
 

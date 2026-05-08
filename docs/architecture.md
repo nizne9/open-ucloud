@@ -23,8 +23,8 @@ The current implemented harness contains `api`, `core`, `store`, `cli`, `ffi`, a
 - `auth.rs`: login, ticket exchange, role lookup, and token refresh protocol.
 - `session.rs`: session refresh orchestration using store abstractions.
 - `courses.rs`: course list loading and course detail resolution.
-- `attendance.rs`: check-in/attendance state loading and pure parsing for user-supplied official QR payload text.
-- `extensions.rs`: public build capability defaults shared by adapters.
+- `attendance.rs`: check-in/attendance state loading and pure parsing for user-supplied `checkwork|...` QR payload text.
+- `extensions.rs`: client capability defaults shared by adapters.
 - `assignments.rs`: assignment list/detail normalization, attachment upload, and assignment submit protocol.
 - `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, and raw download bytes.
 - `protocol.rs`: shared UCloud response envelope parsing and primitive value normalization.
@@ -35,15 +35,13 @@ Do not move shared transport, client, error, or protocol helpers back into a bus
 
 Core must not depend on CLI, FFI, Flutter, Web, or UI concepts. API must stay DTO-oriented. Store must expose interfaces that core can use without knowing platform details. Adapters depend inward on API/core/store.
 
-## Product Boundary
+## Product Scope
 
-The project is a personal client and self-hosted entry point for legitimate account use. Do not add bypass, fake-location, account delegation, automatic answer generation, or unattended platform-rule evasion features.
+The project is a personal client and self-hosted entry point for regular Open UCloud account use.
 
-The default CLI and Flutter product surface must remain a compliant client. Capabilities that cannot be open-sourced should live in a separate private product workspace rather than in this repository behind feature flags or disabled stubs.
+Attendance-related core support currently covers course activity status and parsing `checkwork|...` QR payload text for clients that need to display it.
 
-Public attendance support is limited to read-only activity state and pure parsing of an official QR payload that the user has already scanned. This repository must not actively fetch missing QR signing fields, generate attendance QR codes, or submit attendance sign-ins.
-
-Capability reporting must keep those concepts separate: `selfAttendance` remains `false` for the public product, while `attendanceQrPayloadParsing` can be `true` so PC clients without a camera can still accept official QR payload text the user already obtained.
+Capability reporting keeps these surfaces explicit: `selfAttendance` describes whether a self-attendance flow is available in the current build, while `attendanceQrPayloadParsing` describes whether adapters can offer pasted QR payload parsing.
 
 ## Current Auth Core
 

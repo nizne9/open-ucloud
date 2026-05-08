@@ -32,7 +32,7 @@ Use human-readable output by default. Add `--json` for machine output. JSON fiel
 
 `login --interactive` verifies the real login chain and stores the session in the system credential store. `session --json` reads that stored session and must not print access tokens, refresh tokens, cookies, passwords, or upstream session data. If secure storage is unavailable or locked, commands return `SECURE_STORAGE_UNAVAILABLE` instead of falling back to plaintext files.
 
-`capabilities --json` does not require a session and prints public build capability flags:
+`capabilities --json` does not require a session and prints build capability flags:
 
 ```json
 {
@@ -41,7 +41,7 @@ Use human-readable output by default. Add `--json` for machine output. JSON fiel
 }
 ```
 
-`selfAttendance` means the public product can complete a self-attendance submit flow; it remains `false` in this repository. `attendanceQrPayloadParsing` means core/FFI can parse official `checkwork|...` QR payload text that the user already obtained, which supports PC workflows without implying sign-in submission.
+Capability flags are independent adapter hints. `selfAttendance` describes whether a self-attendance flow is available in the current build. `attendanceQrPayloadParsing` describes whether core/FFI can parse `checkwork|...` QR payload text for clients that accept pasted QR content.
 
 `courses --json` reads the stored session, refreshes an expiring access token through core, and prints:
 
@@ -81,7 +81,7 @@ The human-readable `courses --with-going` output prints one `id<TAB>siteName<TAB
 
 `goingSite` is `null` when the current course has no in-progress attendance state. The human-readable output prints `id<TAB>siteName<TAB>going|idle`, plus `groupId` as a fourth column when present.
 
-`attendance --site <site-id> --json` is read-only and derives status from the current course activity state:
+`attendance --site <site-id> --json` derives status from the current course activity state:
 
 ```json
 {
@@ -92,9 +92,9 @@ The human-readable `courses --with-going` output prints one `id<TAB>siteName<TAB
 }
 ```
 
-This command does not submit sign-ins, actively fetch or generate QR signing data, fake location, or generate answers. The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available.
+The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available.
 
-Core and FFI may parse official `checkwork|...` QR payload text that the user has already scanned. The public repository must not derive that payload from course state, generate attendance QR codes, or submit attendance sign-ins.
+Core and FFI also expose parsing for `checkwork|...` QR payload text.
 
 `assignments list --site <site-id> --json` reads the stored session, refreshes tokens through core, and prints:
 
