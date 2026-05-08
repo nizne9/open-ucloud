@@ -155,6 +155,15 @@ pub struct AttendanceStatusResponse {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AttendanceQrPayload {
+    pub attendance_id: String,
+    pub site_id: String,
+    pub create_time: String,
+    pub class_lesson_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AssignmentUploadResponse {
     pub assignment_id: String,
     pub file_name: String,

@@ -511,6 +511,38 @@ async fn get_going_sites_maps_upstream_failure() {
 }
 
 #[test]
+fn parse_attendance_qr_payload_accepts_official_checkwork_value() {
+    let payload = open_cloud_core::parse_attendance_qr_payload(
+        "checkwork|id=attendance-1&siteId=site-1&createTime=2026-05-08+09:30:00&classLessonId=group-1",
+    )
+    .expect("payload parses");
+
+    assert_eq!(payload.attendance_id, "attendance-1");
+    assert_eq!(payload.site_id, "site-1");
+    assert_eq!(payload.create_time, "2026-05-08+09:30:00");
+    assert_eq!(payload.class_lesson_id, "group-1");
+}
+
+#[test]
+fn parse_attendance_qr_payload_rejects_incomplete_or_unsupported_values() {
+    let missing = open_cloud_core::parse_attendance_qr_payload(
+        "checkwork|id=attendance-1&siteId=site-1&createTime=clock-1",
+    )
+    .expect_err("missing class lesson is rejected");
+    assert_eq!(missing.message, "签到二维码内容无效或不完整。");
+
+    assert!(open_cloud_core::parse_attendance_qr_payload(
+        "checkwork|id=attendance-1&siteId=site-1&createTime=clock-1&classLessonId=group-1&extra=1",
+    )
+    .is_err());
+    assert!(open_cloud_core::parse_attendance_qr_payload(
+        "checkwork|id=attendance-1&siteId=site-1&createTime=clock-1&classLessonId=group-1&id=other",
+    )
+    .is_err());
+    assert!(open_cloud_core::parse_attendance_qr_payload("site-1:group-1").is_err());
+}
+
+#[test]
 fn resolve_course_detail_matches_course_and_going_site() {
     let courses = vec![
         open_cloud_api::CourseSite {

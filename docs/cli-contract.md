@@ -80,7 +80,9 @@ The human-readable `courses --with-going` output prints one `id<TAB>siteName<TAB
 }
 ```
 
-This command does not submit sign-ins, prepare QR signing data, fake location, or generate answers. The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available.
+This command does not submit sign-ins, actively fetch or generate QR signing data, fake location, or generate answers. The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available.
+
+Core and FFI may parse official `checkwork|...` QR payload text that the user has already scanned. The public repository must not derive that payload from course state, generate attendance QR codes, or submit attendance sign-ins.
 
 `assignments list --site <site-id> --json` reads the stored session, refreshes tokens through core, and prints:
 

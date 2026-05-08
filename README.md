@@ -66,7 +66,7 @@ locations. Assignment attachment upload reads the user-selected file path throug
 the Rust FFI boundary. Resource downloads write through Rust so the same
 non-overwriting file allocation rules as the CLI are preserved.
 
-`course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or prepare QR signing data.
+`course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns read-only attendance status derived from the current course activity state. These commands do not submit sign-ins or actively fetch/generate QR signing data. Rust core and FFI may parse an official QR payload text that the user has already scanned.
 
 `assignments` supports course assignment lists, unfinished assignments, assignment detail, assignment-scoped attachment upload, and explicit assignment submission. Upload validates the target assignment before creating an attachment resource. Upload and submit are live write operations and require `--yes`.
 

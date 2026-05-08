@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 567354790;
+  int get rustContentHash => -898633217;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -112,6 +112,9 @@ abstract class RustLibApi extends BaseApi {
       {required String sessionPayload, required bool withGoing});
 
   Future<FfiLogoutResponse> crateApiLogout();
+
+  Future<FfiAttendanceQrPayload> crateApiParseAttendanceQrPayloadText(
+      {required String payload});
 
   Future<FfiCourseResourceDetailResponse> crateApiResourceDetail(
       {required String sessionPayload,
@@ -397,6 +400,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<FfiAttendanceQrPayload> crateApiParseAttendanceQrPayloadText(
+      {required String payload}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(payload, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 10, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_attendance_qr_payload,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiParseAttendanceQrPayloadTextConstMeta,
+      argValues: [payload],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiParseAttendanceQrPayloadTextConstMeta =>
+      const TaskConstMeta(
+        debugName: "parse_attendance_qr_payload_text",
+        argNames: ["payload"],
+      );
+
+  @override
   Future<FfiCourseResourceDetailResponse> crateApiResourceDetail(
       {required String sessionPayload,
       required String resourceId,
@@ -410,7 +439,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteId, serializer);
         sse_encode_String(siteName, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 10, port: port_);
+            funcId: 11, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resource_detail_response,
@@ -443,7 +472,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteName, serializer);
         sse_encode_String(outputPath, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 11, port: port_);
+            funcId: 12, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resource_download_response,
@@ -480,7 +509,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteName, serializer);
         sse_encode_String(outputDir, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 12, port: port_);
+            funcId: 13, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resource_download_response,
@@ -510,7 +539,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteId, serializer);
         sse_encode_String(siteName, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 13, port: port_);
+            funcId: 14, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resources_response,
@@ -535,7 +564,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(sessionPayload, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 14, port: port_);
+            funcId: 15, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_auth_session_response,
@@ -709,6 +738,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       siteId: dco_decode_String(arr[4]),
       siteName: dco_decode_String(arr[5]),
       updatedSessionPayload: dco_decode_opt_String(arr[6]),
+    );
+  }
+
+  @protected
+  FfiAttendanceQrPayload dco_decode_ffi_attendance_qr_payload(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return FfiAttendanceQrPayload(
+      attendanceId: dco_decode_String(arr[0]),
+      siteId: dco_decode_String(arr[1]),
+      createTime: dco_decode_String(arr[2]),
+      classLessonId: dco_decode_String(arr[3]),
     );
   }
 
@@ -1280,6 +1323,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         siteId: var_siteId,
         siteName: var_siteName,
         updatedSessionPayload: var_updatedSessionPayload);
+  }
+
+  @protected
+  FfiAttendanceQrPayload sse_decode_ffi_attendance_qr_payload(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_attendanceId = sse_decode_String(deserializer);
+    var var_siteId = sse_decode_String(deserializer);
+    var var_createTime = sse_decode_String(deserializer);
+    var var_classLessonId = sse_decode_String(deserializer);
+    return FfiAttendanceQrPayload(
+        attendanceId: var_attendanceId,
+        siteId: var_siteId,
+        createTime: var_createTime,
+        classLessonId: var_classLessonId);
   }
 
   @protected
@@ -1859,6 +1917,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.siteId, serializer);
     sse_encode_String(self.siteName, serializer);
     sse_encode_opt_String(self.updatedSessionPayload, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_attendance_qr_payload(
+      FfiAttendanceQrPayload self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.attendanceId, serializer);
+    sse_encode_String(self.siteId, serializer);
+    sse_encode_String(self.createTime, serializer);
+    sse_encode_String(self.classLessonId, serializer);
   }
 
   @protected

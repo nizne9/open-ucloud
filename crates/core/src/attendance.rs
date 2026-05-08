@@ -1,9 +1,10 @@
 use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
-use open_cloud_api::GoingSite;
+use open_cloud_api::{AttendanceQrPayload, AuthErrorCode, GoingSite};
 use serde::Deserialize;
 
 const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
+const CHECKWORK_PREFIX: &str = "checkwork|";
 
 impl<C> OpenCloudClient<C>
 where
@@ -67,4 +68,48 @@ fn normalize_going_sites(payload: RawGoingSiteList) -> Vec<GoingSite> {
             Some(GoingSite { group_id, site_id })
         })
         .collect()
+}
+
+pub fn parse_attendance_qr_payload(value: &str) -> Result<AttendanceQrPayload, AuthError> {
+    let payload = value
+        .trim()
+        .strip_prefix(CHECKWORK_PREFIX)
+        .ok_or_else(invalid_attendance_qr_payload)?;
+    let mut attendance_id = None;
+    let mut site_id = None;
+    let mut create_time = None;
+    let mut class_lesson_id = None;
+
+    for segment in payload.split('&') {
+        let (key, raw_value) = segment
+            .split_once('=')
+            .ok_or_else(invalid_attendance_qr_payload)?;
+        if raw_value.is_empty() {
+            return Err(invalid_attendance_qr_payload());
+        }
+        let slot = match key {
+            "id" => &mut attendance_id,
+            "siteId" => &mut site_id,
+            "createTime" => &mut create_time,
+            "classLessonId" => &mut class_lesson_id,
+            _ => return Err(invalid_attendance_qr_payload()),
+        };
+        if slot.replace(raw_value.to_string()).is_some() {
+            return Err(invalid_attendance_qr_payload());
+        }
+    }
+
+    Ok(AttendanceQrPayload {
+        attendance_id: attendance_id.ok_or_else(invalid_attendance_qr_payload)?,
+        site_id: site_id.ok_or_else(invalid_attendance_qr_payload)?,
+        create_time: create_time.ok_or_else(invalid_attendance_qr_payload)?,
+        class_lesson_id: class_lesson_id.ok_or_else(invalid_attendance_qr_payload)?,
+    })
+}
+
+fn invalid_attendance_qr_payload() -> AuthError {
+    AuthError::new(
+        AuthErrorCode::UnknownAuthError,
+        "签到二维码内容无效或不完整。",
+    )
 }

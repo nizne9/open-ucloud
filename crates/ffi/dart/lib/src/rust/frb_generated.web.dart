@@ -71,6 +71,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       dynamic raw);
 
   @protected
+  FfiAttendanceQrPayload dco_decode_ffi_attendance_qr_payload(dynamic raw);
+
+  @protected
   FfiAuthError dco_decode_ffi_auth_error(dynamic raw);
 
   @protected
@@ -244,6 +247,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FfiAssignmentUploadResponse sse_decode_ffi_assignment_upload_response(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiAttendanceQrPayload sse_decode_ffi_attendance_qr_payload(
       SseDeserializer deserializer);
 
   @protected
@@ -436,6 +443,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_ffi_assignment_upload_response(
       FfiAssignmentUploadResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_attendance_qr_payload(
+      FfiAttendanceQrPayload self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_auth_error(FfiAuthError self, SseSerializer serializer);

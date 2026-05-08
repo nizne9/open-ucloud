@@ -1,6 +1,7 @@
 use open_cloud_api::{AuthErrorCode, AuthErrorResponse};
 use open_cloud_core::{
-    refresh_session_if_needed, LoginFlow, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
+    parse_attendance_qr_payload, refresh_session_if_needed, LoginFlow, OpenCloudClient,
+    OpenCloudEndpoints, ReqwestHttpClient,
 };
 use open_cloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
@@ -112,6 +113,15 @@ pub struct FfiCourseSite {
 pub struct FfiGoingSite {
     pub group_id: String,
     pub site_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FfiAttendanceQrPayload {
+    pub attendance_id: String,
+    pub site_id: String,
+    pub create_time: String,
+    pub class_lesson_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -305,6 +315,14 @@ pub fn session_summary(session_payload: String) -> Result<FfiAuthSessionResponse
         selected_role: session.role.into(),
         user: session.user.into(),
     })
+}
+
+pub fn parse_attendance_qr_payload_text(
+    payload: String,
+) -> Result<FfiAttendanceQrPayload, FfiAuthError> {
+    parse_attendance_qr_payload(&payload)
+        .map(Into::into)
+        .map_err(to_ffi_error)
 }
 
 pub async fn courses(
@@ -1056,6 +1074,17 @@ impl From<open_cloud_api::GoingSite> for FfiGoingSite {
     }
 }
 
+impl From<open_cloud_api::AttendanceQrPayload> for FfiAttendanceQrPayload {
+    fn from(value: open_cloud_api::AttendanceQrPayload) -> Self {
+        Self {
+            attendance_id: value.attendance_id,
+            site_id: value.site_id,
+            create_time: value.create_time,
+            class_lesson_id: value.class_lesson_id,
+        }
+    }
+}
+
 impl From<open_cloud_api::AssignmentStatus> for FfiAssignmentStatus {
     fn from(value: open_cloud_api::AssignmentStatus) -> Self {
         match value {
@@ -1264,6 +1293,33 @@ mod tests {
         let err = session_summary("not json".to_string()).expect_err("payload fails");
 
         assert_eq!(err.code, FfiAuthErrorCode::SessionExpired);
+    }
+
+    #[test]
+    fn parse_attendance_qr_payload_text_returns_scanned_fields() {
+        let payload = parse_attendance_qr_payload_text(
+            "checkwork|id=attendance-1&siteId=site-1&createTime=2026-05-08+09:30:00&classLessonId=group-1"
+                .to_string(),
+        )
+        .expect("payload parses");
+
+        assert_eq!(
+            payload,
+            FfiAttendanceQrPayload {
+                attendance_id: "attendance-1".to_string(),
+                site_id: "site-1".to_string(),
+                create_time: "2026-05-08+09:30:00".to_string(),
+                class_lesson_id: "group-1".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_attendance_qr_payload_text_rejects_non_checkwork_values() {
+        let err = parse_attendance_qr_payload_text("site-1:group-1".to_string())
+            .expect_err("invalid payload fails");
+
+        assert_eq!(err.code, FfiAuthErrorCode::UnknownAuthError);
     }
 
     #[test]
