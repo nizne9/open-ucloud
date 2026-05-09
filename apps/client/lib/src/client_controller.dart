@@ -606,6 +606,9 @@ class ClientController extends Notifier<ClientState> {
         assignmentDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      if (state.selectedAssignmentId != assignment.id) {
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
@@ -619,6 +622,9 @@ class ClientController extends Notifier<ClientState> {
         state = state.copyWith(assignmentDetailLoading: false);
       }
     } catch (error) {
+      if (state.selectedAssignmentId != assignment.id) {
+        return;
+      }
       state = state.copyWith(
         assignmentDetailLoading: false,
         clearAssignmentSelection: true,
@@ -868,6 +874,9 @@ class ClientController extends Notifier<ClientState> {
         resourceDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      if (state.selectedResourceId != resource.resourceId) {
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
@@ -881,6 +890,9 @@ class ClientController extends Notifier<ClientState> {
         state = state.copyWith(resourceDetailLoading: false);
       }
     } catch (error) {
+      if (state.selectedResourceId != resource.resourceId) {
+        return;
+      }
       state = state.copyWith(
         resourceDetailLoading: false,
         clearResourceSelection: true,

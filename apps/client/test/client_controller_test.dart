@@ -712,6 +712,79 @@ void main() {
     },
   );
 
+  test('stale assignment detail failures keep newer selection', () async {
+    final storage = MemorySessionStorage('payload');
+    final first = Completer<FfiAssignmentDetailResponse>();
+    final second = Completer<FfiAssignmentDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      assignmentDetailFutures: [first.future, second.future],
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final firstLoad = controller.selectAssignment(
+      const FfiAssignmentSummary(
+        endTime: '',
+        id: 'work-old',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '旧作业',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    final secondLoad = controller.selectAssignment(
+      const FfiAssignmentSummary(
+        endTime: '',
+        id: 'work-new',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '新作业',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    first.completeError(Exception('old failed'));
+    await firstLoad;
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, 'work-new');
+    expect(state.assignmentDetailLoading, isTrue);
+    expect(state.errorMessage, isNull);
+
+    second.complete(
+      const FfiAssignmentDetailResponse(
+        className: '',
+        comment: '',
+        content: '',
+        endTime: '',
+        id: 'work-new',
+        isOvertimeCommit: false,
+        siteId: 'site-1',
+        siteName: '软件测试',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        submittedAt: '',
+        submittedAttachments: [],
+        submittedContent: 'new',
+        teacherResources: [],
+        title: '新作业',
+      ),
+    );
+    await secondLoad;
+
+    state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, 'work-new');
+    expect(state.assignmentDetail?.id, 'work-new');
+    expect(state.assignmentDraft, 'new');
+  });
+
   test(
     'clears stale resources when switching courses and session read fails',
     () async {
@@ -880,6 +953,64 @@ void main() {
     expect(state.resourceDetail, isNull);
     expect(state.errorMessage, contains('资料详情加载失败'));
     expect(state.errorMessage, contains('detail failed'));
+  });
+
+  test('stale resource detail failures keep newer selection', () async {
+    final storage = MemorySessionStorage('payload');
+    final first = Completer<FfiCourseResourceDetailResponse>();
+    final second = Completer<FfiCourseResourceDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailFutures: [first.future, second.future],
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final firstLoad = controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '旧课件.pdf',
+        resourceId: 'resource-old',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    final secondLoad = controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '新课件.pdf',
+        resourceId: 'resource-new',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    first.completeError(Exception('old failed'));
+    await firstLoad;
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, 'resource-new');
+    expect(state.resourceDetailLoading, isTrue);
+    expect(state.errorMessage, isNull);
+
+    second.complete(
+      const FfiCourseResourceDetailResponse(
+        detail: FfiCourseResourceDetail(
+          name: '新课件.pdf',
+          resourceId: 'resource-new',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      ),
+    );
+    await secondLoad;
+
+    state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, 'resource-new');
+    expect(state.resourceDetail?.resourceId, 'resource-new');
   });
 }
 
