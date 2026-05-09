@@ -258,10 +258,66 @@ void main() {
       final state = container.read(clientControllerProvider);
       expect(state.assignmentDetail?.status, FfiAssignmentStatus.submitted);
       expect(state.assignmentAttachments.single.resourceId, 'res-1');
+      expect(state.assignmentUploading, isFalse);
+      expect(state.operationMessage, '作业已提交');
       expect(gateway.submittedAttachmentIds, ['res-1']);
       expect(storage.payload, 'submit-payload');
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .loadUndoneAssignments();
+
+      expect(container.read(clientControllerProvider).operationMessage, isNull);
     },
   );
+
+  test('removes uploaded attachment from pending submission', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      undoneAssignmentsResponse: const FfiAssignmentListResponse(
+        records: [
+          FfiAssignmentSummary(
+            endTime: '2026-05-03 23:59:59',
+            id: 'work-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            source: 'undone',
+            startTime: '',
+            status: FfiAssignmentStatus.pending,
+            title: '实验报告',
+          ),
+        ],
+      ),
+      assignmentUploadResponse: const FfiAssignmentUploadResponse(
+        assignmentId: 'work-1',
+        fileName: 'report.pdf',
+        resourceId: 'res-1',
+        siteId: 'site-1',
+        siteName: '软件测试',
+      ),
+    );
+    final container = _container(storage: storage, gateway: gateway);
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .loadUndoneAssignments();
+    await container
+        .read(clientControllerProvider.notifier)
+        .selectAssignment(
+          container.read(clientControllerProvider).assignments.single,
+        );
+    await container
+        .read(clientControllerProvider.notifier)
+        .uploadAssignmentAttachment('/tmp/report.pdf');
+    container
+        .read(clientControllerProvider.notifier)
+        .removeAssignmentAttachment('res-1');
+
+    final state = container.read(clientControllerProvider);
+    expect(state.assignmentAttachments, isEmpty);
+    expect(state.operationMessage, '已移除附件 report.pdf');
+  });
 
   test('downloads all resources and persists refreshed payload', () async {
     final storage = MemorySessionStorage('payload');
@@ -306,8 +362,87 @@ void main() {
     expect(state.downloadedPaths, ['/tmp/课件.pdf']);
     expect(state.resourceDownloadProgressCurrent, 1);
     expect(state.resourceDownloadProgressTotal, 1);
+    expect(state.operationMessage, '已下载 1 个资料文件');
     expect(storage.payload, 'download-payload');
+
+    container
+        .read(clientControllerProvider.notifier)
+        .selectTab(ClientTab.assignments);
+
+    expect(container.read(clientControllerProvider).operationMessage, isNull);
   });
+
+  test(
+    'clears success message when selecting another assignment detail',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        assignmentDetailResponse: const FfiAssignmentDetailResponse(
+          className: '',
+          comment: '',
+          content: '',
+          endTime: '2026-05-03 23:59:59',
+          id: 'work-1',
+          isOvertimeCommit: false,
+          siteId: 'site-1',
+          siteName: '软件测试',
+          startTime: '',
+          status: FfiAssignmentStatus.pending,
+          submittedAt: '',
+          submittedAttachments: [],
+          submittedContent: '',
+          teacherResources: [],
+          title: '实验报告',
+        ),
+        assignmentSubmitResponse: const FfiAssignmentSubmitResponse(ok: true),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectAssignment(
+            const FfiAssignmentSummary(
+              endTime: '2026-05-03 23:59:59',
+              id: 'work-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '实验报告',
+            ),
+          );
+      container
+          .read(clientControllerProvider.notifier)
+          .updateAssignmentDraft('答案');
+      await container
+          .read(clientControllerProvider.notifier)
+          .submitAssignmentDraft();
+
+      expect(
+        container.read(clientControllerProvider).operationMessage,
+        '作业已提交',
+      );
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectAssignment(
+            const FfiAssignmentSummary(
+              endTime: '2026-05-04 23:59:59',
+              id: 'work-2',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '下一份实验报告',
+            ),
+          );
+
+      expect(container.read(clientControllerProvider).operationMessage, isNull);
+    },
+  );
 
   test('clears assignment loading state when session read fails', () async {
     final storage = MemorySessionStorage('payload', Exception('locked'));

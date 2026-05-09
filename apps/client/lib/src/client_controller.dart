@@ -67,6 +67,7 @@ class ClientState {
     this.assignments = const [],
     this.assignmentsLoading = false,
     this.assignmentDetailLoading = false,
+    this.assignmentUploading = false,
     this.assignmentSubmitting = false,
     this.selectedAssignmentCourseId,
     this.selectedAssignmentId,
@@ -86,6 +87,7 @@ class ClientState {
     this.capabilities = _defaultCapabilities,
     this.parsedAttendanceQrPayload,
     this.attendanceQrInputError,
+    this.operationMessage,
     this.errorMessage,
   });
 
@@ -103,6 +105,7 @@ class ClientState {
   final List<FfiAssignmentSummary> assignments;
   final bool assignmentsLoading;
   final bool assignmentDetailLoading;
+  final bool assignmentUploading;
   final bool assignmentSubmitting;
   final String? selectedAssignmentCourseId;
   final String? selectedAssignmentId;
@@ -122,6 +125,7 @@ class ClientState {
   final FfiClientCapabilities capabilities;
   final FfiAttendanceQrPayload? parsedAttendanceQrPayload;
   final String? attendanceQrInputError;
+  final String? operationMessage;
   final String? errorMessage;
 
   bool get isBusy =>
@@ -143,6 +147,7 @@ class ClientState {
     List<FfiAssignmentSummary>? assignments,
     bool? assignmentsLoading,
     bool? assignmentDetailLoading,
+    bool? assignmentUploading,
     bool? assignmentSubmitting,
     String? selectedAssignmentCourseId,
     String? selectedAssignmentId,
@@ -162,6 +167,7 @@ class ClientState {
     FfiClientCapabilities? capabilities,
     FfiAttendanceQrPayload? parsedAttendanceQrPayload,
     String? attendanceQrInputError,
+    String? operationMessage,
     String? errorMessage,
     bool clearSession = false,
     bool clearLogin = false,
@@ -171,6 +177,7 @@ class ClientState {
     bool clearResourceDetail = false,
     bool clearAttendanceQrResult = false,
     bool clearAttendanceQrError = false,
+    bool clearOperationMessage = false,
     bool clearError = false,
   }) {
     return ClientState(
@@ -191,6 +198,7 @@ class ClientState {
       assignmentsLoading: assignmentsLoading ?? this.assignmentsLoading,
       assignmentDetailLoading:
           assignmentDetailLoading ?? this.assignmentDetailLoading,
+      assignmentUploading: assignmentUploading ?? this.assignmentUploading,
       assignmentSubmitting: assignmentSubmitting ?? this.assignmentSubmitting,
       selectedAssignmentCourseId:
           selectedAssignmentCourseId ?? this.selectedAssignmentCourseId,
@@ -232,6 +240,9 @@ class ClientState {
       attendanceQrInputError: clearAttendanceQrError
           ? null
           : attendanceQrInputError ?? this.attendanceQrInputError,
+      operationMessage: clearOperationMessage
+          ? null
+          : operationMessage ?? this.operationMessage,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
   }
@@ -470,7 +481,11 @@ class ClientController extends Notifier<ClientState> {
   }
 
   void selectTab(ClientTab tab) {
-    state = state.copyWith(selectedTab: tab, clearError: true);
+    state = state.copyWith(
+      selectedTab: tab,
+      clearOperationMessage: true,
+      clearError: true,
+    );
   }
 
   Future<void> loadUndoneAssignments() async {
@@ -480,6 +495,7 @@ class ClientController extends Notifier<ClientState> {
       assignments: const [],
       assignmentsLoading: true,
       clearAssignmentSelection: true,
+      clearOperationMessage: true,
       clearError: true,
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
@@ -518,6 +534,7 @@ class ClientController extends Notifier<ClientState> {
       assignments: const [],
       assignmentsLoading: true,
       clearAssignmentSelection: true,
+      clearOperationMessage: true,
       clearError: true,
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
@@ -557,6 +574,7 @@ class ClientController extends Notifier<ClientState> {
       selectedAssignmentId: assignment.id,
       assignmentDetailLoading: true,
       clearAssignmentDetail: true,
+      clearOperationMessage: true,
       clearError: true,
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
@@ -616,6 +634,11 @@ class ClientController extends Notifier<ClientState> {
     if (payload == null) {
       return;
     }
+    state = state.copyWith(
+      assignmentUploading: true,
+      clearError: true,
+      clearOperationMessage: true,
+    );
     final gateway = ref.read(openCloudGatewayProvider);
     try {
       final uploaded = await gateway.assignmentUpload(
@@ -633,6 +656,8 @@ class ClientController extends Notifier<ClientState> {
             previewUrl: uploaded.previewUrl,
           ),
         ],
+        assignmentUploading: false,
+        operationMessage: '已上传附件 ${uploaded.fileName}',
         clearError: true,
       );
     } on FfiAuthError catch (error) {
@@ -640,9 +665,33 @@ class ClientController extends Notifier<ClientState> {
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
+      state = state.copyWith(assignmentUploading: false);
     } catch (error) {
-      state = state.copyWith(errorMessage: '附件上传失败：$error');
+      state = state.copyWith(
+        assignmentUploading: false,
+        errorMessage: '附件上传失败：$error',
+      );
     }
+  }
+
+  void removeAssignmentAttachment(String resourceId) {
+    AssignmentAttachmentState? removed;
+    final attachments = <AssignmentAttachmentState>[];
+    for (final attachment in state.assignmentAttachments) {
+      if (attachment.resourceId == resourceId) {
+        removed = attachment;
+        continue;
+      }
+      attachments.add(attachment);
+    }
+    if (removed == null) {
+      return;
+    }
+    state = state.copyWith(
+      assignmentAttachments: attachments,
+      operationMessage: '已移除附件 ${removed.name}',
+      clearError: true,
+    );
   }
 
   Future<void> submitAssignmentDraft() async {
@@ -667,7 +716,11 @@ class ClientController extends Notifier<ClientState> {
     if (payload == null) {
       return;
     }
-    state = state.copyWith(assignmentSubmitting: true, clearError: true);
+    state = state.copyWith(
+      assignmentSubmitting: true,
+      clearError: true,
+      clearOperationMessage: true,
+    );
     final gateway = ref.read(openCloudGatewayProvider);
     try {
       final response = await gateway.assignmentSubmit(
@@ -704,6 +757,7 @@ class ClientController extends Notifier<ClientState> {
           teacherResources: detail.teacherResources,
           title: detail.title,
         ),
+        operationMessage: '作业已提交',
       );
     } on FfiAuthError catch (error) {
       await _handleSessionError(
@@ -730,6 +784,7 @@ class ClientController extends Notifier<ClientState> {
       resourceDownloadProgressCurrent: 0,
       resourceDownloadProgressTotal: 0,
       clearResourceSelection: true,
+      clearOperationMessage: true,
       clearError: true,
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
@@ -768,6 +823,7 @@ class ClientController extends Notifier<ClientState> {
       selectedResourceId: resource.resourceId,
       resourceDetailLoading: true,
       clearResourceDetail: true,
+      clearOperationMessage: true,
       clearError: true,
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
@@ -812,7 +868,11 @@ class ClientController extends Notifier<ClientState> {
     if (payload == null) {
       return;
     }
-    state = state.copyWith(resourceDownloading: true, clearError: true);
+    state = state.copyWith(
+      resourceDownloading: true,
+      clearError: true,
+      clearOperationMessage: true,
+    );
     final gateway = ref.read(openCloudGatewayProvider);
     try {
       final response = await gateway.resourceDownload(
@@ -828,6 +888,7 @@ class ClientController extends Notifier<ClientState> {
         downloadedPaths: response.writtenPaths,
         resourceDownloadProgressCurrent: response.writtenPaths.length,
         resourceDownloadProgressTotal: response.records.length,
+        operationMessage: _downloadMessage(response.writtenPaths.length),
       );
     } on FfiAuthError catch (error) {
       await _handleSessionError(
@@ -858,6 +919,7 @@ class ClientController extends Notifier<ClientState> {
       resourceDownloadProgressCurrent: 0,
       resourceDownloadProgressTotal: state.resources.length,
       downloadedPaths: const [],
+      clearOperationMessage: true,
       clearError: true,
     );
     final gateway = ref.read(openCloudGatewayProvider);
@@ -874,6 +936,7 @@ class ClientController extends Notifier<ClientState> {
         downloadedPaths: response.writtenPaths,
         resourceDownloadProgressCurrent: response.writtenPaths.length,
         resourceDownloadProgressTotal: response.records.length,
+        operationMessage: _downloadMessage(response.writtenPaths.length),
       );
     } on FfiAuthError catch (error) {
       await _handleSessionError(
@@ -887,6 +950,10 @@ class ClientController extends Notifier<ClientState> {
         errorMessage: '课程资料下载失败：$error',
       );
     }
+  }
+
+  String _downloadMessage(int count) {
+    return '已下载 $count 个资料文件';
   }
 
   Future<void> _loadCourses(

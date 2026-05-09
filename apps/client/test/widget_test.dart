@@ -8,6 +8,73 @@ import 'package:open_cloud_ffi/open_cloud_ffi.dart';
 import 'support/fakes.dart';
 
 void main() {
+  testWidgets('uses rail navigation on desktop width', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: const FfiCourseResponse(
+                records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+                goingSites: [],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('course actions do not overflow on narrow width', (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: const FfiCourseResponse(
+                records: [FfiCourseSite(id: 'site-1', siteName: '软件测试课程实践')],
+                goingSites: [],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('查看作业'), findsOneWidget);
+    expect(find.text('查看资料'), findsOneWidget);
+  });
+
   testWidgets('shows login form when no session exists', (tester) async {
     await tester.pumpWidget(
       ProviderScope(

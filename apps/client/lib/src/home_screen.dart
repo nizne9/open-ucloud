@@ -80,46 +80,80 @@ class _AuthenticatedPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(clientControllerProvider.notifier);
-    return Column(
-      children: [
-        NavigationBar(
-          selectedIndex: state.selectedTab.index,
-          onDestinationSelected: (index) {
-            final tab = ClientTab.values[index];
-            controller.selectTab(tab);
-            if (tab == ClientTab.assignments && state.assignments.isEmpty) {
-              controller.loadUndoneAssignments();
-            }
-            if (tab == ClientTab.resources &&
-                state.resources.isEmpty &&
-                state.courses.isNotEmpty) {
-              controller.loadResourcesForCourse(state.courses.first.id);
-            }
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.menu_book_outlined),
-              label: '课程',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useRail = constraints.maxWidth >= 900;
+        final content = switch (state.selectedTab) {
+          ClientTab.courses => _CoursePane(state: state),
+          ClientTab.assignments => _AssignmentsPane(state: state),
+          ClientTab.resources => _ResourcesPane(state: state),
+        };
+        if (useRail) {
+          return Row(
+            children: [
+              NavigationRail(
+                selectedIndex: state.selectedTab.index,
+                labelType: NavigationRailLabelType.all,
+                onDestinationSelected: (index) =>
+                    _selectTab(ClientTab.values[index], controller),
+                destinations: const [
+                  NavigationRailDestination(
+                    icon: Icon(Icons.menu_book_outlined),
+                    label: Text('课程'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.assignment_outlined),
+                    label: Text('作业'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.folder_outlined),
+                    label: Text('资料'),
+                  ),
+                ],
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(child: content),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            NavigationBar(
+              selectedIndex: state.selectedTab.index,
+              onDestinationSelected: (index) =>
+                  _selectTab(ClientTab.values[index], controller),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.menu_book_outlined),
+                  label: '课程',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.assignment_outlined),
+                  label: '作业',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.folder_outlined),
+                  label: '资料',
+                ),
+              ],
             ),
-            NavigationDestination(
-              icon: Icon(Icons.assignment_outlined),
-              label: '作业',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.folder_outlined),
-              label: '资料',
-            ),
+            Expanded(child: content),
           ],
-        ),
-        Expanded(
-          child: switch (state.selectedTab) {
-            ClientTab.courses => _CoursePane(state: state),
-            ClientTab.assignments => _AssignmentsPane(state: state),
-            ClientTab.resources => _ResourcesPane(state: state),
-          },
-        ),
-      ],
+        );
+      },
     );
+  }
+
+  void _selectTab(ClientTab tab, ClientController controller) {
+    controller.selectTab(tab);
+    if (tab == ClientTab.assignments && state.assignments.isEmpty) {
+      controller.loadUndoneAssignments();
+    }
+    if (tab == ClientTab.resources &&
+        state.resources.isEmpty &&
+        state.courses.isNotEmpty) {
+      controller.loadResourcesForCourse(state.courses.first.id);
+    }
   }
 }
 
@@ -325,30 +359,10 @@ class _CoursePane extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           for (final course in state.courses)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                onTap: () {
-                  controller.selectTab(ClientTab.resources);
-                  controller.loadResourcesForCourse(course.id);
-                },
-                leading: Icon(
-                  course.going
-                      ? Icons.radio_button_checked
-                      : Icons.menu_book_outlined,
-                  color: course.going
-                      ? Theme.of(context).colorScheme.primary
-                      : null,
-                ),
-                title: Text(course.name),
-                subtitle: Text(course.id),
-                trailing: course.going
-                    ? const Tooltip(
-                        message: '正在进行',
-                        child: Icon(Icons.notifications_active_outlined),
-                      )
-                    : null,
-              ),
+            _CourseCard(
+              course: course,
+              onAssignments: () => controller.loadCourseAssignments(course.id),
+              onResources: () => controller.loadResourcesForCourse(course.id),
             ),
         ],
       ],
@@ -361,6 +375,146 @@ class _CoursePane extends ConsumerWidget {
       FfiRoleName.teacher => '教师',
       FfiRoleName.assistant => '助教',
     };
+  }
+}
+
+class _CourseCard extends StatelessWidget {
+  const _CourseCard({
+    required this.course,
+    required this.onAssignments,
+    required this.onResources,
+  });
+
+  final CourseItem course;
+  final VoidCallback onAssignments;
+  final VoidCallback onResources;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackActions = constraints.maxWidth < 520;
+          final courseSummary = Row(
+            children: [
+              Icon(
+                course.going
+                    ? Icons.radio_button_checked
+                    : Icons.menu_book_outlined,
+                color: course.going ? colorScheme.primary : colorScheme.outline,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      course.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          course.id,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colorScheme.onSurfaceVariant),
+                        ),
+                        if (course.going)
+                          _StatusPill(
+                            icon: Icons.notifications_active_outlined,
+                            label: '正在进行',
+                            color: colorScheme.primary,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final actions = Wrap(
+            alignment: stackActions ? WrapAlignment.end : WrapAlignment.start,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onAssignments,
+                icon: const Icon(Icons.assignment_outlined),
+                label: const Text('查看作业'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: onResources,
+                icon: const Icon(Icons.folder_outlined),
+                label: const Text('查看资料'),
+              ),
+            ],
+          );
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+            child: stackActions
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      courseSummary,
+                      const SizedBox(height: 12),
+                      actions,
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: courseSummary),
+                      const SizedBox(width: 12),
+                      actions,
+                    ],
+                  ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: color),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -488,15 +642,67 @@ class _AssignmentsPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        if (state.errorMessage != null)
-          _ErrorBanner(message: state.errorMessage!),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useSplit = constraints.maxWidth >= 900;
+        if (!useSplit) {
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              ..._listChildren(context, ref),
+              const SizedBox(height: 12),
+              _AssignmentDetailCard(state: state),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SegmentedButton<AssignmentView>(
+            SizedBox(
+              width: constraints.maxWidth >= 1120 ? 440 : 380,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: _listChildren(context, ref),
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 24, 24),
+                children: [
+                  if (state.assignmentDetail == null &&
+                      !state.assignmentDetailLoading)
+                    const _DetailPlaceholder(
+                      icon: Icons.assignment_outlined,
+                      title: '选择一个作业',
+                      subtitle: '作业要求、附件和提交入口会显示在这里。',
+                    )
+                  else
+                    _AssignmentDetailCard(state: state),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _listChildren(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    return [
+      if (state.errorMessage != null) ...[
+        _ErrorBanner(message: state.errorMessage!),
+        const SizedBox(height: 12),
+      ],
+      if (state.operationMessage != null) ...[
+        _InfoBanner(message: state.operationMessage!),
+        const SizedBox(height: 12),
+      ],
+      Row(
+        children: [
+          Expanded(
+            child: SegmentedButton<AssignmentView>(
               segments: const [
                 ButtonSegment(
                   value: AssignmentView.undone,
@@ -519,82 +725,79 @@ class _AssignmentsPane extends ConsumerWidget {
                 }
               },
             ),
-            const Spacer(),
-            IconButton(
-              tooltip: '刷新作业',
-              onPressed: state.assignmentsLoading
-                  ? null
-                  : () {
-                      if (state.assignmentView == AssignmentView.undone) {
-                        controller.loadUndoneAssignments();
-                      } else {
-                        final siteId =
-                            state.selectedAssignmentCourseId ??
-                            (state.courses.isEmpty
-                                ? null
-                                : state.courses.first.id);
-                        if (siteId != null) {
-                          controller.loadCourseAssignments(siteId);
-                        }
+          ),
+          IconButton(
+            tooltip: '刷新作业',
+            onPressed: state.assignmentsLoading
+                ? null
+                : () {
+                    if (state.assignmentView == AssignmentView.undone) {
+                      controller.loadUndoneAssignments();
+                    } else {
+                      final siteId =
+                          state.selectedAssignmentCourseId ??
+                          (state.courses.isEmpty
+                              ? null
+                              : state.courses.first.id);
+                      if (siteId != null) {
+                        controller.loadCourseAssignments(siteId);
                       }
-                    },
-              icon: const Icon(Icons.refresh),
-            ),
-          ],
-        ),
-        if (state.assignmentView == AssignmentView.course) ...[
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue:
-                state.selectedAssignmentCourseId ??
-                (state.courses.isEmpty ? null : state.courses.first.id),
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: '课程',
-            ),
-            items: [
-              for (final course in state.courses)
-                DropdownMenuItem(value: course.id, child: Text(course.name)),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                controller.loadCourseAssignments(value);
-              }
-            },
+                    }
+                  },
+            icon: const Icon(Icons.refresh),
           ),
         ],
-        if (state.assignmentsLoading)
-          const _LoadingPane(label: '正在加载作业')
-        else if (state.assignments.isEmpty) ...[
-          const SizedBox(height: 48),
-          _EmptyText(
-            icon: Icons.assignment_late_outlined,
-            label: state.assignmentView == AssignmentView.undone
-                ? '当前没有待提交作业'
-                : '当前课程暂无作业',
-          ),
-        ] else ...[
-          const SizedBox(height: 12),
-          for (final assignment in state.assignments)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                selected: state.selectedAssignmentId == assignment.id,
-                leading: Icon(_assignmentIcon(assignment.status)),
-                title: Text(assignment.title),
-                subtitle: Text(
-                  '${assignment.siteName}\n截止：${assignment.endTime}',
-                ),
-                isThreeLine: true,
-                trailing: Text(_assignmentStatusLabel(assignment.status)),
-                onTap: () => controller.selectAssignment(assignment),
-              ),
-            ),
-        ],
+      ),
+      if (state.assignmentView == AssignmentView.course) ...[
         const SizedBox(height: 12),
-        _AssignmentDetailCard(state: state),
+        DropdownButtonFormField<String>(
+          initialValue:
+              state.selectedAssignmentCourseId ??
+              (state.courses.isEmpty ? null : state.courses.first.id),
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            labelText: '课程',
+          ),
+          items: [
+            for (final course in state.courses)
+              DropdownMenuItem(value: course.id, child: Text(course.name)),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              controller.loadCourseAssignments(value);
+            }
+          },
+        ),
       ],
-    );
+      if (state.assignmentsLoading)
+        const _LoadingPane(label: '正在加载作业')
+      else if (state.assignments.isEmpty) ...[
+        const SizedBox(height: 48),
+        _EmptyText(
+          icon: Icons.assignment_late_outlined,
+          label: state.assignmentView == AssignmentView.undone
+              ? '当前没有待提交作业'
+              : '当前课程暂无作业',
+        ),
+      ] else ...[
+        const SizedBox(height: 12),
+        for (final assignment in state.assignments)
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              selected: state.selectedAssignmentId == assignment.id,
+              leading: Icon(_assignmentIcon(assignment.status)),
+              title: Text(assignment.title),
+              subtitle: Text(
+                '${assignment.siteName}\n截止：${assignment.endTime}',
+              ),
+              isThreeLine: true,
+              trailing: Text(_assignmentStatusLabel(assignment.status)),
+              onTap: () => controller.selectAssignment(assignment),
+            ),
+          ),
+      ],
+    ];
   }
 
   IconData _assignmentIcon(FfiAssignmentStatus status) {
@@ -719,7 +922,10 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
             TextField(
               minLines: 4,
               maxLines: 8,
-              enabled: !expired && !state.assignmentSubmitting,
+              enabled:
+                  !expired &&
+                  !state.assignmentSubmitting &&
+                  !state.assignmentUploading,
               controller: _draftController,
               onChanged: controller.updateAssignmentDraft,
               decoration: const InputDecoration(
@@ -728,14 +934,25 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
               ),
             ),
             const SizedBox(height: 12),
+            if (state.assignmentUploading) ...[
+              const LinearProgressIndicator(),
+              const SizedBox(height: 8),
+              Text('正在上传附件', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 12),
+            ],
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 for (final attachment in state.assignmentAttachments)
-                  Chip(
+                  InputChip(
                     avatar: const Icon(Icons.attach_file, size: 18),
                     label: Text(attachment.name),
+                    onDeleted: expired || state.assignmentSubmitting
+                        ? null
+                        : () => controller.removeAssignmentAttachment(
+                            attachment.resourceId,
+                          ),
                   ),
               ],
             ),
@@ -743,7 +960,10 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
             Row(
               children: [
                 OutlinedButton.icon(
-                  onPressed: expired
+                  onPressed:
+                      expired ||
+                          state.assignmentUploading ||
+                          state.assignmentSubmitting
                       ? null
                       : () async {
                           final files = await openFiles();
@@ -754,11 +974,14 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                           }
                         },
                   icon: const Icon(Icons.attach_file),
-                  label: const Text('添加附件'),
+                  label: Text(state.assignmentUploading ? '上传中' : '添加附件'),
                 ),
                 const Spacer(),
                 FilledButton.icon(
-                  onPressed: expired || state.assignmentSubmitting
+                  onPressed:
+                      expired ||
+                          state.assignmentSubmitting ||
+                          state.assignmentUploading
                       ? null
                       : () async {
                           final ok = await _confirm(
@@ -855,105 +1078,154 @@ class _ResourcesPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        if (state.errorMessage != null)
-          _ErrorBanner(message: state.errorMessage!),
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useSplit = constraints.maxWidth >= 900;
+        if (!useSplit) {
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              ..._listChildren(context, ref),
+              const SizedBox(height: 12),
+              _ResourceDetailCard(state: state),
+              if (state.downloadedPaths.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _DownloadSummary(paths: state.downloadedPaths),
+              ],
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                initialValue:
-                    state.selectedResourceCourseId ??
-                    (state.courses.isEmpty ? null : state.courses.first.id),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: '课程',
-                ),
-                items: [
-                  for (final course in state.courses)
-                    DropdownMenuItem(
-                      value: course.id,
-                      child: Text(course.name),
-                    ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    controller.loadResourcesForCourse(value);
-                  }
-                },
+            SizedBox(
+              width: constraints.maxWidth >= 1120 ? 440 : 380,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                children: _listChildren(context, ref),
               ),
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: '刷新资料',
-              onPressed: state.resourcesLoading || state.courses.isEmpty
-                  ? null
-                  : () => controller.loadResourcesForCourse(
-                      state.selectedResourceCourseId ?? state.courses.first.id,
-                    ),
-              icon: const Icon(Icons.refresh),
-            ),
-            IconButton(
-              tooltip: '下载全部',
-              onPressed: state.resourceDownloading || state.resources.isEmpty
-                  ? null
-                  : () async {
-                      final ok = await _confirm(
-                        context,
-                        title: '下载全部资料',
-                        content: '选择目录后将下载当前列表中的所有资料。',
-                      );
-                      if (!ok) {
-                        return;
-                      }
-                      final directory = await getDirectoryPath();
-                      if (directory != null) {
-                        await controller.downloadCourseResources(directory);
-                      }
-                    },
-              icon: const Icon(Icons.download_for_offline_outlined),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 24, 24),
+                children: [
+                  if (state.resourceDetail == null &&
+                      !state.resourceDetailLoading)
+                    const _DetailPlaceholder(
+                      icon: Icons.insert_drive_file_outlined,
+                      title: '选择一个资料',
+                      subtitle: '资料说明和单文件下载入口会显示在这里。',
+                    )
+                  else
+                    _ResourceDetailCard(state: state),
+                  if (state.downloadedPaths.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _DownloadSummary(paths: state.downloadedPaths),
+                  ],
+                ],
+              ),
             ),
           ],
-        ),
-        if (state.resourceDownloading) ...[
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: state.resourceDownloadProgressTotal == 0
+        );
+      },
+    );
+  }
+
+  List<Widget> _listChildren(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    return [
+      if (state.errorMessage != null) ...[
+        _ErrorBanner(message: state.errorMessage!),
+        const SizedBox(height: 12),
+      ],
+      if (state.operationMessage != null) ...[
+        _InfoBanner(message: state.operationMessage!),
+        const SizedBox(height: 12),
+      ],
+      Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue:
+                  state.selectedResourceCourseId ??
+                  (state.courses.isEmpty ? null : state.courses.first.id),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: '课程',
+              ),
+              items: [
+                for (final course in state.courses)
+                  DropdownMenuItem(value: course.id, child: Text(course.name)),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  controller.loadResourcesForCourse(value);
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: '刷新资料',
+            onPressed: state.resourcesLoading || state.courses.isEmpty
                 ? null
-                : state.resourceDownloadProgressCurrent /
-                      state.resourceDownloadProgressTotal,
+                : () => controller.loadResourcesForCourse(
+                    state.selectedResourceCourseId ?? state.courses.first.id,
+                  ),
+            icon: const Icon(Icons.refresh),
+          ),
+          IconButton(
+            tooltip: '下载全部',
+            onPressed: state.resourceDownloading || state.resources.isEmpty
+                ? null
+                : () async {
+                    final ok = await _confirm(
+                      context,
+                      title: '下载全部资料',
+                      content: '选择目录后将下载当前列表中的所有资料。',
+                    );
+                    if (!ok) {
+                      return;
+                    }
+                    final directory = await getDirectoryPath();
+                    if (directory != null) {
+                      await controller.downloadCourseResources(directory);
+                    }
+                  },
+            icon: const Icon(Icons.download_for_offline_outlined),
           ),
         ],
-        if (state.resourcesLoading)
-          const _LoadingPane(label: '正在加载资料')
-        else if (state.resources.isEmpty) ...[
-          const SizedBox(height: 48),
-          const _EmptyText(icon: Icons.folder_off_outlined, label: '当前课程暂无资料'),
-        ] else ...[
-          const SizedBox(height: 12),
-          for (final resource in state.resources)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                selected: state.selectedResourceId == resource.resourceId,
-                leading: const Icon(Icons.insert_drive_file_outlined),
-                title: Text(resource.name),
-                subtitle: Text(resource.updatedAt),
-                onTap: () => controller.selectResource(resource),
-              ),
-            ),
-        ],
+      ),
+      if (state.resourceDownloading) ...[
         const SizedBox(height: 12),
-        _ResourceDetailCard(state: state),
-        if (state.downloadedPaths.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text('已写入：${state.downloadedPaths.join(', ')}'),
-        ],
+        LinearProgressIndicator(
+          value: state.resourceDownloadProgressTotal == 0
+              ? null
+              : state.resourceDownloadProgressCurrent /
+                    state.resourceDownloadProgressTotal,
+        ),
       ],
-    );
+      if (state.resourcesLoading)
+        const _LoadingPane(label: '正在加载资料')
+      else if (state.resources.isEmpty) ...[
+        const SizedBox(height: 48),
+        const _EmptyText(icon: Icons.folder_off_outlined, label: '当前课程暂无资料'),
+      ] else ...[
+        const SizedBox(height: 12),
+        for (final resource in state.resources)
+          Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              selected: state.selectedResourceId == resource.resourceId,
+              leading: const Icon(Icons.insert_drive_file_outlined),
+              title: Text(resource.name),
+              subtitle: Text(resource.updatedAt),
+              onTap: () => controller.selectResource(resource),
+            ),
+          ),
+      ],
+    ];
   }
 }
 
@@ -1002,6 +1274,87 @@ class _ResourceDetailCard extends ConsumerWidget {
                 label: const Text('下载'),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailPlaceholder extends StatelessWidget {
+  const _DetailPlaceholder({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 42, color: colorScheme.outline),
+            const SizedBox(height: 12),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DownloadSummary extends StatelessWidget {
+  const _DownloadSummary({required this.paths});
+
+  final List<String> paths;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.check_circle_outline,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '已下载 ${paths.length} 个文件',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (final path in paths)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: SelectableText(path),
+              ),
           ],
         ),
       ),
@@ -1107,6 +1460,42 @@ class _ErrorBanner extends StatelessWidget {
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onErrorContainer,
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              color: colorScheme.onPrimaryContainer,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(color: colorScheme.onPrimaryContainer),
               ),
             ),
           ],
