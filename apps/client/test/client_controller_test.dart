@@ -663,6 +663,7 @@ void main() {
         submittedContent: 'late',
         teacherResources: [],
         title: '晚到作业',
+        updatedSessionPayload: 'stale-assignment-payload',
       ),
     );
     await load;
@@ -671,6 +672,7 @@ void main() {
     expect(state.selectedAssignmentId, isNull);
     expect(state.assignmentDetail, isNull);
     expect(state.assignmentDraft, isEmpty);
+    expect(storage.payload, 'payload');
   });
 
   test(
@@ -838,6 +840,7 @@ void main() {
           siteName: '软件测试',
           updatedAt: '',
         ),
+        updatedSessionPayload: 'stale-resource-payload',
       ),
     );
     await load;
@@ -845,6 +848,7 @@ void main() {
     final state = container.read(clientControllerProvider);
     expect(state.selectedResourceId, isNull);
     expect(state.resourceDetail, isNull);
+    expect(storage.payload, 'payload');
   });
 
   test('resource detail failures clear selection and preserve error', () async {

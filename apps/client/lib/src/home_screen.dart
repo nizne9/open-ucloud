@@ -901,14 +901,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
     final expired = detail.status == FfiAssignmentStatus.expired;
     final readOnly = expired;
     final courseName = _assignmentCourseName(state, detail);
-    final submittedAttachments = [
-      for (final attachment in state.assignmentAttachments)
-        FfiAssignmentResource(
-          name: attachment.name,
-          previewUrl: attachment.previewUrl,
-          resourceId: attachment.resourceId,
-        ),
-    ];
+    final submittedAttachments = detail.submittedAttachments;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),

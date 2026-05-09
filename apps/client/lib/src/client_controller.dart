@@ -588,10 +588,10 @@ class ClientController extends Notifier<ClientState> {
         sessionPayload: payload,
         assignmentId: assignment.id,
       );
-      await _persistUpdatedPayload(detail.updatedSessionPayload);
       if (state.selectedAssignmentId != assignment.id) {
         return;
       }
+      await _persistUpdatedPayload(detail.updatedSessionPayload);
       state = state.copyWith(
         assignmentDetail: detail,
         assignmentDraft: detail.submittedContent,
@@ -859,10 +859,10 @@ class ClientController extends Notifier<ClientState> {
         siteId: resource.siteId,
         siteName: resource.siteName,
       );
-      await _persistUpdatedPayload(response.updatedSessionPayload);
       if (state.selectedResourceId != resource.resourceId) {
         return;
       }
+      await _persistUpdatedPayload(response.updatedSessionPayload);
       state = state.copyWith(
         resourceDetail: response.detail,
         resourceDetailLoading: false,

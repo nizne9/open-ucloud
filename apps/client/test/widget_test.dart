@@ -504,6 +504,83 @@ void main() {
     expect(find.widgetWithText(TextField, '提交内容（只读）'), findsNothing);
   });
 
+  testWidgets('draft attachments are not shown as submitted attachments', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(
+          FakeOpenCloudGateway(
+            session: _session(),
+            undoneAssignmentsResponse: const FfiAssignmentListResponse(
+              records: [
+                FfiAssignmentSummary(
+                  endTime: '2026-05-03 23:59:59',
+                  id: 'work-1',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  source: 'undone',
+                  startTime: '',
+                  status: FfiAssignmentStatus.pending,
+                  title: '实验报告',
+                ),
+              ],
+            ),
+            assignmentDetailResponse: const FfiAssignmentDetailResponse(
+              className: '',
+              comment: '',
+              content: '完成实验',
+              endTime: '2026-05-03 23:59:59',
+              id: 'work-1',
+              isOvertimeCommit: false,
+              siteId: 'site-1',
+              siteName: '软件测试',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              submittedAt: '',
+              submittedAttachments: [],
+              submittedContent: '',
+              teacherResources: [],
+              title: '实验报告',
+            ),
+            assignmentUploadResponse: const FfiAssignmentUploadResponse(
+              assignmentId: 'work-1',
+              fileName: 'draft.pdf',
+              resourceId: 'draft-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实验报告'));
+    await tester.pumpAndSettle();
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .uploadAssignmentAttachment('/tmp/draft.pdf');
+    await tester.pumpAndSettle();
+
+    expect(find.text('draft.pdf'), findsOneWidget);
+    expect(find.text('已提交附件'), findsNothing);
+  });
+
   testWidgets('assignment detail falls back to list course name', (
     tester,
   ) async {
