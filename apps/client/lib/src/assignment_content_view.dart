@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' as html_parser;
 
 class AssignmentContentView extends StatelessWidget {
   const AssignmentContentView({super.key, required this.content});
@@ -79,68 +81,18 @@ class _AssignmentContentBlock {
   }
 }
 
-class _AssignmentListContext {
-  _AssignmentListContext(this.ordered);
-
-  final bool ordered;
-  int index = 0;
-}
-
 List<_AssignmentContentBlock> _parseAssignmentContent(String content) {
   final html = content.trim();
   if (html.isEmpty) {
     return const [];
   }
   final blocks = <_AssignmentContentBlock>[];
-  final stack = <_AssignmentListContext>[];
-  final blockPattern = RegExp(
-    r'<(h[1-6]|p|li)\b[^>]*>(.*?)</\1>',
-    caseSensitive: false,
-    dotAll: true,
-  );
-  var cursor = 0;
-
-  for (final match in blockPattern.allMatches(html)) {
-    _updateAssignmentListStack(html.substring(cursor, match.start), stack);
-    final tag = match.group(1)!.toLowerCase();
-    final text = _assignmentPlainText(match.group(2)!);
-    if (text.isNotEmpty) {
-      if (tag == 'li') {
-        final context = stack.isEmpty ? null : stack.last;
-        final marker = context == null
-            ? '-'
-            : context.ordered
-            ? '${++context.index}.'
-            : '-';
-        blocks.add(
-          _AssignmentContentBlock(
-            kind: _AssignmentContentKind.listItem,
-            text: text,
-            listMarker: marker,
-          ),
-        );
-      } else if (tag.startsWith('h')) {
-        blocks.add(
-          _AssignmentContentBlock(
-            kind: _AssignmentContentKind.heading,
-            text: text,
-          ),
-        );
-      } else {
-        blocks.add(
-          _AssignmentContentBlock(
-            kind: _AssignmentContentKind.paragraph,
-            text: text,
-          ),
-        );
-      }
-    }
-    cursor = match.end;
+  final fragment = html_parser.parseFragment(html);
+  for (final node in fragment.nodes) {
+    _collectAssignmentBlocks(node, blocks);
   }
-
-  _updateAssignmentListStack(html.substring(cursor), stack);
   if (blocks.isEmpty) {
-    final text = _assignmentPlainText(html);
+    final text = _normalizeAssignmentText(fragment.text ?? html);
     if (text.isNotEmpty) {
       return [
         _AssignmentContentBlock(
@@ -153,54 +105,112 @@ List<_AssignmentContentBlock> _parseAssignmentContent(String content) {
   return blocks;
 }
 
-void _updateAssignmentListStack(
-  String segment,
-  List<_AssignmentListContext> stack,
+void _collectAssignmentBlocks(
+  dom.Node node,
+  List<_AssignmentContentBlock> blocks,
 ) {
-  final tagPattern = RegExp(r'</?(ol|ul)\b[^>]*>', caseSensitive: false);
-  for (final match in tagPattern.allMatches(segment)) {
-    final tag = match.group(0)!.toLowerCase();
-    final isClosing = tag.startsWith('</');
-    final isOrdered = tag.contains('ol');
-    if (!isClosing) {
-      stack.add(_AssignmentListContext(isOrdered));
-      continue;
-    }
-    final index = stack.lastIndexWhere(
-      (context) => context.ordered == isOrdered,
+  if (node is! dom.Element) {
+    return;
+  }
+  final tag = node.localName?.toLowerCase();
+  if (tag == null) {
+    return;
+  }
+  if (tag.startsWith('h') && tag.length == 2) {
+    _addTextBlock(blocks, _AssignmentContentKind.heading, _elementText(node));
+    return;
+  }
+  if (tag == 'p' || tag == 'div' || tag == 'blockquote') {
+    _addTextBlock(blocks, _AssignmentContentKind.paragraph, _elementText(node));
+    return;
+  }
+  if (tag == 'pre') {
+    _addTextBlock(blocks, _AssignmentContentKind.paragraph, node.text);
+    return;
+  }
+  if (tag == 'ul' || tag == 'ol') {
+    _collectListItems(node, blocks, ordered: tag == 'ol');
+    return;
+  }
+  if (tag == 'li') {
+    _addTextBlock(
+      blocks,
+      _AssignmentContentKind.listItem,
+      _elementText(node),
+      marker: '-',
     );
-    if (index >= 0) {
-      stack.removeRange(index, stack.length);
+    return;
+  }
+  for (final child in node.nodes) {
+    _collectAssignmentBlocks(child, blocks);
+  }
+}
+
+void _collectListItems(
+  dom.Element list,
+  List<_AssignmentContentBlock> blocks, {
+  required bool ordered,
+}) {
+  var index = 0;
+  for (final item in list.children.where((child) => child.localName == 'li')) {
+    index += 1;
+    _addTextBlock(
+      blocks,
+      _AssignmentContentKind.listItem,
+      _elementText(item),
+      marker: ordered ? '$index.' : '-',
+    );
+  }
+}
+
+void _addTextBlock(
+  List<_AssignmentContentBlock> blocks,
+  _AssignmentContentKind kind,
+  String text, {
+  String? marker,
+}) {
+  final normalized = _normalizeAssignmentText(text);
+  if (normalized.isEmpty) {
+    return;
+  }
+  blocks.add(
+    _AssignmentContentBlock(kind: kind, text: normalized, listMarker: marker),
+  );
+}
+
+String _elementText(dom.Element element) {
+  final buffer = StringBuffer();
+  _writeElementText(element, buffer);
+  return buffer.toString();
+}
+
+void _writeElementText(dom.Node node, StringBuffer buffer) {
+  if (node is dom.Text) {
+    buffer.write(node.text);
+    return;
+  }
+  if (node is! dom.Element) {
+    return;
+  }
+  final tag = node.localName?.toLowerCase();
+  if (tag == 'br') {
+    buffer.write('\n');
+    return;
+  }
+  for (final child in node.nodes) {
+    _writeElementText(child, buffer);
+  }
+  if (tag == 'a') {
+    final href = node.attributes['href']?.trim();
+    if (href != null && href.isNotEmpty && !buffer.toString().contains(href)) {
+      buffer.write(' ($href)');
     }
   }
 }
 
-String _assignmentPlainText(String html) {
-  return _decodeAssignmentHtmlEntities(html)
-      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-      .replaceAll(RegExp(r'<[^>]+>'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
+String _normalizeAssignmentText(String value) {
+  return value
+      .replaceAll('\u00a0', ' ')
+      .replaceAll(RegExp(r'[ \t\r\f]+'), ' ')
       .trim();
-}
-
-String _decodeAssignmentHtmlEntities(String value) {
-  return value.replaceAllMapped(RegExp(r'&(#x?[0-9a-fA-F]+|[a-zA-Z]+);'), (
-    match,
-  ) {
-    final entity = match.group(1)!;
-    return switch (entity) {
-      'nbsp' => ' ',
-      'amp' => '&',
-      'lt' => '<',
-      'gt' => '>',
-      'quot' => '"',
-      'apos' => "'",
-      _ when entity.startsWith('#x') || entity.startsWith('#X') =>
-        String.fromCharCode(int.tryParse(entity.substring(2), radix: 16) ?? 0),
-      _ when entity.startsWith('#') => String.fromCharCode(
-        int.tryParse(entity.substring(1)) ?? 0,
-      ),
-      _ => match.group(0)!,
-    };
-  });
 }

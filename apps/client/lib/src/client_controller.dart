@@ -616,6 +616,14 @@ class ClientController extends Notifier<ClientState> {
     }
   }
 
+  void clearAssignmentSelection() {
+    state = state.copyWith(
+      clearAssignmentSelection: true,
+      clearOperationMessage: true,
+      clearError: true,
+    );
+  }
+
   void updateAssignmentDraft(String value) {
     state = state.copyWith(assignmentDraft: value);
   }
@@ -856,6 +864,14 @@ class ClientController extends Notifier<ClientState> {
         errorMessage: '资料详情加载失败：$error',
       );
     }
+  }
+
+  void clearResourceSelection() {
+    state = state.copyWith(
+      clearResourceSelection: true,
+      clearOperationMessage: true,
+      clearError: true,
+    );
   }
 
   Future<void> downloadResource(String outputPath) async {

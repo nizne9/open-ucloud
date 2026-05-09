@@ -642,17 +642,35 @@ class _AssignmentsPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSplit = constraints.maxWidth >= 900;
         if (!useSplit) {
+          final showDetail =
+              state.selectedAssignmentId != null ||
+              state.assignmentDetail != null ||
+              state.assignmentDetailLoading;
+          if (showDetail) {
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: controller.clearAssignmentSelection,
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('返回作业列表'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _AssignmentDetailCard(state: state),
+              ],
+            );
+          }
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              ..._listChildren(context, ref),
-              const SizedBox(height: 12),
-              _AssignmentDetailCard(state: state),
-            ],
+            children: _listChildren(context, ref),
           );
         }
         return Row(
@@ -881,7 +899,16 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
       return const SizedBox.shrink();
     }
     final expired = detail.status == FfiAssignmentStatus.expired;
+    final readOnly = detail.status != FfiAssignmentStatus.pending;
     final courseName = _assignmentCourseName(state, detail);
+    final submittedAttachments = [
+      for (final attachment in state.assignmentAttachments)
+        FfiAssignmentResource(
+          name: attachment.name,
+          previewUrl: attachment.previewUrl,
+          resourceId: attachment.resourceId,
+        ),
+    ];
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -909,8 +936,40 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                       : Icons.edit_note_outlined,
                   label: _assignmentStatusText(detail.status),
                 ),
+                if (detail.className.trim().isNotEmpty)
+                  _AssignmentMetaChip(
+                    icon: Icons.groups_outlined,
+                    label: detail.className.trim(),
+                  ),
+                if (detail.startTime.trim().isNotEmpty)
+                  _AssignmentMetaChip(
+                    icon: Icons.play_circle_outline,
+                    label: '开始 ${detail.startTime.trim()}',
+                  ),
+                if (detail.submittedAt.trim().isNotEmpty)
+                  _AssignmentMetaChip(
+                    icon: Icons.task_alt,
+                    label: '提交 ${detail.submittedAt.trim()}',
+                  ),
+                if (detail.score != null)
+                  _AssignmentMetaChip(
+                    icon: Icons.grade_outlined,
+                    label: '成绩 ${detail.score}',
+                  ),
+                if (detail.isOvertimeCommit)
+                  const _AssignmentMetaChip(
+                    icon: Icons.more_time_outlined,
+                    label: '允许超时提交',
+                  ),
               ],
             ),
+            if (detail.comment.trim().isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _AssignmentSection(
+                title: '教师批语',
+                child: SelectableText(detail.comment.trim()),
+              ),
+            ],
             if (detail.content.isNotEmpty) ...[
               const SizedBox(height: 16),
               _AssignmentSection(
@@ -918,19 +977,35 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                 child: AssignmentContentView(content: detail.content),
               ),
             ],
+            if (detail.teacherResources.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _AssignmentSection(
+                title: '教师附件',
+                child: _AssignmentResourceList(
+                  resources: detail.teacherResources,
+                ),
+              ),
+            ],
+            if (submittedAttachments.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _AssignmentSection(
+                title: '已提交附件',
+                child: _AssignmentResourceList(resources: submittedAttachments),
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               minLines: 4,
               maxLines: 8,
               enabled:
-                  !expired &&
+                  !readOnly &&
                   !state.assignmentSubmitting &&
                   !state.assignmentUploading,
               controller: _draftController,
               onChanged: controller.updateAssignmentDraft,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: '提交内容',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: readOnly ? '提交内容（只读）' : '提交内容',
               ),
             ),
             const SizedBox(height: 12),
@@ -948,7 +1023,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                   InputChip(
                     avatar: const Icon(Icons.attach_file, size: 18),
                     label: Text(attachment.name),
-                    onDeleted: expired || state.assignmentSubmitting
+                    onDeleted: readOnly || state.assignmentSubmitting
                         ? null
                         : () => controller.removeAssignmentAttachment(
                             attachment.resourceId,
@@ -961,7 +1036,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
               children: [
                 OutlinedButton.icon(
                   onPressed:
-                      expired ||
+                      readOnly ||
                           state.assignmentUploading ||
                           state.assignmentSubmitting
                       ? null
@@ -979,7 +1054,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                 const Spacer(),
                 FilledButton.icon(
                   onPressed:
-                      expired ||
+                      readOnly ||
                           state.assignmentSubmitting ||
                           state.assignmentUploading
                       ? null
@@ -1040,6 +1115,36 @@ class _AssignmentMetaChip extends StatelessWidget {
   }
 }
 
+class _AssignmentResourceList extends StatelessWidget {
+  const _AssignmentResourceList({required this.resources});
+
+  final List<FfiAssignmentResource> resources;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          for (final resource in resources)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.attach_file),
+              title: Text(resource.name),
+              subtitle: resource.previewUrl == null
+                  ? null
+                  : SelectableText(resource.previewUrl!),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 String _assignmentCourseName(
   ClientState state,
   FfiAssignmentDetailResponse detail,
@@ -1071,6 +1176,31 @@ String _assignmentCourseName(
   return '未知课程';
 }
 
+String _resourceSummaryText(FfiCourseResourceSummary resource) {
+  final parts = [
+    if (resource.ext != null && resource.ext!.trim().isNotEmpty)
+      resource.ext!.trim().toUpperCase(),
+    if (resource.sizeBytes != null) _formatBytes(resource.sizeBytes!),
+    if (resource.updatedAt.trim().isNotEmpty) resource.updatedAt.trim(),
+  ];
+  return parts.isEmpty ? '暂无文件信息' : parts.join(' · ');
+}
+
+String _formatBytes(BigInt bytes) {
+  final value = bytes.toDouble();
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  var size = value;
+  var unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  final text = unitIndex == 0 || size >= 10
+      ? size.toStringAsFixed(0)
+      : size.toStringAsFixed(1);
+  return '$text ${units[unitIndex]}';
+}
+
 class _ResourcesPane extends ConsumerWidget {
   const _ResourcesPane({required this.state});
 
@@ -1078,21 +1208,39 @@ class _ResourcesPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSplit = constraints.maxWidth >= 900;
         if (!useSplit) {
+          final showDetail =
+              state.selectedResourceId != null ||
+              state.resourceDetail != null ||
+              state.resourceDetailLoading;
+          if (showDetail) {
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: controller.clearResourceSelection,
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('返回资料列表'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _ResourceDetailCard(state: state),
+                if (state.downloadedPaths.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _DownloadSummary(paths: state.downloadedPaths),
+                ],
+              ],
+            );
+          }
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              ..._listChildren(context, ref),
-              const SizedBox(height: 12),
-              _ResourceDetailCard(state: state),
-              if (state.downloadedPaths.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _DownloadSummary(paths: state.downloadedPaths),
-              ],
-            ],
+            children: _listChildren(context, ref),
           );
         }
         return Row(
@@ -1199,6 +1347,13 @@ class _ResourcesPane extends ConsumerWidget {
       ),
       if (state.resourceDownloading) ...[
         const SizedBox(height: 12),
+        Text(
+          state.resourceDownloadProgressTotal == 0
+              ? '正在准备下载'
+              : '正在下载 ${state.resourceDownloadProgressCurrent} / ${state.resourceDownloadProgressTotal} 个文件',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
         LinearProgressIndicator(
           value: state.resourceDownloadProgressTotal == 0
               ? null
@@ -1220,7 +1375,7 @@ class _ResourcesPane extends ConsumerWidget {
               selected: state.selectedResourceId == resource.resourceId,
               leading: const Icon(Icons.insert_drive_file_outlined),
               title: Text(resource.name),
-              subtitle: Text(resource.updatedAt),
+              subtitle: Text(_resourceSummaryText(resource)),
               onTap: () => controller.selectResource(resource),
             ),
           ),
@@ -1251,10 +1406,42 @@ class _ResourceDetailCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(detail.name, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (detail.siteName.trim().isNotEmpty)
+                  _AssignmentMetaChip(
+                    icon: Icons.class_outlined,
+                    label: detail.siteName.trim(),
+                  ),
+                if (detail.ext != null && detail.ext!.trim().isNotEmpty)
+                  _AssignmentMetaChip(
+                    icon: Icons.insert_drive_file_outlined,
+                    label: detail.ext!.trim().toUpperCase(),
+                  ),
+                if (detail.sizeBytes != null)
+                  _AssignmentMetaChip(
+                    icon: Icons.data_usage_outlined,
+                    label: _formatBytes(detail.sizeBytes!),
+                  ),
+                if (detail.updatedAt.trim().isNotEmpty)
+                  _AssignmentMetaChip(
+                    icon: Icons.schedule_outlined,
+                    label: detail.updatedAt.trim(),
+                  ),
+              ],
+            ),
             if (detail.description != null &&
                 detail.description!.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(detail.description!),
+              SelectableText(detail.description!.trim()),
+            ],
+            if (detail.downloadUrl != null &&
+                detail.downloadUrl!.trim().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SelectableText(detail.downloadUrl!.trim()),
             ],
             const SizedBox(height: 12),
             Align(
