@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:open_cloud_client/src/open_cloud_gateway.dart';
 import 'package:open_cloud_ffi/open_cloud_ffi.dart';
 
@@ -38,10 +40,12 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
       records: [],
     ),
     this.assignmentDetailResponse,
+    this.assignmentDetailFuture,
     this.assignmentUploadResponse,
     this.assignmentSubmitResponse = const FfiAssignmentSubmitResponse(ok: true),
     this.resourcesResponse = const FfiCourseResourcesResponse(records: []),
     this.resourceDetailResponse,
+    this.resourceDetailFuture,
     this.resourceDownloadResponse = const FfiCourseResourceDownloadResponse(
       records: [],
       writtenPaths: [],
@@ -61,10 +65,12 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiAssignmentListResponse undoneAssignmentsResponse;
   final FfiAssignmentListResponse courseAssignmentsResponse;
   final FfiAssignmentDetailResponse? assignmentDetailResponse;
+  final Future<FfiAssignmentDetailResponse>? assignmentDetailFuture;
   final FfiAssignmentUploadResponse? assignmentUploadResponse;
   final FfiAssignmentSubmitResponse assignmentSubmitResponse;
   final FfiCourseResourcesResponse resourcesResponse;
   final FfiCourseResourceDetailResponse? resourceDetailResponse;
+  final Future<FfiCourseResourceDetailResponse>? resourceDetailFuture;
   final FfiCourseResourceDownloadResponse resourceDownloadResponse;
   final FfiClientCapabilities capabilitiesResponse;
   final Object? capabilitiesError;
@@ -191,6 +197,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String sessionPayload,
     required String assignmentId,
   }) async {
+    final future = assignmentDetailFuture;
+    if (future != null) {
+      return future;
+    }
     return assignmentDetailResponse ??
         FfiAssignmentDetailResponse(
           className: '',
@@ -255,6 +265,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteId,
     required String siteName,
   }) async {
+    final future = resourceDetailFuture;
+    if (future != null) {
+      return future;
+    }
     return resourceDetailResponse ??
         FfiCourseResourceDetailResponse(
           detail: FfiCourseResourceDetail(

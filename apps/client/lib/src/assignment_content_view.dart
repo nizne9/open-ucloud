@@ -120,8 +120,22 @@ void _collectAssignmentBlocks(
     _addTextBlock(blocks, _AssignmentContentKind.heading, _elementText(node));
     return;
   }
-  if (tag == 'p' || tag == 'div' || tag == 'blockquote') {
+  if (tag == 'p') {
     _addTextBlock(blocks, _AssignmentContentKind.paragraph, _elementText(node));
+    return;
+  }
+  if (tag == 'div' || tag == 'blockquote') {
+    final blockCount = blocks.length;
+    for (final child in node.nodes) {
+      _collectAssignmentBlocks(child, blocks);
+    }
+    if (blocks.length == blockCount) {
+      _addTextBlock(
+        blocks,
+        _AssignmentContentKind.paragraph,
+        _elementText(node),
+      );
+    }
     return;
   }
   if (tag == 'pre') {

@@ -1,8 +1,10 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:open_cloud_client/src/client_controller.dart';
 import 'package:open_cloud_client/src/open_cloud_gateway.dart';
 import 'package:open_cloud_ffi/open_cloud_ffi.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'support/fakes.dart';
 
@@ -604,6 +606,110 @@ void main() {
     },
   );
 
+  test('clearing assignment selection ignores late detail responses', () async {
+    final storage = MemorySessionStorage('payload');
+    final completer = Completer<FfiAssignmentDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      assignmentDetailFuture: completer.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.selectAssignment(
+      const FfiAssignmentSummary(
+        endTime: '',
+        id: 'work-late',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '晚到作业',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      container.read(clientControllerProvider).assignmentDetailLoading,
+      isTrue,
+    );
+
+    controller.clearAssignmentSelection();
+
+    expect(
+      container.read(clientControllerProvider).selectedAssignmentId,
+      isNull,
+    );
+    expect(
+      container.read(clientControllerProvider).assignmentDetailLoading,
+      isFalse,
+    );
+
+    completer.complete(
+      const FfiAssignmentDetailResponse(
+        className: '',
+        comment: '',
+        content: '',
+        endTime: '',
+        id: 'work-late',
+        isOvertimeCommit: false,
+        siteId: 'site-1',
+        siteName: '软件测试',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        submittedAt: '',
+        submittedAttachments: [],
+        submittedContent: 'late',
+        teacherResources: [],
+        title: '晚到作业',
+      ),
+    );
+    await load;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, isNull);
+    expect(state.assignmentDetail, isNull);
+    expect(state.assignmentDraft, isEmpty);
+  });
+
+  test(
+    'assignment detail failures clear selection and preserve error',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        assignmentDetailFuture: Future<FfiAssignmentDetailResponse>.delayed(
+          Duration.zero,
+          () => throw Exception('detail failed'),
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+
+      await container
+          .read(clientControllerProvider.notifier)
+          .selectAssignment(
+            const FfiAssignmentSummary(
+              endTime: '',
+              id: 'work-fail',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '失败作业',
+            ),
+          );
+
+      final state = container.read(clientControllerProvider);
+      expect(state.selectedAssignmentId, isNull);
+      expect(state.assignmentDetailLoading, isFalse);
+      expect(state.assignmentDetail, isNull);
+      expect(state.errorMessage, contains('作业详情加载失败'));
+      expect(state.errorMessage, contains('detail failed'));
+    },
+  );
+
   test(
     'clears stale resources when switching courses and session read fails',
     () async {
@@ -688,6 +794,89 @@ void main() {
       expect(state.resourceDetailLoading, isFalse);
     },
   );
+
+  test('clearing resource selection ignores late detail responses', () async {
+    final storage = MemorySessionStorage('payload');
+    final completer = Completer<FfiCourseResourceDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailFuture: completer.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '晚到课件.pdf',
+        resourceId: 'resource-late',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      container.read(clientControllerProvider).resourceDetailLoading,
+      isTrue,
+    );
+
+    controller.clearResourceSelection();
+
+    expect(container.read(clientControllerProvider).selectedResourceId, isNull);
+    expect(
+      container.read(clientControllerProvider).resourceDetailLoading,
+      isFalse,
+    );
+
+    completer.complete(
+      const FfiCourseResourceDetailResponse(
+        detail: FfiCourseResourceDetail(
+          name: '晚到课件.pdf',
+          resourceId: 'resource-late',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      ),
+    );
+    await load;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, isNull);
+    expect(state.resourceDetail, isNull);
+  });
+
+  test('resource detail failures clear selection and preserve error', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailFuture: Future<FfiCourseResourceDetailResponse>.delayed(
+        Duration.zero,
+        () => throw Exception('detail failed'),
+      ),
+    );
+    final container = _container(storage: storage, gateway: gateway);
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .selectResource(
+          const FfiCourseResourceSummary(
+            name: '失败资料.pdf',
+            resourceId: 'resource-fail',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        );
+
+    final state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, isNull);
+    expect(state.resourceDetailLoading, isFalse);
+    expect(state.resourceDetail, isNull);
+    expect(state.errorMessage, contains('资料详情加载失败'));
+    expect(state.errorMessage, contains('detail failed'));
+  });
 }
 
 ProviderContainer _container({

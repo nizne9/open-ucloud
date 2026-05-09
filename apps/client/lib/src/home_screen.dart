@@ -899,7 +899,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
       return const SizedBox.shrink();
     }
     final expired = detail.status == FfiAssignmentStatus.expired;
-    final readOnly = detail.status != FfiAssignmentStatus.pending;
+    final readOnly = expired;
     final courseName = _assignmentCourseName(state, detail);
     final submittedAttachments = [
       for (final attachment in state.assignmentAttachments)

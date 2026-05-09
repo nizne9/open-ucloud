@@ -589,6 +589,9 @@ class ClientController extends Notifier<ClientState> {
         assignmentId: assignment.id,
       );
       await _persistUpdatedPayload(detail.updatedSessionPayload);
+      if (state.selectedAssignmentId != assignment.id) {
+        return;
+      }
       state = state.copyWith(
         assignmentDetail: detail,
         assignmentDraft: detail.submittedContent,
@@ -607,10 +610,18 @@ class ClientController extends Notifier<ClientState> {
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
-      state = state.copyWith(assignmentDetailLoading: false);
+      if (state.phase == ClientPhase.authenticated) {
+        state = state.copyWith(
+          assignmentDetailLoading: false,
+          clearAssignmentSelection: true,
+        );
+      } else {
+        state = state.copyWith(assignmentDetailLoading: false);
+      }
     } catch (error) {
       state = state.copyWith(
         assignmentDetailLoading: false,
+        clearAssignmentSelection: true,
         errorMessage: '作业详情加载失败：$error',
       );
     }
@@ -618,6 +629,7 @@ class ClientController extends Notifier<ClientState> {
 
   void clearAssignmentSelection() {
     state = state.copyWith(
+      assignmentDetailLoading: false,
       clearAssignmentSelection: true,
       clearOperationMessage: true,
       clearError: true,
@@ -848,6 +860,9 @@ class ClientController extends Notifier<ClientState> {
         siteName: resource.siteName,
       );
       await _persistUpdatedPayload(response.updatedSessionPayload);
+      if (state.selectedResourceId != resource.resourceId) {
+        return;
+      }
       state = state.copyWith(
         resourceDetail: response.detail,
         resourceDetailLoading: false,
@@ -857,10 +872,18 @@ class ClientController extends Notifier<ClientState> {
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
-      state = state.copyWith(resourceDetailLoading: false);
+      if (state.phase == ClientPhase.authenticated) {
+        state = state.copyWith(
+          resourceDetailLoading: false,
+          clearResourceSelection: true,
+        );
+      } else {
+        state = state.copyWith(resourceDetailLoading: false);
+      }
     } catch (error) {
       state = state.copyWith(
         resourceDetailLoading: false,
+        clearResourceSelection: true,
         errorMessage: '资料详情加载失败：$error',
       );
     }
@@ -868,6 +891,7 @@ class ClientController extends Notifier<ClientState> {
 
   void clearResourceSelection() {
     state = state.copyWith(
+      resourceDetailLoading: false,
       clearResourceSelection: true,
       clearOperationMessage: true,
       clearError: true,

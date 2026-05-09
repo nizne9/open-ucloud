@@ -326,11 +326,13 @@ void main() {
                 className: '',
                 comment: '',
                 content:
+                    '<div>'
                     '<h3><strong>任务 1：基础 Transformer 编码器的文本分类</strong></h3>'
                     '<p>掌握&nbsp;<strong>Transformer</strong> 模型。</p>'
                     '<p><a href="https://example.com/spec">参考链接</a> 和 <code>BERT</code></p>'
                     '<ol><li>实现从零构建基础 Transformer 编码器。</li>'
-                    '<li>使用 <code>BERT</code> 进行微调。</li></ol>',
+                    '<li>使用 <code>BERT</code> 进行微调。</li></ol>'
+                    '</div>',
                 endTime: '2026-05-03 23:59:59',
                 id: 'work-1',
                 isOvertimeCommit: false,
@@ -498,7 +500,8 @@ void main() {
     expect(find.text('模板.docx'), findsOneWidget);
     expect(find.text('已提交附件'), findsOneWidget);
     expect(find.text('答案.pdf'), findsWidgets);
-    expect(find.widgetWithText(TextField, '提交内容（只读）'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '提交内容'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '提交内容（只读）'), findsNothing);
   });
 
   testWidgets('assignment detail falls back to list course name', (
