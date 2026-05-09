@@ -43,7 +43,9 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.assignmentDetailFuture,
     List<Future<FfiAssignmentDetailResponse>>? assignmentDetailFutures,
     this.assignmentUploadResponse,
+    this.assignmentUploadFuture,
     this.assignmentSubmitResponse = const FfiAssignmentSubmitResponse(ok: true),
+    this.assignmentSubmitFuture,
     this.resourcesResponse = const FfiCourseResourcesResponse(records: []),
     this.resourceDetailResponse,
     this.resourceDetailFuture,
@@ -71,7 +73,9 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final Future<FfiAssignmentDetailResponse>? assignmentDetailFuture;
   final List<Future<FfiAssignmentDetailResponse>> assignmentDetailFutures;
   final FfiAssignmentUploadResponse? assignmentUploadResponse;
+  final Future<FfiAssignmentUploadResponse>? assignmentUploadFuture;
   final FfiAssignmentSubmitResponse assignmentSubmitResponse;
+  final Future<FfiAssignmentSubmitResponse>? assignmentSubmitFuture;
   final FfiCourseResourcesResponse resourcesResponse;
   final FfiCourseResourceDetailResponse? resourceDetailResponse;
   final Future<FfiCourseResourceDetailResponse>? resourceDetailFuture;
@@ -235,6 +239,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String assignmentId,
     required String filePath,
   }) async {
+    final future = assignmentUploadFuture;
+    if (future != null) {
+      return future;
+    }
     return assignmentUploadResponse ??
         FfiAssignmentUploadResponse(
           assignmentId: assignmentId,
@@ -253,6 +261,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required List<String> attachmentIds,
   }) async {
     submittedAttachmentIds = attachmentIds;
+    final future = assignmentSubmitFuture;
+    if (future != null) {
+      return future;
+    }
     return assignmentSubmitResponse;
   }
 

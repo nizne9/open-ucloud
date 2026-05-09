@@ -659,7 +659,10 @@ class _AssignmentsPane extends ConsumerWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
-                    onPressed: controller.clearAssignmentSelection,
+                    onPressed:
+                        state.assignmentUploading || state.assignmentSubmitting
+                        ? null
+                        : controller.clearAssignmentSelection,
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('返回作业列表'),
                   ),

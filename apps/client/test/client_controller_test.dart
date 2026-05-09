@@ -321,6 +321,100 @@ void main() {
     expect(state.operationMessage, '已移除附件 report.pdf');
   });
 
+  test('assignment selection cannot be cleared while uploading', () async {
+    final storage = MemorySessionStorage('payload');
+    final upload = Completer<FfiAssignmentUploadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      assignmentUploadFuture: upload.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    await controller.selectAssignment(
+      const FfiAssignmentSummary(
+        endTime: '',
+        id: 'work-uploading',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '上传中作业',
+      ),
+    );
+
+    final uploadTask = controller.uploadAssignmentAttachment('/tmp/report.pdf');
+    await Future<void>.delayed(Duration.zero);
+
+    controller.clearAssignmentSelection();
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, 'work-uploading');
+    expect(state.assignmentDetail?.id, 'work-uploading');
+    expect(state.assignmentUploading, isTrue);
+
+    upload.complete(
+      const FfiAssignmentUploadResponse(
+        assignmentId: 'work-uploading',
+        fileName: 'report.pdf',
+        resourceId: 'res-uploading',
+        siteId: 'site-1',
+        siteName: '软件测试',
+      ),
+    );
+    await uploadTask;
+
+    state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, 'work-uploading');
+    expect(state.assignmentUploading, isFalse);
+    expect(state.assignmentAttachments.single.resourceId, 'res-uploading');
+  });
+
+  test('assignment selection cannot be cleared while submitting', () async {
+    final storage = MemorySessionStorage('payload');
+    final submit = Completer<FfiAssignmentSubmitResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      assignmentSubmitFuture: submit.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    await controller.selectAssignment(
+      const FfiAssignmentSummary(
+        endTime: '',
+        id: 'work-submitting',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '提交中作业',
+      ),
+    );
+    controller.updateAssignmentDraft('答案');
+
+    final submitTask = controller.submitAssignmentDraft();
+    await Future<void>.delayed(Duration.zero);
+
+    controller.clearAssignmentSelection();
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, 'work-submitting');
+    expect(state.assignmentDetail?.id, 'work-submitting');
+    expect(state.assignmentSubmitting, isTrue);
+
+    submit.complete(const FfiAssignmentSubmitResponse(ok: true));
+    await submitTask;
+
+    state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, 'work-submitting');
+    expect(state.assignmentSubmitting, isFalse);
+    expect(state.assignmentDetail?.status, FfiAssignmentStatus.submitted);
+    expect(state.assignmentDetail?.submittedContent, '答案');
+  });
+
   test('downloads all resources and persists refreshed payload', () async {
     final storage = MemorySessionStorage('payload');
     final gateway = FakeOpenCloudGateway(

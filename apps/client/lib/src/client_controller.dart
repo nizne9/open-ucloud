@@ -641,6 +641,9 @@ class ClientController extends Notifier<ClientState> {
   }
 
   void clearAssignmentSelection() {
+    if (state.assignmentUploading || state.assignmentSubmitting) {
+      return;
+    }
     state = state.copyWith(
       assignmentDetailLoading: false,
       clearAssignmentSelection: true,
@@ -667,6 +670,10 @@ class ClientController extends Notifier<ClientState> {
     if (payload == null) {
       return;
     }
+    if (state.selectedAssignmentId != detail.id ||
+        state.assignmentDetail?.id != detail.id) {
+      return;
+    }
     state = state.copyWith(
       assignmentUploading: true,
       clearError: true,
@@ -679,6 +686,11 @@ class ClientController extends Notifier<ClientState> {
         assignmentId: detail.id,
         filePath: filePath,
       );
+      if (state.selectedAssignmentId != detail.id ||
+          state.assignmentDetail?.id != detail.id) {
+        state = state.copyWith(assignmentUploading: false);
+        return;
+      }
       await _persistUpdatedPayload(uploaded.updatedSessionPayload);
       state = state.copyWith(
         assignmentAttachments: [
@@ -694,12 +706,23 @@ class ClientController extends Notifier<ClientState> {
         clearError: true,
       );
     } on FfiAuthError catch (error) {
+      if (error.code != FfiAuthErrorCode.sessionExpired &&
+          (state.selectedAssignmentId != detail.id ||
+              state.assignmentDetail?.id != detail.id)) {
+        state = state.copyWith(assignmentUploading: false);
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
       state = state.copyWith(assignmentUploading: false);
     } catch (error) {
+      if (state.selectedAssignmentId != detail.id ||
+          state.assignmentDetail?.id != detail.id) {
+        state = state.copyWith(assignmentUploading: false);
+        return;
+      }
       state = state.copyWith(
         assignmentUploading: false,
         errorMessage: '附件上传失败：$error',
@@ -745,8 +768,14 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(errorMessage: '请先填写作业内容或上传附件。');
       return;
     }
+    final draft = state.assignmentDraft;
+    final attachments = state.assignmentAttachments;
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
+      return;
+    }
+    if (state.selectedAssignmentId != detail.id ||
+        state.assignmentDetail?.id != detail.id) {
       return;
     }
     state = state.copyWith(
@@ -759,9 +788,14 @@ class ClientController extends Notifier<ClientState> {
       final response = await gateway.assignmentSubmit(
         sessionPayload: payload,
         assignmentId: detail.id,
-        content: state.assignmentDraft,
+        content: draft,
         attachmentIds: attachmentIds,
       );
+      if (state.selectedAssignmentId != detail.id ||
+          state.assignmentDetail?.id != detail.id) {
+        state = state.copyWith(assignmentSubmitting: false);
+        return;
+      }
       await _persistUpdatedPayload(response.updatedSessionPayload);
       state = state.copyWith(
         assignmentSubmitting: false,
@@ -779,26 +813,37 @@ class ClientController extends Notifier<ClientState> {
           status: FfiAssignmentStatus.submitted,
           submittedAt: DateTime.now().toIso8601String(),
           submittedAttachments: [
-            for (final attachment in state.assignmentAttachments)
+            for (final attachment in attachments)
               FfiAssignmentResource(
                 name: attachment.name,
                 previewUrl: attachment.previewUrl,
                 resourceId: attachment.resourceId,
               ),
           ],
-          submittedContent: state.assignmentDraft,
+          submittedContent: draft,
           teacherResources: detail.teacherResources,
           title: detail.title,
         ),
         operationMessage: '作业已提交',
       );
     } on FfiAuthError catch (error) {
+      if (error.code != FfiAuthErrorCode.sessionExpired &&
+          (state.selectedAssignmentId != detail.id ||
+              state.assignmentDetail?.id != detail.id)) {
+        state = state.copyWith(assignmentSubmitting: false);
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
       state = state.copyWith(assignmentSubmitting: false);
     } catch (error) {
+      if (state.selectedAssignmentId != detail.id ||
+          state.assignmentDetail?.id != detail.id) {
+        state = state.copyWith(assignmentSubmitting: false);
+        return;
+      }
       state = state.copyWith(
         assignmentSubmitting: false,
         errorMessage: '作业提交失败：$error',
