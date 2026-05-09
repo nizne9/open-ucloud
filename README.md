@@ -94,3 +94,7 @@ See:
 - [docs/cli-contract.md](docs/cli-contract.md) for CLI behavior.
 - [docs/task-guidelines.md](docs/task-guidelines.md) for task workflow.
 - [docs/quality.md](docs/quality.md) for quality gates.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
