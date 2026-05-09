@@ -769,6 +769,64 @@ void main() {
     expect(storage.payload, 'payload');
   });
 
+  test('assignment refresh clears stale detail loading', () async {
+    final storage = MemorySessionStorage('payload');
+    final completer = Completer<FfiAssignmentDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      assignmentDetailFuture: completer.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.selectAssignment(
+      const FfiAssignmentSummary(
+        endTime: '',
+        id: 'work-refresh',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '刷新作业',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    await controller.loadUndoneAssignments();
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, isNull);
+    expect(state.assignmentDetailLoading, isFalse);
+
+    completer.complete(
+      const FfiAssignmentDetailResponse(
+        className: '',
+        comment: '',
+        content: '',
+        endTime: '',
+        id: 'work-refresh',
+        isOvertimeCommit: false,
+        siteId: 'site-1',
+        siteName: '软件测试',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        submittedAt: '',
+        submittedAttachments: [],
+        submittedContent: 'stale',
+        teacherResources: [],
+        title: '刷新作业',
+      ),
+    );
+    await load;
+
+    state = container.read(clientControllerProvider);
+    expect(state.selectedAssignmentId, isNull);
+    expect(state.assignmentDetailLoading, isFalse);
+    expect(state.assignmentDetail, isNull);
+    expect(state.assignmentDraft, isEmpty);
+  });
+
   test('stale assignment session expiry clears persisted session', () async {
     final storage = MemorySessionStorage('payload');
     final completer = Completer<FfiAssignmentDetailResponse>();
@@ -1055,6 +1113,52 @@ void main() {
     expect(state.selectedResourceId, isNull);
     expect(state.resourceDetail, isNull);
     expect(storage.payload, 'payload');
+  });
+
+  test('resource refresh clears stale detail loading', () async {
+    final storage = MemorySessionStorage('payload');
+    final completer = Completer<FfiCourseResourceDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailFuture: completer.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '刷新课件.pdf',
+        resourceId: 'resource-refresh',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    await controller.loadResourcesForCourse('site-2');
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, isNull);
+    expect(state.resourceDetailLoading, isFalse);
+
+    completer.complete(
+      const FfiCourseResourceDetailResponse(
+        detail: FfiCourseResourceDetail(
+          name: '刷新课件.pdf',
+          resourceId: 'resource-refresh',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      ),
+    );
+    await load;
+
+    state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, isNull);
+    expect(state.resourceDetailLoading, isFalse);
+    expect(state.resourceDetail, isNull);
   });
 
   test('stale resource session expiry clears persisted session', () async {

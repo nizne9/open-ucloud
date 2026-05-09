@@ -494,6 +494,7 @@ class ClientController extends Notifier<ClientState> {
       assignmentView: AssignmentView.undone,
       assignments: const [],
       assignmentsLoading: true,
+      assignmentDetailLoading: false,
       clearAssignmentSelection: true,
       clearOperationMessage: true,
       clearError: true,
@@ -533,6 +534,7 @@ class ClientController extends Notifier<ClientState> {
       selectedAssignmentCourseId: siteId,
       assignments: const [],
       assignmentsLoading: true,
+      assignmentDetailLoading: false,
       clearAssignmentSelection: true,
       clearOperationMessage: true,
       clearError: true,
@@ -589,6 +591,9 @@ class ClientController extends Notifier<ClientState> {
         assignmentId: assignment.id,
       );
       if (state.selectedAssignmentId != assignment.id) {
+        if (state.selectedAssignmentId == null) {
+          state = state.copyWith(assignmentDetailLoading: false);
+        }
         return;
       }
       await _persistUpdatedPayload(detail.updatedSessionPayload);
@@ -614,6 +619,9 @@ class ClientController extends Notifier<ClientState> {
         return;
       }
       if (state.selectedAssignmentId != assignment.id) {
+        if (state.selectedAssignmentId == null) {
+          state = state.copyWith(assignmentDetailLoading: false);
+        }
         return;
       }
       await _handleSessionError(
@@ -630,6 +638,9 @@ class ClientController extends Notifier<ClientState> {
       }
     } catch (error) {
       if (state.selectedAssignmentId != assignment.id) {
+        if (state.selectedAssignmentId == null) {
+          state = state.copyWith(assignmentDetailLoading: false);
+        }
         return;
       }
       state = state.copyWith(
@@ -861,6 +872,7 @@ class ClientController extends Notifier<ClientState> {
       downloadedPaths: const [],
       resourceDownloadProgressCurrent: 0,
       resourceDownloadProgressTotal: 0,
+      resourceDetailLoading: false,
       clearResourceSelection: true,
       clearOperationMessage: true,
       clearError: true,
@@ -918,6 +930,9 @@ class ClientController extends Notifier<ClientState> {
         siteName: resource.siteName,
       );
       if (state.selectedResourceId != resource.resourceId) {
+        if (state.selectedResourceId == null) {
+          state = state.copyWith(resourceDetailLoading: false);
+        }
         return;
       }
       await _persistUpdatedPayload(response.updatedSessionPayload);
@@ -934,6 +949,9 @@ class ClientController extends Notifier<ClientState> {
         return;
       }
       if (state.selectedResourceId != resource.resourceId) {
+        if (state.selectedResourceId == null) {
+          state = state.copyWith(resourceDetailLoading: false);
+        }
         return;
       }
       await _handleSessionError(
@@ -950,6 +968,9 @@ class ClientController extends Notifier<ClientState> {
       }
     } catch (error) {
       if (state.selectedResourceId != resource.resourceId) {
+        if (state.selectedResourceId == null) {
+          state = state.copyWith(resourceDetailLoading: false);
+        }
         return;
       }
       state = state.copyWith(
