@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
+const _assignmentLineBreakMarker = '\u{E000}';
+
 class AssignmentContentView extends StatelessWidget {
   const AssignmentContentView({super.key, required this.content});
 
@@ -139,7 +141,12 @@ void _collectAssignmentBlocks(
     return;
   }
   if (tag == 'pre') {
-    _addTextBlock(blocks, _AssignmentContentKind.paragraph, node.text);
+    _addTextBlock(
+      blocks,
+      _AssignmentContentKind.paragraph,
+      node.text,
+      preserveLineBreaks: true,
+    );
     return;
   }
   if (tag == 'ul' || tag == 'ol') {
@@ -182,8 +189,12 @@ void _addTextBlock(
   _AssignmentContentKind kind,
   String text, {
   String? marker,
+  bool preserveLineBreaks = false,
 }) {
-  final normalized = _normalizeAssignmentText(text);
+  final normalized = _normalizeAssignmentText(
+    text,
+    preserveLineBreaks: preserveLineBreaks,
+  );
   if (normalized.isEmpty) {
     return;
   }
@@ -208,7 +219,7 @@ void _writeElementText(dom.Node node, StringBuffer buffer) {
   }
   final tag = node.localName?.toLowerCase();
   if (tag == 'br') {
-    buffer.write('\n');
+    buffer.write(_assignmentLineBreakMarker);
     return;
   }
   for (final child in node.nodes) {
@@ -222,9 +233,17 @@ void _writeElementText(dom.Node node, StringBuffer buffer) {
   }
 }
 
-String _normalizeAssignmentText(String value) {
-  return value
-      .replaceAll('\u00a0', ' ')
-      .replaceAll(RegExp(r'[ \t\r\f]+'), ' ')
+String _normalizeAssignmentText(
+  String value, {
+  bool preserveLineBreaks = false,
+}) {
+  var normalized = value.replaceAll('\u00a0', ' ');
+  if (preserveLineBreaks) {
+    normalized = normalized.replaceAll('\n', _assignmentLineBreakMarker);
+  }
+  return normalized
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(_assignmentLineBreakMarker, '\n')
+      .replaceAll(RegExp(r' *\n *'), '\n')
       .trim();
 }

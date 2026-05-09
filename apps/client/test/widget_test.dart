@@ -329,6 +329,9 @@ void main() {
                     '<div>'
                     '<h3><strong>任务 1：基础 Transformer 编码器的文本分类</strong></h3>'
                     '<p>掌握&nbsp;<strong>Transformer</strong> 模型。</p>'
+                    '<p>\n  格式化 <strong>HTML</strong>\n</p>'
+                    '<p>第一行<br>第二行</p>'
+                    '<pre>code\nline</pre>'
                     '<p><a href="https://example.com/spec">参考链接</a> 和 <code>BERT</code></p>'
                     '<ol><li>实现从零构建基础 Transformer 编码器。</li>'
                     '<li>使用 <code>BERT</code> 进行微调。</li></ol>'
@@ -362,6 +365,9 @@ void main() {
     expect(find.textContaining('<h3>'), findsNothing);
     expect(find.text('任务 1：基础 Transformer 编码器的文本分类'), findsOneWidget);
     expect(find.text('掌握 Transformer 模型。'), findsOneWidget);
+    expect(find.text('格式化 HTML'), findsOneWidget);
+    expect(find.text('第一行\n第二行'), findsOneWidget);
+    expect(find.text('code\nline'), findsOneWidget);
     expect(find.text('参考链接 (https://example.com/spec) 和 BERT'), findsOneWidget);
     expect(find.text('1. 实现从零构建基础 Transformer 编码器。'), findsOneWidget);
     expect(find.text('2. 使用 BERT 进行微调。'), findsOneWidget);
