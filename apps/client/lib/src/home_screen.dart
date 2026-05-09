@@ -655,6 +655,7 @@ class _AssignmentsPane extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
+                _FeedbackBanners(state: state),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
@@ -1214,6 +1215,7 @@ class _ResourcesPane extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
+                _FeedbackBanners(state: state),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
@@ -1233,7 +1235,13 @@ class _ResourcesPane extends ConsumerWidget {
           }
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: _listChildren(context, ref),
+            children: [
+              ..._listChildren(context, ref),
+              if (state.downloadedPaths.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _DownloadSummary(paths: state.downloadedPaths),
+              ],
+            ],
           );
         }
         return Row(
@@ -1538,6 +1546,32 @@ class _DownloadSummary extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FeedbackBanners extends StatelessWidget {
+  const _FeedbackBanners({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.errorMessage == null && state.operationMessage == null) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (state.errorMessage != null) ...[
+          _ErrorBanner(message: state.errorMessage!),
+          const SizedBox(height: 12),
+        ],
+        if (state.operationMessage != null) ...[
+          _InfoBanner(message: state.operationMessage!),
+          const SizedBox(height: 12),
+        ],
+      ],
     );
   }
 }

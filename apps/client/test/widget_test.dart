@@ -581,6 +581,89 @@ void main() {
     expect(find.text('已提交附件'), findsNothing);
   });
 
+  testWidgets('narrow assignment detail shows operation feedback', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(
+          FakeOpenCloudGateway(
+            session: _session(),
+            undoneAssignmentsResponse: const FfiAssignmentListResponse(
+              records: [
+                FfiAssignmentSummary(
+                  endTime: '2026-05-03 23:59:59',
+                  id: 'work-1',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  source: 'undone',
+                  startTime: '',
+                  status: FfiAssignmentStatus.pending,
+                  title: '实验报告',
+                ),
+              ],
+            ),
+            assignmentDetailResponse: const FfiAssignmentDetailResponse(
+              className: '',
+              comment: '',
+              content: '完成实验',
+              endTime: '2026-05-03 23:59:59',
+              id: 'work-1',
+              isOvertimeCommit: false,
+              siteId: 'site-1',
+              siteName: '软件测试',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              submittedAt: '',
+              submittedAttachments: [],
+              submittedContent: '',
+              teacherResources: [],
+              title: '实验报告',
+            ),
+            assignmentUploadResponse: const FfiAssignmentUploadResponse(
+              assignmentId: 'work-1',
+              fileName: 'draft.pdf',
+              resourceId: 'draft-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实验报告'));
+    await tester.pumpAndSettle();
+    await container
+        .read(clientControllerProvider.notifier)
+        .uploadAssignmentAttachment('/tmp/draft.pdf');
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回作业列表'), findsOneWidget);
+    expect(find.text('已上传附件 draft.pdf'), findsOneWidget);
+  });
+
   testWidgets('assignment detail falls back to list course name', (
     tester,
   ) async {
@@ -736,6 +819,74 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.lastResourcesSiteId, 'site-2');
+  });
+
+  testWidgets('narrow resource list shows batch download summary', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+        writtenPaths: ['/tmp/课件.pdf'],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await container
+        .read(clientControllerProvider.notifier)
+        .downloadCourseResources('/tmp');
+    await tester.pumpAndSettle();
+
+    expect(find.text('已下载 1 个资料文件'), findsOneWidget);
+    expect(find.text('已下载 1 个文件'), findsOneWidget);
+    expect(find.text('/tmp/课件.pdf'), findsOneWidget);
+    expect(find.text('返回资料列表'), findsNothing);
   });
 
   testWidgets('narrow resource detail shows metadata and returns to list', (
