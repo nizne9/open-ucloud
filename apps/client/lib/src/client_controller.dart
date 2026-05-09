@@ -606,6 +606,13 @@ class ClientController extends Notifier<ClientState> {
         assignmentDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      if (error.code == FfiAuthErrorCode.sessionExpired) {
+        await _handleSessionError(
+          error,
+          fallbackPhase: ClientPhase.authenticated,
+        );
+        return;
+      }
       if (state.selectedAssignmentId != assignment.id) {
         return;
       }
@@ -874,6 +881,13 @@ class ClientController extends Notifier<ClientState> {
         resourceDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      if (error.code == FfiAuthErrorCode.sessionExpired) {
+        await _handleSessionError(
+          error,
+          fallbackPhase: ClientPhase.authenticated,
+        );
+        return;
+      }
       if (state.selectedResourceId != resource.resourceId) {
         return;
       }

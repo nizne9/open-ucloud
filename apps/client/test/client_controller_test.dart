@@ -675,6 +675,45 @@ void main() {
     expect(storage.payload, 'payload');
   });
 
+  test('stale assignment session expiry clears persisted session', () async {
+    final storage = MemorySessionStorage('payload');
+    final completer = Completer<FfiAssignmentDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      assignmentDetailFuture: completer.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.selectAssignment(
+      const FfiAssignmentSummary(
+        endTime: '',
+        id: 'work-expired',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '过期作业',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    controller.clearAssignmentSelection();
+    completer.completeError(
+      const FfiAuthError(
+        code: FfiAuthErrorCode.sessionExpired,
+        message: 'expired',
+      ),
+    );
+    await load;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.phase, ClientPhase.unauthenticated);
+    expect(state.errorMessage, 'expired');
+    expect(storage.payload, isNull);
+  });
+
   test(
     'assignment detail failures clear selection and preserve error',
     () async {
@@ -922,6 +961,42 @@ void main() {
     expect(state.selectedResourceId, isNull);
     expect(state.resourceDetail, isNull);
     expect(storage.payload, 'payload');
+  });
+
+  test('stale resource session expiry clears persisted session', () async {
+    final storage = MemorySessionStorage('payload');
+    final completer = Completer<FfiCourseResourceDetailResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailFuture: completer.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '过期课件.pdf',
+        resourceId: 'resource-expired',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    controller.clearResourceSelection();
+    completer.completeError(
+      const FfiAuthError(
+        code: FfiAuthErrorCode.sessionExpired,
+        message: 'expired',
+      ),
+    );
+    await load;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.phase, ClientPhase.unauthenticated);
+    expect(state.errorMessage, 'expired');
+    expect(storage.payload, isNull);
   });
 
   test('resource detail failures clear selection and preserve error', () async {
