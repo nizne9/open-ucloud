@@ -178,6 +178,8 @@ void main() {
         container.read(clientControllerProvider).errorMessage,
         contains('未完成作业加载失败'),
       );
+      expect(find.textContaining('未完成作业加载失败'), findsOneWidget);
+      expect(find.text('当前没有待提交作业'), findsNothing);
     },
   );
 

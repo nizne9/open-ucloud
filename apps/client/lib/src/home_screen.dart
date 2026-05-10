@@ -1147,11 +1147,30 @@ class _PendingAssignmentsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(clientControllerProvider.notifier);
+    final loadError = !state.assignmentsLoaded && state.errorMessage != null;
     return _WorkbenchCard(
       title: '待办队列',
       subtitle: '按截止时间和可行动作排序，避免 demo 式的单纯列表。',
       child: state.assignmentsLoading
           ? const _LoadingPane(label: '正在加载待提交作业')
+          : loadError
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ErrorBanner(message: state.errorMessage!),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => controller.loadUndoneAssignments(
+                      selectedTab: ClientTab.dashboard,
+                    ),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('重试待办'),
+                  ),
+                ),
+              ],
+            )
           : state.assignments.isEmpty
           ? const _EmptyInline(
               icon: Icons.assignment_late_outlined,
