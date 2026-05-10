@@ -494,6 +494,7 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> logout() async {
+    _assignmentListGeneration += 1;
     final gateway = ref.read(openCloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
     try {

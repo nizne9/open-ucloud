@@ -128,6 +128,46 @@ void main() {
     );
   });
 
+  test('logout cancels pending assignment payload persistence', () async {
+    final storage = MemorySessionStorage('payload');
+    final pendingAssignments = Completer<FfiAssignmentListResponse>();
+    final container = _container(
+      storage: storage,
+      gateway: FakeOpenCloudGateway(
+        session: _session(),
+        undoneAssignmentsFuture: pendingAssignments.future,
+      ),
+    );
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.loadUndoneAssignments(
+      selectedTab: ClientTab.dashboard,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    await controller.logout();
+
+    expect(storage.payload, isNull);
+    expect(
+      container.read(clientControllerProvider).phase,
+      ClientPhase.unauthenticated,
+    );
+
+    pendingAssignments.complete(
+      const FfiAssignmentListResponse(
+        records: [],
+        updatedSessionPayload: 'late-payload',
+      ),
+    );
+    await load;
+
+    expect(storage.payload, isNull);
+    expect(
+      container.read(clientControllerProvider).phase,
+      ClientPhase.unauthenticated,
+    );
+  });
+
   test('parses attendance QR payload and preserves plus signs', () async {
     final storage = MemorySessionStorage('payload');
     final gateway = FakeOpenCloudGateway(

@@ -168,11 +168,10 @@ class _ClientNavigationBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
     return NavigationBar(
       selectedIndex: _destinationIndex(state.selectedTab),
       onDestinationSelected: (index) =>
-          _selectClientTab(_clientDestinations[index].tab, controller, state),
+          _selectClientTab(_clientDestinations[index].tab, ref),
       destinations: [
         for (final destination in _clientDestinations)
           NavigationDestination(
@@ -191,7 +190,6 @@ class _AuthenticatedPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
     final themeMode = ref.watch(themeModeControllerProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -226,11 +224,7 @@ class _AuthenticatedPane extends ConsumerWidget {
                 selectedIndex: _destinationIndex(state.selectedTab),
                 labelType: NavigationRailLabelType.all,
                 onDestinationSelected: (index) {
-                  _selectClientTab(
-                    _clientDestinations[index].tab,
-                    controller,
-                    state,
-                  );
+                  _selectClientTab(_clientDestinations[index].tab, ref);
                 },
                 destinations: [
                   for (final destination in _clientDestinations)
@@ -276,7 +270,6 @@ class _SideNavigation extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
     final colorScheme = Theme.of(context).colorScheme;
     final session = state.session;
     return SizedBox(
@@ -301,11 +294,8 @@ class _SideNavigation extends ConsumerWidget {
                     destination: _clientDestinations[index],
                     selected:
                         state.selectedTab == _clientDestinations[index].tab,
-                    onTap: () => _selectClientTab(
-                      _clientDestinations[index].tab,
-                      controller,
-                      state,
-                    ),
+                    onTap: () =>
+                        _selectClientTab(_clientDestinations[index].tab, ref),
                   ),
                 ),
               const Spacer(),
@@ -655,18 +645,18 @@ class _WorkbenchTopBar extends StatelessWidget {
   }
 }
 
-void _selectClientTab(
-  ClientTab tab,
-  ClientController controller,
-  ClientState state,
-) {
+void _selectClientTab(ClientTab tab, WidgetRef ref) {
+  final controller = ref.read(clientControllerProvider.notifier);
+  final state = ref.read(clientControllerProvider);
   controller.selectTab(tab);
   if (tab == ClientTab.dashboard &&
       !state.undoneAssignmentsLoaded &&
       !state.assignmentsLoading) {
     controller.loadUndoneAssignments(selectedTab: ClientTab.dashboard);
   }
-  if (tab == ClientTab.assignments && !state.undoneAssignmentsLoaded) {
+  if (tab == ClientTab.assignments &&
+      !state.undoneAssignmentsLoaded &&
+      !state.assignmentsLoading) {
     controller.loadUndoneAssignments();
   }
   if (tab == ClientTab.resources &&

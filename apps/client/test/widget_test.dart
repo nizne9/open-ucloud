@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -182,6 +184,56 @@ void main() {
       expect(find.text('当前没有待提交作业'), findsNothing);
     },
   );
+
+  testWidgets('assignment tab does not duplicate an active dashboard load', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final pendingAssignments = Completer<FfiAssignmentListResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: const FfiCourseResponse(
+        records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+        goingSites: [],
+      ),
+      undoneAssignmentsFuture: pendingAssignments.future,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+
+    for (var i = 0; i < 8; i += 1) {
+      await tester.pump();
+      if (gateway.undoneAssignmentsCalls == 1) {
+        break;
+      }
+    }
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+
+    await tester.tap(find.text('作业'));
+    await tester.pump();
+
+    pendingAssignments.complete(const FfiAssignmentListResponse(records: []));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+  });
 
   testWidgets(
     'dashboard reloads pending assignments after course assignment list',
