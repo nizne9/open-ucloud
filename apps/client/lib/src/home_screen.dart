@@ -37,59 +37,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(clientControllerProvider);
-    final controller = ref.read(clientControllerProvider.notifier);
     final themeMode = ref.watch(themeModeControllerProvider);
-    final showBottomNavigation =
-        (state.phase == ClientPhase.authenticated ||
-            state.phase == ClientPhase.loadingCourses) &&
-        MediaQuery.sizeOf(context).width < 900;
+    final authenticated =
+        state.phase == ClientPhase.authenticated ||
+        state.phase == ClientPhase.loadingCourses;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Open UCloud'),
-        actions: [
-          PopupMenuButton<AppThemeMode>(
-            tooltip: '主题',
-            icon: const Icon(Icons.brightness_6_outlined),
-            initialValue: themeMode,
-            onSelected: (mode) => ref
-                .read(themeModeControllerProvider.notifier)
-                .setThemeMode(mode),
-            itemBuilder: (context) => [
-              CheckedPopupMenuItem<AppThemeMode>(
-                value: AppThemeMode.system,
-                checked: themeMode == AppThemeMode.system,
-                child: const Text('跟随系统'),
-              ),
-              CheckedPopupMenuItem<AppThemeMode>(
-                value: AppThemeMode.light,
-                checked: themeMode == AppThemeMode.light,
-                child: const Text('浅色'),
-              ),
-              CheckedPopupMenuItem<AppThemeMode>(
-                value: AppThemeMode.dark,
-                checked: themeMode == AppThemeMode.dark,
-                child: const Text('深色'),
-              ),
-            ],
-          ),
-          if (state.phase == ClientPhase.authenticated ||
-              state.phase == ClientPhase.loadingCourses) ...[
-            IconButton(
-              tooltip: '刷新课程',
-              onPressed: state.isBusy ? null : controller.refreshCourses,
-              icon: const Icon(Icons.refresh),
+      appBar: authenticated
+          ? null
+          : AppBar(
+              title: const Text('Open UCloud'),
+              actions: [_ThemeModeMenu(themeMode: themeMode)],
             ),
-            IconButton(
-              tooltip: '退出登录',
-              onPressed: state.isBusy ? null : controller.logout,
-              icon: const Icon(Icons.logout),
-            ),
-          ],
-        ],
-      ),
-      bottomNavigationBar: showBottomNavigation
-          ? _ClientNavigationBar(state: state)
-          : null,
       body: SafeArea(
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
@@ -108,6 +66,101 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+class _ThemeModeMenu extends ConsumerWidget {
+  const _ThemeModeMenu({required this.themeMode});
+
+  final AppThemeMode themeMode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<AppThemeMode>(
+      tooltip: '主题',
+      icon: const Icon(Icons.brightness_6_outlined),
+      initialValue: themeMode,
+      onSelected: (mode) =>
+          ref.read(themeModeControllerProvider.notifier).setThemeMode(mode),
+      itemBuilder: (context) => [
+        CheckedPopupMenuItem<AppThemeMode>(
+          value: AppThemeMode.system,
+          checked: themeMode == AppThemeMode.system,
+          child: const Text('跟随系统'),
+        ),
+        CheckedPopupMenuItem<AppThemeMode>(
+          value: AppThemeMode.light,
+          checked: themeMode == AppThemeMode.light,
+          child: const Text('浅色'),
+        ),
+        CheckedPopupMenuItem<AppThemeMode>(
+          value: AppThemeMode.dark,
+          checked: themeMode == AppThemeMode.dark,
+          child: const Text('深色'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ClientDestination {
+  const _ClientDestination({
+    required this.tab,
+    required this.icon,
+    required this.label,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final ClientTab tab;
+  final IconData icon;
+  final String label;
+  final String title;
+  final String subtitle;
+}
+
+const _clientDestinations = [
+  _ClientDestination(
+    tab: ClientTab.dashboard,
+    icon: Icons.dashboard_outlined,
+    label: '总览',
+    title: '总览工作台',
+    subtitle: '课程、待交作业、资料更新和会话健康集中到一个桌面视图。',
+  ),
+  _ClientDestination(
+    tab: ClientTab.assignments,
+    icon: Icons.assignment_outlined,
+    label: '作业',
+    title: '作业处理',
+    subtitle: '默认待提交队列，详情、附件和提交动作保留在当前上下文。',
+  ),
+  _ClientDestination(
+    tab: ClientTab.resources,
+    icon: Icons.folder_outlined,
+    label: '资料',
+    title: '资料下载',
+    subtitle: '按课程加载资料，下载后展示实际写入路径。',
+  ),
+  _ClientDestination(
+    tab: ClientTab.account,
+    icon: Icons.person_outline,
+    label: '账户',
+    title: '登录状态',
+    subtitle: '会话恢复、安全存储、主题和能力状态集中管理。',
+  ),
+];
+
+_ClientDestination _destinationFor(ClientTab tab) {
+  return _clientDestinations.firstWhere(
+    (destination) => destination.tab == tab,
+    orElse: () => _clientDestinations.first,
+  );
+}
+
+int _destinationIndex(ClientTab tab) {
+  final index = _clientDestinations.indexWhere(
+    (destination) => destination.tab == tab,
+  );
+  return index < 0 ? 0 : index;
+}
+
 class _ClientNavigationBar extends ConsumerWidget {
   const _ClientNavigationBar({required this.state});
 
@@ -117,19 +170,15 @@ class _ClientNavigationBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(clientControllerProvider.notifier);
     return NavigationBar(
-      selectedIndex: state.selectedTab.index,
+      selectedIndex: _destinationIndex(state.selectedTab),
       onDestinationSelected: (index) =>
-          _selectClientTab(ClientTab.values[index], controller, state),
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.menu_book_outlined),
-          label: '课程',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.assignment_outlined),
-          label: '作业',
-        ),
-        NavigationDestination(icon: Icon(Icons.folder_outlined), label: '资料'),
+          _selectClientTab(_clientDestinations[index].tab, controller, state),
+      destinations: [
+        for (final destination in _clientDestinations)
+          NavigationDestination(
+            icon: Icon(destination.icon),
+            label: destination.label,
+          ),
       ],
     );
   }
@@ -143,47 +192,465 @@ class _AuthenticatedPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(clientControllerProvider.notifier);
+    final themeMode = ref.watch(themeModeControllerProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useRail = constraints.maxWidth >= 900;
         final content = switch (state.selectedTab) {
+          ClientTab.dashboard => _DashboardPane(state: state),
           ClientTab.courses => _CoursePane(state: state),
           ClientTab.assignments => _AssignmentsPane(state: state),
           ClientTab.resources => _ResourcesPane(state: state),
+          ClientTab.account => _AccountPane(state: state),
         };
-        if (useRail) {
+        if (constraints.maxWidth >= 1100) {
           return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              NavigationRail(
-                selectedIndex: state.selectedTab.index,
-                labelType: NavigationRailLabelType.all,
-                onDestinationSelected: (index) => _selectClientTab(
-                  ClientTab.values[index],
-                  controller,
-                  state,
-                ),
-                destinations: const [
-                  NavigationRailDestination(
-                    icon: Icon(Icons.menu_book_outlined),
-                    label: Text('课程'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.assignment_outlined),
-                    label: Text('作业'),
-                  ),
-                  NavigationRailDestination(
-                    icon: Icon(Icons.folder_outlined),
-                    label: Text('资料'),
-                  ),
-                ],
-              ),
+              _SideNavigation(state: state),
               const VerticalDivider(width: 1),
-              Expanded(child: content),
+              Expanded(
+                child: _WorkbenchFrame(
+                  state: state,
+                  themeMode: themeMode,
+                  child: content,
+                ),
+              ),
             ],
           );
         }
-        return content;
+        if (constraints.maxWidth >= 700) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              NavigationRail(
+                selectedIndex: _destinationIndex(state.selectedTab),
+                labelType: NavigationRailLabelType.all,
+                onDestinationSelected: (index) {
+                  _selectClientTab(
+                    _clientDestinations[index].tab,
+                    controller,
+                    state,
+                  );
+                },
+                destinations: [
+                  for (final destination in _clientDestinations)
+                    NavigationRailDestination(
+                      icon: Icon(destination.icon),
+                      label: Text(destination.label),
+                    ),
+                ],
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: _WorkbenchFrame(
+                  state: state,
+                  themeMode: themeMode,
+                  child: content,
+                ),
+              ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            Expanded(
+              child: _WorkbenchFrame(
+                state: state,
+                themeMode: themeMode,
+                compact: true,
+                child: content,
+              ),
+            ),
+            _ClientNavigationBar(state: state),
+          ],
+        );
       },
+    );
+  }
+}
+
+class _SideNavigation extends ConsumerWidget {
+  const _SideNavigation({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    final colorScheme = Theme.of(context).colorScheme;
+    final session = state.session;
+    return SizedBox(
+      width: 248,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border(right: BorderSide(color: colorScheme.outlineVariant)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 14, 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _BrandHeader(subtitle: '学生桌面端'),
+              const SizedBox(height: 24),
+              for (var index = 0; index < _clientDestinations.length; index++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _SideNavigationItem(
+                    number: '${index + 1}'.padLeft(2, '0'),
+                    destination: _clientDestinations[index],
+                    selected:
+                        state.selectedTab == _clientDestinations[index].tab,
+                    onTap: () => _selectClientTab(
+                      _clientDestinations[index].tab,
+                      controller,
+                      state,
+                    ),
+                  ),
+                ),
+              const Spacer(),
+              if (session != null)
+                _AccountBadge(
+                  name: session.user.realName,
+                  subtitle: '会话已恢复 · 本机安全存储',
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BrandHeader extends StatelessWidget {
+  const _BrandHeader({required this.subtitle});
+
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const _BrandMark(),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Open UCloud',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BrandMark extends StatelessWidget {
+  const _BrandMark();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.primary),
+        borderRadius: BorderRadius.circular(8),
+        color: colorScheme.primaryContainer.withValues(alpha: 0.28),
+      ),
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: Center(
+          child: Text(
+            'OU',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SideNavigationItem extends StatelessWidget {
+  const _SideNavigationItem({
+    required this.number,
+    required this.destination,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String number;
+  final _ClientDestination destination;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: selected
+          ? colorScheme.primaryContainer.withValues(alpha: 0.42)
+          : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: selected ? colorScheme.primary : colorScheme.outlineVariant,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 26,
+                child: Text(
+                  number,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Icon(destination.icon, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  destination.tab == ClientTab.account
+                      ? destination.title
+                      : destination.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccountBadge extends StatelessWidget {
+  const _AccountBadge({required this.name, required this.subtitle});
+
+  final String name;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final initial = name.trim().isEmpty ? '?' : name.trim().substring(0, 1);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(radius: 18, child: Text(initial)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkbenchFrame extends ConsumerWidget {
+  const _WorkbenchFrame({
+    required this.state,
+    required this.themeMode,
+    required this.child,
+    this.compact = false,
+  });
+
+  final ClientState state;
+  final AppThemeMode themeMode;
+  final Widget child;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final destination = _destinationFor(state.selectedTab);
+    final controller = ref.read(clientControllerProvider.notifier);
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(color: colorScheme.surfaceContainerLowest),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _WorkbenchTopBar(
+            destination: destination,
+            state: state,
+            compact: compact,
+            themeMode: themeMode,
+            onRefresh: state.isBusy ? null : controller.refreshCourses,
+            onLogout: state.isBusy ? null : controller.logout,
+          ),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkbenchTopBar extends StatelessWidget {
+  const _WorkbenchTopBar({
+    required this.destination,
+    required this.state,
+    required this.compact,
+    required this.themeMode,
+    required this.onRefresh,
+    required this.onLogout,
+  });
+
+  final _ClientDestination destination;
+  final ClientState state;
+  final bool compact;
+  final AppThemeMode themeMode;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = compact || constraints.maxWidth < 760;
+          final titleBlock = Row(
+            children: [
+              if (narrow) ...[const _BrandMark(), const SizedBox(width: 10)],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      destination.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      destination.subtitle,
+                      maxLines: narrow ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final search = TextField(
+            enabled: false,
+            decoration: const InputDecoration(
+              isDense: true,
+              prefixIcon: Icon(Icons.search, size: 18),
+              hintText: '搜索课程、作业或资料',
+              border: OutlineInputBorder(),
+            ),
+          );
+          final actions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onRefresh,
+                icon: const Icon(Icons.refresh),
+                label: const Text('同步课程'),
+              ),
+              _ThemeModeMenu(themeMode: themeMode),
+              IconButton(
+                tooltip: '退出登录',
+                onPressed: onLogout,
+                icon: const Icon(Icons.logout),
+              ),
+            ],
+          );
+          if (narrow) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  titleBlock,
+                  const SizedBox(height: 10),
+                  search,
+                  const SizedBox(height: 8),
+                  actions,
+                ],
+              ),
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 20, 12),
+            child: Row(
+              children: [
+                Expanded(child: titleBlock),
+                const SizedBox(width: 16),
+                SizedBox(width: 300, child: search),
+                const SizedBox(width: 12),
+                actions,
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -194,7 +661,12 @@ void _selectClientTab(
   ClientState state,
 ) {
   controller.selectTab(tab);
-  if (tab == ClientTab.assignments && state.assignments.isEmpty) {
+  if (tab == ClientTab.dashboard &&
+      !state.assignmentsLoaded &&
+      !state.assignmentsLoading) {
+    controller.loadUndoneAssignments(selectedTab: ClientTab.dashboard);
+  }
+  if (tab == ClientTab.assignments && !state.assignmentsLoaded) {
     controller.loadUndoneAssignments();
   }
   if (tab == ClientTab.resources &&
@@ -346,6 +818,705 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
       password: _passwordController.text,
     );
   }
+}
+
+class _DashboardPane extends ConsumerWidget {
+  const _DashboardPane({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.phase == ClientPhase.authenticated &&
+        !state.assignmentsLoaded &&
+        !state.assignmentsLoading) {
+      Future.microtask(
+        () => ref
+            .read(clientControllerProvider.notifier)
+            .loadUndoneAssignments(selectedTab: ClientTab.dashboard),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 860;
+        final primary = [
+          _DashboardStatsCard(state: state),
+          _CourseContextCard(state: state),
+          _PendingAssignmentsCard(state: state),
+        ];
+        final secondary = [
+          _NextActionCard(state: state),
+          _SessionCapabilityCard(state: state),
+          _QrParserSummaryCard(state: state),
+        ];
+        if (wide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                flex: 3,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 10, 24),
+                  children: primary,
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(10, 16, 20, 24),
+                  children: secondary,
+                ),
+              ),
+            ],
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          children: [...primary, ...secondary],
+        );
+      },
+    );
+  }
+}
+
+class _DashboardStatsCard extends ConsumerWidget {
+  const _DashboardStatsCard({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = state.session;
+    final displayName = session?.user.realName.trim();
+    final accountName = displayName == null || displayName.isEmpty
+        ? session?.user.userName.trim()
+        : displayName;
+    return _WorkbenchCard(
+      title: '今天需要关注',
+      subtitle: state.phase == ClientPhase.loadingCourses
+          ? '正在同步课程'
+          : '最后同步完成 · 会话有效',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (accountName != null && accountName.isNotEmpty) ...[
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  child: Text(accountName.substring(0, 1)),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(accountName),
+                      Text(
+                        '会话已恢复 · 本机安全存储',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 520 ? 2 : 4;
+              return GridView.count(
+                crossAxisCount: columns,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: columns == 2 ? 1.2 : 1.75,
+                children: [
+                  _MetricTile(value: '${state.courses.length}', label: '本期课程'),
+                  _MetricTile(
+                    value: state.assignmentsLoading
+                        ? '...'
+                        : '${state.assignments.length}',
+                    label: '待提交作业',
+                  ),
+                  _MetricTile(
+                    value: state.resources.isEmpty
+                        ? '按课程'
+                        : '${state.resources.length}',
+                    label: '可下载资料',
+                  ),
+                  _MetricTile(
+                    value: state.capabilities.attendanceQrPayloadParsing
+                        ? '可解析'
+                        : '只读',
+                    label: '签到状态',
+                  ),
+                ],
+              );
+            },
+          ),
+          if (state.capabilities.attendanceQrPayloadParsing) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _openAttendanceQrDialog(context, ref),
+                icon: const Icon(Icons.qr_code_scanner_outlined),
+                label: const Text('解析二维码'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CourseContextCard extends ConsumerWidget {
+  const _CourseContextCard({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    return _WorkbenchCard(
+      title: '课程上下文',
+      subtitle: '点击课程直接切到作业或资料，不再让学生先找入口。',
+      child: state.courses.isEmpty
+          ? const _EmptyInline(icon: Icons.menu_book_outlined, label: '暂无课程')
+          : Column(
+              children: [
+                for (final course in state.courses)
+                  _CourseContextRow(
+                    course: course,
+                    onAssignments: () =>
+                        controller.loadCourseAssignments(course.id),
+                    onResources: () =>
+                        controller.loadResourcesForCourse(course.id),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _CourseContextRow extends StatelessWidget {
+  const _CourseContextRow({
+    required this.course,
+    required this.onAssignments,
+    required this.onResources,
+  });
+
+  final CourseItem course;
+  final VoidCallback onAssignments;
+  final VoidCallback onResources;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stackActions = constraints.maxWidth < 560;
+          final summary = Row(
+            children: [
+              Icon(
+                course.going
+                    ? Icons.notifications_active_outlined
+                    : Icons.menu_book_outlined,
+                color: course.going ? colorScheme.primary : colorScheme.outline,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      course.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      course.going ? '${course.id} · going' : course.id,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final actions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: stackActions ? WrapAlignment.end : WrapAlignment.start,
+            children: [
+              OutlinedButton(
+                onPressed: onAssignments,
+                child: const Text('查看作业'),
+              ),
+              FilledButton.tonal(
+                onPressed: onResources,
+                child: const Text('查看资料'),
+              ),
+            ],
+          );
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: stackActions
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [summary, const SizedBox(height: 10), actions],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: summary),
+                      const SizedBox(width: 12),
+                      actions,
+                    ],
+                  ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PendingAssignmentsCard extends ConsumerWidget {
+  const _PendingAssignmentsCard({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    return _WorkbenchCard(
+      title: '待办队列',
+      subtitle: '按截止时间和可行动作排序，避免 demo 式的单纯列表。',
+      child: state.assignmentsLoading
+          ? const _LoadingPane(label: '正在加载待提交作业')
+          : state.assignments.isEmpty
+          ? const _EmptyInline(
+              icon: Icons.assignment_late_outlined,
+              label: '当前没有待提交作业',
+            )
+          : Column(
+              children: [
+                for (final assignment in state.assignments)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: Icon(_assignmentIcon(assignment.status)),
+                      title: Text(
+                        assignment.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        '${assignment.siteName} · 截止 ${assignment.endTime}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: FilledButton.tonal(
+                        onPressed: () async {
+                          controller.selectTab(ClientTab.assignments);
+                          await controller.selectAssignment(assignment);
+                        },
+                        child: const Text('继续提交'),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _NextActionCard extends ConsumerWidget {
+  const _NextActionCard({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    final next = state.assignments.isEmpty ? null : state.assignments.first;
+    return _WorkbenchCard(
+      title: '下一步动作',
+      subtitle: '把学生最可能做的事固定在右侧。',
+      child: next == null
+          ? const Text('暂无需要立即处理的作业。')
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  next.title,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text('${next.siteName} · 截止 ${next.endTime}'),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _AssignmentMetaChip(
+                      icon: _assignmentIcon(next.status),
+                      label: _assignmentStatusText(next.status),
+                    ),
+                    const _AssignmentMetaChip(
+                      icon: Icons.save_outlined,
+                      label: '本地草稿未持久化',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () async {
+                    controller.selectTab(ClientTab.assignments);
+                    await controller.selectAssignment(next);
+                  },
+                  icon: const Icon(Icons.arrow_forward),
+                  label: const Text('进入提交'),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _SessionCapabilityCard extends StatelessWidget {
+  const _SessionCapabilityCard({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return _WorkbenchCard(
+      title: '会话与能力',
+      subtitle: '把隐藏状态变成可解释反馈。',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _InfoRow(label: '安全存储', value: '从系统安全存储读取会话。'),
+          _InfoRow(
+            label: '课程列表',
+            value: state.phase == ClientPhase.loadingCourses
+                ? '正在刷新课程名、课程 ID 和进行中状态。'
+                : '已刷新课程名、课程 ID 和进行中状态。',
+          ),
+          _InfoRow(
+            label: '能力',
+            value: state.capabilities.attendanceQrPayloadParsing
+                ? '可解析官方二维码文本；不提供自助签到提交。'
+                : '签到相关能力保持只读展示。',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QrParserSummaryCard extends ConsumerWidget {
+  const _QrParserSummaryCard({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _WorkbenchCard(
+      title: '二维码文本解析',
+      subtitle: '只处理用户已经获得的官方文本。',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('粘贴 checkwork|... 后仅展示课程、签到 ID、创建时间和课节 ID，不主动补齐字段，不提交签到。'),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountPane extends ConsumerWidget {
+  const _AccountPane({required this.state});
+
+  final ClientState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    final themeMode = ref.watch(themeModeControllerProvider);
+    final session = state.session;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        _WorkbenchCard(
+          title: '账户状态',
+          subtitle: '会话恢复、安全存储和退出登录流程。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (session != null) ...[
+                _AccountBadge(
+                  name: session.user.realName,
+                  subtitle: '会话已恢复 · 本机安全存储',
+                ),
+                const SizedBox(height: 12),
+                _InfoRow(label: '角色', value: _roleLabel(session.selectedRole)),
+                _InfoRow(label: '账号', value: session.user.account),
+              ],
+              const _InfoRow(label: '安全存储', value: '退出登录会清理本机凭据，并回到登录表单。'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: state.isBusy ? null : controller.refreshCourses,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('同步课程'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: state.isBusy ? null : controller.logout,
+                    icon: const Icon(Icons.logout),
+                    label: const Text('退出登录'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        _WorkbenchCard(
+          title: '主题',
+          subtitle: '保留 light / dark / system 三种方案。',
+          child: Text('当前方案：${_themeModeLabel(themeMode)}。可通过顶部主题菜单切换。'),
+        ),
+        _WorkbenchCard(
+          title: '签到状态',
+          subtitle: '只读状态和官方二维码文本解析。',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                state.capabilities.attendanceQrPayloadParsing
+                    ? '可解析用户已获得的官方二维码文本，不提供签到提交入口。'
+                    : '当前构建不提供二维码文本解析入口。',
+              ),
+              if (state.capabilities.attendanceQrPayloadParsing) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openAttendanceQrDialog(context, ref),
+                    icon: const Icon(Icons.qr_code_scanner_outlined),
+                    label: const Text('解析二维码'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WorkbenchCard extends StatelessWidget {
+  const _WorkbenchCard({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: colorScheme.outlineVariant),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(padding: const EdgeInsets.all(16), child: child),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 86,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyInline extends StatelessWidget {
+  const _EmptyInline({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Column(
+        children: [
+          Icon(icon, size: 36, color: Theme.of(context).colorScheme.outline),
+          const SizedBox(height: 8),
+          Text(label, textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+IconData _assignmentIcon(FfiAssignmentStatus status) {
+  return switch (status) {
+    FfiAssignmentStatus.pending => Icons.edit_note_outlined,
+    FfiAssignmentStatus.submitted => Icons.task_alt,
+    FfiAssignmentStatus.expired => Icons.event_busy_outlined,
+  };
+}
+
+String _roleLabel(FfiRoleName role) {
+  return switch (role) {
+    FfiRoleName.student => '学生',
+    FfiRoleName.teacher => '教师',
+    FfiRoleName.assistant => '助教',
+  };
+}
+
+String _themeModeLabel(AppThemeMode mode) {
+  return switch (mode) {
+    AppThemeMode.system => '跟随系统',
+    AppThemeMode.light => '浅色',
+    AppThemeMode.dark => '深色',
+  };
+}
+
+void _openAttendanceQrDialog(BuildContext context, WidgetRef ref) {
+  ref
+      .read(clientControllerProvider.notifier)
+      .clearAttendanceQrPayloadParseState();
+  showDialog<void>(
+    context: context,
+    builder: (_) => const _AttendanceQrPayloadDialog(),
+  );
 }
 
 class _CoursePane extends ConsumerWidget {

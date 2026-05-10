@@ -8,8 +8,44 @@ import 'package:open_cloud_ffi/open_cloud_ffi.dart';
 import 'support/fakes.dart';
 
 void main() {
-  testWidgets('uses rail navigation on desktop width', (tester) async {
+  testWidgets('uses side navigation on expanded desktop width', (tester) async {
     tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: const FfiCourseResponse(
+                records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+                goingSites: [],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('总览工作台'), findsWidgets);
+    expect(find.text('课程、待交作业、资料更新和会话健康集中到一个桌面视图。'), findsOneWidget);
+    expect(find.text('登录状态'), findsOneWidget);
+    expect(find.byType(NavigationRail), findsNothing);
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('uses rail navigation on medium desktop width', (tester) async {
+    tester.view.physicalSize = const Size(900, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -39,6 +75,148 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+    expect(find.text('总览'), findsWidgets);
+  });
+
+  testWidgets('dashboard loads pending assignments and shows account context', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: const FfiCourseResponse(
+        records: [
+          FfiCourseSite(id: 'site-1', siteName: '软件测试'),
+          FfiCourseSite(id: 'site-2', siteName: '计算机网络'),
+        ],
+        goingSites: [FfiGoingSite(groupId: 'group-1', siteId: 'site-1')],
+      ),
+      undoneAssignmentsResponse: const FfiAssignmentListResponse(
+        records: [
+          FfiAssignmentSummary(
+            endTime: '2026-05-03 23:59:59',
+            id: 'work-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            source: 'undone',
+            startTime: '',
+            status: FfiAssignmentStatus.pending,
+            title: '实验报告',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('今天需要关注'), findsOneWidget);
+    expect(find.text('2'), findsWidgets);
+    expect(find.text('本期课程'), findsOneWidget);
+    expect(find.text('1'), findsWidgets);
+    expect(find.text('待提交作业'), findsWidgets);
+    expect(find.text('实验报告'), findsWidgets);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('会话已恢复 · 本机安全存储'), findsOneWidget);
+  });
+
+  testWidgets('account page exposes session actions and QR parser capability', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              capabilitiesResponse: const FfiClientCapabilities(
+                selfAttendance: false,
+                attendanceQrPayloadParsing: true,
+              ),
+              session: _session(),
+              courseResponse: const FfiCourseResponse(
+                records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+                goingSites: [],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.person_outline));
+    await tester.pumpAndSettle();
+
+    expect(find.text('账户状态'), findsOneWidget);
+    expect(find.text('安全存储'), findsOneWidget);
+    expect(find.text('退出登录会清理本机凭据，并回到登录表单。'), findsOneWidget);
+    expect(find.text('解析二维码'), findsOneWidget);
+    expect(find.byIcon(Icons.brightness_6_outlined), findsOneWidget);
+  });
+
+  testWidgets('compact layout uses bottom navigation with four entries', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: const FfiCourseResponse(
+                records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+                goingSites: [],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('总览'), findsWidgets);
+    expect(find.text('作业'), findsWidgets);
+    expect(find.text('资料'), findsWidgets);
+    expect(find.text('账户'), findsWidgets);
   });
 
   testWidgets('course actions do not overflow on narrow width', (tester) async {

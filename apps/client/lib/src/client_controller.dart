@@ -14,7 +14,7 @@ enum ClientPhase {
   authenticated,
 }
 
-enum ClientTab { courses, assignments, resources }
+enum ClientTab { dashboard, courses, assignments, resources, account }
 
 enum AssignmentView { undone, course }
 
@@ -58,7 +58,7 @@ class AssignmentAttachmentState {
 class ClientState {
   const ClientState({
     required this.phase,
-    this.selectedTab = ClientTab.courses,
+    this.selectedTab = ClientTab.dashboard,
     this.session,
     this.loginFlow,
     this.pendingUsername,
@@ -67,6 +67,7 @@ class ClientState {
     this.courses = const [],
     this.assignmentView = AssignmentView.undone,
     this.assignments = const [],
+    this.assignmentsLoaded = false,
     this.assignmentsLoading = false,
     this.assignmentDetailLoading = false,
     this.assignmentUploading = false,
@@ -106,6 +107,7 @@ class ClientState {
   final List<CourseItem> courses;
   final AssignmentView assignmentView;
   final List<FfiAssignmentSummary> assignments;
+  final bool assignmentsLoaded;
   final bool assignmentsLoading;
   final bool assignmentDetailLoading;
   final bool assignmentUploading;
@@ -149,6 +151,7 @@ class ClientState {
     List<CourseItem>? courses,
     AssignmentView? assignmentView,
     List<FfiAssignmentSummary>? assignments,
+    bool? assignmentsLoaded,
     bool? assignmentsLoading,
     bool? assignmentDetailLoading,
     bool? assignmentUploading,
@@ -200,6 +203,7 @@ class ClientState {
       courses: courses ?? this.courses,
       assignmentView: assignmentView ?? this.assignmentView,
       assignments: assignments ?? this.assignments,
+      assignmentsLoaded: assignmentsLoaded ?? this.assignmentsLoaded,
       assignmentsLoading: assignmentsLoading ?? this.assignmentsLoading,
       assignmentDetailLoading:
           assignmentDetailLoading ?? this.assignmentDetailLoading,
@@ -509,11 +513,14 @@ class ClientController extends Notifier<ClientState> {
     );
   }
 
-  Future<void> loadUndoneAssignments() async {
+  Future<void> loadUndoneAssignments({
+    ClientTab selectedTab = ClientTab.assignments,
+  }) async {
     state = state.copyWith(
-      selectedTab: ClientTab.assignments,
+      selectedTab: selectedTab,
       assignmentView: AssignmentView.undone,
       assignments: const [],
+      assignmentsLoaded: false,
       assignmentsLoading: true,
       assignmentDetailLoading: false,
       clearAssignmentSelection: true,
@@ -531,6 +538,7 @@ class ClientController extends Notifier<ClientState> {
       await _persistUpdatedPayload(response.updatedSessionPayload);
       state = state.copyWith(
         assignments: response.records,
+        assignmentsLoaded: true,
         assignmentsLoading: false,
       );
     } on FfiAuthError catch (error) {
@@ -538,9 +546,13 @@ class ClientController extends Notifier<ClientState> {
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
-      state = state.copyWith(assignmentsLoading: false);
+      state = state.copyWith(
+        assignmentsLoaded: true,
+        assignmentsLoading: false,
+      );
     } catch (error) {
       state = state.copyWith(
+        assignmentsLoaded: true,
         assignmentsLoading: false,
         errorMessage: '未完成作业加载失败：$error',
       );
@@ -554,6 +566,7 @@ class ClientController extends Notifier<ClientState> {
       assignmentView: AssignmentView.course,
       selectedAssignmentCourseId: siteId,
       assignments: const [],
+      assignmentsLoaded: false,
       assignmentsLoading: true,
       assignmentDetailLoading: false,
       clearAssignmentSelection: true,
@@ -576,6 +589,7 @@ class ClientController extends Notifier<ClientState> {
       await _persistUpdatedPayload(response.updatedSessionPayload);
       state = state.copyWith(
         assignments: response.records,
+        assignmentsLoaded: true,
         assignmentsLoading: false,
       );
     } on FfiAuthError catch (error) {
@@ -583,9 +597,13 @@ class ClientController extends Notifier<ClientState> {
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
-      state = state.copyWith(assignmentsLoading: false);
+      state = state.copyWith(
+        assignmentsLoaded: true,
+        assignmentsLoading: false,
+      );
     } catch (error) {
       state = state.copyWith(
+        assignmentsLoaded: true,
         assignmentsLoading: false,
         errorMessage: '课程作业加载失败：$error',
       );
