@@ -69,6 +69,7 @@ final themeModeControllerProvider =
 
 class ThemeModeController extends Notifier<AppThemeMode> {
   bool _bootstrapped = false;
+  int _userSelectionRevision = 0;
 
   @override
   AppThemeMode build() => AppThemeMode.system;
@@ -80,15 +81,21 @@ class ThemeModeController extends Notifier<AppThemeMode> {
     _bootstrapped = true;
 
     final storage = ref.read(themeModeStorageProvider);
+    final bootstrapRevision = _userSelectionRevision;
     try {
       final value = await storage.readThemeMode();
-      state = AppThemeModeX.fromStorageValue(value) ?? AppThemeMode.system;
+      if (_userSelectionRevision == bootstrapRevision) {
+        state = AppThemeModeX.fromStorageValue(value) ?? AppThemeMode.system;
+      }
     } catch (_) {
-      state = AppThemeMode.system;
+      if (_userSelectionRevision == bootstrapRevision) {
+        state = AppThemeMode.system;
+      }
     }
   }
 
   Future<void> setThemeMode(AppThemeMode mode) async {
+    _userSelectionRevision += 1;
     state = mode;
 
     final storage = ref.read(themeModeStorageProvider);

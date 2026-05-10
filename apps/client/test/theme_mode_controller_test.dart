@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:open_cloud_client/src/theme_mode_controller.dart';
@@ -33,6 +35,28 @@ void main() {
     expect(container.read(themeModeControllerProvider), AppThemeMode.system);
   });
 
+  test(
+    'preserves user changes made while bootstrap is reading storage',
+    () async {
+      final pendingRead = Completer<String?>();
+      final storage = MemoryThemeModeStorage(readFuture: pendingRead.future);
+      final container = _container(storage);
+      addTearDown(container.dispose);
+
+      final bootstrap = container
+          .read(themeModeControllerProvider.notifier)
+          .bootstrap();
+      await container
+          .read(themeModeControllerProvider.notifier)
+          .setThemeMode(AppThemeMode.light);
+      pendingRead.complete('dark');
+      await bootstrap;
+
+      expect(container.read(themeModeControllerProvider), AppThemeMode.light);
+      expect(storage.value, 'light');
+    },
+  );
+
   test('persists theme mode changes', () async {
     final storage = MemoryThemeModeStorage();
     final container = _container(storage);
@@ -61,14 +85,24 @@ void main() {
 }
 
 class MemoryThemeModeStorage implements OpenCloudThemeModeStorage {
-  MemoryThemeModeStorage({this.value, this.readError, this.writeError});
+  MemoryThemeModeStorage({
+    this.value,
+    this.readFuture,
+    this.readError,
+    this.writeError,
+  });
 
   String? value;
+  Future<String?>? readFuture;
   Object? readError;
   Object? writeError;
 
   @override
   Future<String?> readThemeMode() async {
+    final readFuture = this.readFuture;
+    if (readFuture != null) {
+      return readFuture;
+    }
     final error = readError;
     if (error != null) {
       throw error;
