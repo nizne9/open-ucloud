@@ -34,6 +34,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.authStartResponse,
     this.session,
     this.courseResponse = const FfiCourseResponse(records: [], goingSites: []),
+    this.courseError,
     this.undoneAssignmentsResponse = const FfiAssignmentListResponse(
       records: [],
     ),
@@ -83,6 +84,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiAuthSessionResponse? session;
   final FfiAuthStartResponse? authStartResponse;
   final FfiCourseResponse courseResponse;
+  final Object? courseError;
   final FfiAssignmentListResponse undoneAssignmentsResponse;
   final Future<FfiAssignmentListResponse>? undoneAssignmentsFuture;
   final Object? undoneAssignmentsError;
@@ -210,6 +212,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required bool withGoing,
   }) async {
     coursesCalls += 1;
+    final error = courseError;
+    if (error != null) {
+      throw error;
+    }
     return courseResponse;
   }
 

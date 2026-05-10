@@ -69,6 +69,7 @@ class ClientState {
     this.assignments = const [],
     this.assignmentsLoaded = false,
     this.assignmentsLoading = false,
+    this.pendingAssignmentsErrorMessage,
     this.assignmentDetailLoading = false,
     this.assignmentUploading = false,
     this.assignmentSubmitting = false,
@@ -109,6 +110,7 @@ class ClientState {
   final List<FfiAssignmentSummary> assignments;
   final bool assignmentsLoaded;
   final bool assignmentsLoading;
+  final String? pendingAssignmentsErrorMessage;
   final bool assignmentDetailLoading;
   final bool assignmentUploading;
   final bool assignmentSubmitting;
@@ -156,6 +158,7 @@ class ClientState {
     List<FfiAssignmentSummary>? assignments,
     bool? assignmentsLoaded,
     bool? assignmentsLoading,
+    String? pendingAssignmentsErrorMessage,
     bool? assignmentDetailLoading,
     bool? assignmentUploading,
     bool? assignmentSubmitting,
@@ -188,6 +191,7 @@ class ClientState {
     bool clearResourceDetail = false,
     bool clearAttendanceQrResult = false,
     bool clearAttendanceQrError = false,
+    bool clearPendingAssignmentsError = false,
     bool clearOperationMessage = false,
     bool clearError = false,
   }) {
@@ -208,6 +212,10 @@ class ClientState {
       assignments: assignments ?? this.assignments,
       assignmentsLoaded: assignmentsLoaded ?? this.assignmentsLoaded,
       assignmentsLoading: assignmentsLoading ?? this.assignmentsLoading,
+      pendingAssignmentsErrorMessage: clearPendingAssignmentsError
+          ? null
+          : pendingAssignmentsErrorMessage ??
+                this.pendingAssignmentsErrorMessage,
       assignmentDetailLoading:
           assignmentDetailLoading ?? this.assignmentDetailLoading,
       assignmentUploading: assignmentUploading ?? this.assignmentUploading,
@@ -530,13 +538,20 @@ class ClientController extends Notifier<ClientState> {
       assignmentsLoading: true,
       assignmentDetailLoading: false,
       clearAssignmentSelection: true,
+      clearPendingAssignmentsError: true,
       clearOperationMessage: true,
       clearError: true,
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
       if (_isCurrentAssignmentListGeneration(generation)) {
-        state = state.copyWith(assignmentsLoading: false);
+        state = state.copyWith(
+          assignmentsLoading: false,
+          pendingAssignmentsErrorMessage:
+              state.phase == ClientPhase.authenticated
+              ? state.errorMessage
+              : null,
+        );
       }
       return;
     }
@@ -554,6 +569,7 @@ class ClientController extends Notifier<ClientState> {
         assignments: response.records,
         assignmentsLoaded: true,
         assignmentsLoading: false,
+        clearPendingAssignmentsError: true,
       );
     } on FfiAuthError catch (error) {
       if (!_isCurrentAssignmentListGeneration(generation)) {
@@ -572,15 +588,18 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
+        pendingAssignmentsErrorMessage: error.message,
       );
     } catch (error) {
       if (!_isCurrentAssignmentListGeneration(generation)) {
         return;
       }
+      final message = '未完成作业加载失败：$error';
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
-        errorMessage: '未完成作业加载失败：$error',
+        pendingAssignmentsErrorMessage: message,
+        errorMessage: message,
       );
     }
   }

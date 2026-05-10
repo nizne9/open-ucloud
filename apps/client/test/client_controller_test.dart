@@ -246,6 +246,7 @@ void main() {
     expect(state.assignmentsLoaded, isFalse);
     expect(state.assignmentsLoading, isFalse);
     expect(state.errorMessage, contains('未完成作业加载失败'));
+    expect(state.pendingAssignmentsErrorMessage, contains('未完成作业加载失败'));
   });
 
   test(

@@ -818,7 +818,7 @@ class _DashboardPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (state.phase == ClientPhase.authenticated &&
-        state.errorMessage == null &&
+        state.pendingAssignmentsErrorMessage == null &&
         !state.undoneAssignmentsLoaded &&
         !state.assignmentsLoading) {
       Future.microtask(
@@ -1138,7 +1138,9 @@ class _PendingAssignmentsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(clientControllerProvider.notifier);
-    final loadError = !state.assignmentsLoaded && state.errorMessage != null;
+    final loadError =
+        !state.assignmentsLoaded &&
+        state.pendingAssignmentsErrorMessage != null;
     return _WorkbenchCard(
       title: '待办队列',
       subtitle: '按截止时间和可行动作排序，避免 demo 式的单纯列表。',
@@ -1148,7 +1150,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _ErrorBanner(message: state.errorMessage!),
+                _ErrorBanner(message: state.pendingAssignmentsErrorMessage!),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,

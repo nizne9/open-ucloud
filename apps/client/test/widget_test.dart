@@ -185,6 +185,54 @@ void main() {
     },
   );
 
+  testWidgets('dashboard pending load ignores unrelated course errors', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseError: Exception('courses down'),
+      undoneAssignmentsResponse: const FfiAssignmentListResponse(
+        records: [
+          FfiAssignmentSummary(
+            endTime: '2026-05-03 23:59:59',
+            id: 'pending-after-course-error',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            source: 'undone',
+            startTime: '',
+            status: FfiAssignmentStatus.pending,
+            title: '课程错误后的待办',
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(gateway.coursesCalls, 1);
+    expect(gateway.undoneAssignmentsCalls, 1);
+    expect(find.text('课程错误后的待办'), findsWidgets);
+    expect(find.text('重试待办'), findsNothing);
+  });
+
   testWidgets('assignment tab does not duplicate an active dashboard load', (
     tester,
   ) async {
