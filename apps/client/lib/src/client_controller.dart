@@ -140,6 +140,9 @@ class ClientState {
       phase == ClientPhase.finishingLogin ||
       phase == ClientPhase.loadingCourses;
 
+  bool get undoneAssignmentsLoaded =>
+      assignmentView == AssignmentView.undone && assignmentsLoaded;
+
   ClientState copyWith({
     ClientPhase? phase,
     ClientTab? selectedTab,
@@ -547,12 +550,12 @@ class ClientController extends Notifier<ClientState> {
         fallbackPhase: ClientPhase.authenticated,
       );
       state = state.copyWith(
-        assignmentsLoaded: true,
+        assignmentsLoaded: false,
         assignmentsLoading: false,
       );
     } catch (error) {
       state = state.copyWith(
-        assignmentsLoaded: true,
+        assignmentsLoaded: false,
         assignmentsLoading: false,
         errorMessage: '未完成作业加载失败：$error',
       );
@@ -598,12 +601,12 @@ class ClientController extends Notifier<ClientState> {
         fallbackPhase: ClientPhase.authenticated,
       );
       state = state.copyWith(
-        assignmentsLoaded: true,
+        assignmentsLoaded: false,
         assignmentsLoading: false,
       );
     } catch (error) {
       state = state.copyWith(
-        assignmentsLoaded: true,
+        assignmentsLoaded: false,
         assignmentsLoading: false,
         errorMessage: '课程作业加载失败：$error',
       );

@@ -135,6 +135,80 @@ void main() {
     expect(find.text('会话已恢复 · 本机安全存储'), findsOneWidget);
   });
 
+  testWidgets(
+    'dashboard reloads pending assignments after course assignment list',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        courseResponse: const FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+          goingSites: [],
+        ),
+        undoneAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '2026-05-03 23:59:59',
+              id: 'pending-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '默认待办',
+            ),
+          ],
+        ),
+        courseAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '2026-05-10 23:59:59',
+              id: 'course-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'course',
+              startTime: '',
+              status: FfiAssignmentStatus.submitted,
+              title: '课程作业',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sessionStorageProvider.overrideWithValue(
+              MemorySessionStorage('payload'),
+            ),
+            openCloudGatewayProvider.overrideWithValue(gateway),
+          ],
+          child: const OpenCloudApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('默认待办'), findsWidgets);
+
+      await tester.tap(find.text('查看作业'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('课程作业'), findsOneWidget);
+
+      await tester.tap(find.text('总览'));
+      await tester.pumpAndSettle();
+
+      expect(gateway.undoneAssignmentsCalls, 2);
+      expect(find.text('默认待办'), findsWidgets);
+      expect(find.text('课程作业'), findsNothing);
+    },
+  );
+
   testWidgets('account page exposes session actions and QR parser capability', (
     tester,
   ) async {

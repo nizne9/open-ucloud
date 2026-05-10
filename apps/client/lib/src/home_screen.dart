@@ -662,11 +662,11 @@ void _selectClientTab(
 ) {
   controller.selectTab(tab);
   if (tab == ClientTab.dashboard &&
-      !state.assignmentsLoaded &&
+      !state.undoneAssignmentsLoaded &&
       !state.assignmentsLoading) {
     controller.loadUndoneAssignments(selectedTab: ClientTab.dashboard);
   }
-  if (tab == ClientTab.assignments && !state.assignmentsLoaded) {
+  if (tab == ClientTab.assignments && !state.undoneAssignmentsLoaded) {
     controller.loadUndoneAssignments();
   }
   if (tab == ClientTab.resources &&
@@ -828,7 +828,7 @@ class _DashboardPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (state.phase == ClientPhase.authenticated &&
-        !state.assignmentsLoaded &&
+        !state.undoneAssignmentsLoaded &&
         !state.assignmentsLoading) {
       Future.microtask(
         () => ref

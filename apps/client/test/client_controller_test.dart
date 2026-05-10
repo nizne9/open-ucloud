@@ -187,6 +187,27 @@ void main() {
     expect(state.courses.single.name, '软件测试');
   });
 
+  test('failed pending assignment loads remain retryable', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      undoneAssignmentsError: Exception('network down'),
+    );
+    final container = _container(storage: storage, gateway: gateway);
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .loadUndoneAssignments(selectedTab: ClientTab.dashboard);
+
+    final state = container.read(clientControllerProvider);
+    expect(state.selectedTab, ClientTab.dashboard);
+    expect(state.assignmentView, AssignmentView.undone);
+    expect(state.assignments, isEmpty);
+    expect(state.assignmentsLoaded, isFalse);
+    expect(state.assignmentsLoading, isFalse);
+    expect(state.errorMessage, contains('未完成作业加载失败'));
+  });
+
   test(
     'loads assignment detail, uploads attachment, and submits draft',
     () async {
