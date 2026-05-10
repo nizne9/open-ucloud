@@ -8,6 +8,7 @@ import 'package:open_cloud_ffi/open_cloud_ffi.dart';
 
 import 'assignment_content_view.dart';
 import 'client_controller.dart';
+import 'theme_mode_controller.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -35,10 +36,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(clientControllerProvider);
     final controller = ref.read(clientControllerProvider.notifier);
+    final themeMode = ref.watch(themeModeControllerProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Open UCloud'),
         actions: [
+          PopupMenuButton<AppThemeMode>(
+            tooltip: '主题',
+            icon: const Icon(Icons.brightness_6_outlined),
+            initialValue: themeMode,
+            onSelected: (mode) => ref
+                .read(themeModeControllerProvider.notifier)
+                .setThemeMode(mode),
+            itemBuilder: (context) => [
+              CheckedPopupMenuItem<AppThemeMode>(
+                value: AppThemeMode.system,
+                checked: themeMode == AppThemeMode.system,
+                child: const Text('跟随系统'),
+              ),
+              CheckedPopupMenuItem<AppThemeMode>(
+                value: AppThemeMode.light,
+                checked: themeMode == AppThemeMode.light,
+                child: const Text('浅色'),
+              ),
+              CheckedPopupMenuItem<AppThemeMode>(
+                value: AppThemeMode.dark,
+                checked: themeMode == AppThemeMode.dark,
+                child: const Text('深色'),
+              ),
+            ],
+          ),
           if (state.phase == ClientPhase.authenticated ||
               state.phase == ClientPhase.loadingCourses) ...[
             IconButton(

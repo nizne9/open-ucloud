@@ -1,24 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'home_screen.dart';
+import 'theme_mode_controller.dart';
 
-class OpenCloudApp extends StatelessWidget {
+class OpenCloudApp extends ConsumerStatefulWidget {
   const OpenCloudApp({super.key});
 
   @override
+  ConsumerState<OpenCloudApp> createState() => _OpenCloudAppState();
+}
+
+class _OpenCloudAppState extends ConsumerState<OpenCloudApp> {
+  bool _bootstrapped = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_bootstrapped) {
+      return;
+    }
+    _bootstrapped = true;
+    Future.microtask(
+      () => ref.read(themeModeControllerProvider.notifier).bootstrap(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeControllerProvider);
     return MaterialApp(
       title: 'Open UCloud',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF176C72),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        visualDensity: VisualDensity.standard,
-      ),
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
+      themeMode: themeMode.toThemeMode(),
       home: const HomeScreen(),
+    );
+  }
+
+  ThemeData _buildTheme(Brightness brightness) {
+    return ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF176C72),
+        brightness: brightness,
+      ),
+      brightness: brightness,
+      useMaterial3: true,
+      visualDensity: VisualDensity.standard,
     );
   }
 }

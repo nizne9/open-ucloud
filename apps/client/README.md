@@ -2,7 +2,8 @@
 
 Open UCloud Flutter client. The current Linux desktop client supports login,
 secure session restoration, course listing, assignment list/detail/upload/submit,
-and course resource list/detail/single or batch downloads.
+course resource list/detail/single or batch downloads, and a persisted
+light/dark/system theme preference.
 
 ## Local Development
 
@@ -16,8 +17,9 @@ flutter run -d linux
 ```
 
 The app stores only the opaque `sessionPayload` returned by Rust in platform
-secure storage. Login protocol handling, token expiration checks, and token
-refresh remain in the Rust core/FFI boundary.
+secure storage. It also stores the selected theme mode locally. Login protocol
+handling, token expiration checks, and token refresh remain in the Rust
+core/FFI boundary.
 
 File selection, save-location picking, and directory picking use Flutter's
 `file_selector` package. Downloaded resource bytes are written by Rust through
