@@ -93,6 +93,56 @@ void main() {
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
   });
 
+  testWidgets('captcha step is accessible and can return to credentials', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              authStartResponse: FfiAuthStartResponse(
+                auth: const FfiAuthStartResult(
+                  captchaImage:
+                      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lra3NwAAAABJRU5ErkJggg==',
+                  flowId: 'flow-1',
+                  requiresCaptcha: true,
+                ),
+                flow: FfiLoginFlow(
+                  captchaId: 'captcha-1',
+                  cookie: 'cookie',
+                  createdAtMs: BigInt.one,
+                  execution: 'flow-1',
+                  username: 'alice',
+                ),
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.enterText(find.widgetWithText(TextField, '用户名'), 'alice');
+    await tester.enterText(find.widgetWithText(TextField, '密码'), 'secret');
+    await tester.tap(find.widgetWithText(FilledButton, '继续'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, '验证码'), findsOneWidget);
+    expect(find.bySemanticsLabel('验证码图片'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '修改账号密码'), findsOneWidget);
+
+    await tester.tap(find.text('修改账号密码'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, '用户名'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '密码'), findsOneWidget);
+    expect(find.widgetWithText(TextField, '验证码'), findsNothing);
+  });
+
   testWidgets('restores session and renders courses', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -160,6 +210,38 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('解析二维码'), findsOneWidget);
+  });
+
+  testWidgets('renders QR parser entry even when no courses are loaded', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              capabilitiesResponse: const FfiClientCapabilities(
+                selfAttendance: false,
+                attendanceQrPayloadParsing: true,
+              ),
+              session: _session(),
+              courseResponse: const FfiCourseResponse(
+                records: [],
+                goingSites: [],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('暂无课程'), findsOneWidget);
     expect(find.text('解析二维码'), findsOneWidget);
   });
 
@@ -506,6 +588,8 @@ void main() {
     expect(find.text('模板.docx'), findsOneWidget);
     expect(find.text('已提交附件'), findsOneWidget);
     expect(find.text('答案.pdf'), findsWidgets);
+    expect(find.byTooltip('打开链接'), findsNWidgets(2));
+    expect(find.byTooltip('复制链接'), findsNWidgets(2));
     expect(find.widgetWithText(TextField, '提交内容'), findsOneWidget);
     expect(find.widgetWithText(TextField, '提交内容（只读）'), findsNothing);
   });
@@ -668,6 +752,90 @@ void main() {
 
     expect(find.text('返回作业列表'), findsOneWidget);
     expect(find.text('已上传附件 draft.pdf'), findsOneWidget);
+  });
+
+  testWidgets('desktop assignment feedback appears in the detail pane', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(
+          FakeOpenCloudGateway(
+            session: _session(),
+            undoneAssignmentsResponse: const FfiAssignmentListResponse(
+              records: [
+                FfiAssignmentSummary(
+                  endTime: '2026-05-03 23:59:59',
+                  id: 'work-1',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  source: 'undone',
+                  startTime: '',
+                  status: FfiAssignmentStatus.pending,
+                  title: '实验报告',
+                ),
+              ],
+            ),
+            assignmentDetailResponse: const FfiAssignmentDetailResponse(
+              className: '',
+              comment: '',
+              content: '完成实验',
+              endTime: '2026-05-03 23:59:59',
+              id: 'work-1',
+              isOvertimeCommit: false,
+              siteId: 'site-1',
+              siteName: '软件测试',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              submittedAt: '',
+              submittedAttachments: [],
+              submittedContent: '',
+              teacherResources: [],
+              title: '实验报告',
+            ),
+            assignmentUploadResponse: const FfiAssignmentUploadResponse(
+              assignmentId: 'work-1',
+              fileName: 'draft.pdf',
+              resourceId: 'draft-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实验报告'));
+    await tester.pumpAndSettle();
+    await container
+        .read(clientControllerProvider.notifier)
+        .uploadAssignmentAttachment('/tmp/draft.pdf');
+    await tester.pumpAndSettle();
+
+    final feedback = find.text('已上传附件 draft.pdf');
+    expect(feedback, findsOneWidget);
+    expect(tester.getTopLeft(feedback).dx, greaterThan(500));
   });
 
   testWidgets('assignment detail falls back to list course name', (
@@ -968,6 +1136,86 @@ void main() {
 
     expect(find.text('课件.pdf'), findsOneWidget);
     expect(find.text('返回资料列表'), findsNothing);
+  });
+
+  testWidgets('desktop resource download feedback appears in the detail pane', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(
+          FakeOpenCloudGateway(
+            session: _session(),
+            courseResponse: _twoCourseResponse(),
+            resourcesResponse: const FfiCourseResourcesResponse(
+              records: [
+                FfiCourseResourceSummary(
+                  name: '课件.pdf',
+                  resourceId: 'resource-1',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  updatedAt: '',
+                ),
+              ],
+            ),
+            resourceDetailResponse: const FfiCourseResourceDetailResponse(
+              detail: FfiCourseResourceDetail(
+                name: '课件.pdf',
+                resourceId: 'resource-1',
+                siteId: 'site-1',
+                siteName: '软件测试',
+                updatedAt: '',
+              ),
+            ),
+            resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+              records: [
+                FfiCourseResourceDetail(
+                  name: '课件.pdf',
+                  resourceId: 'resource-1',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  updatedAt: '',
+                ),
+              ],
+              writtenPaths: ['/tmp/课件.pdf'],
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('课件.pdf'));
+    await tester.pumpAndSettle();
+    await container
+        .read(clientControllerProvider.notifier)
+        .downloadResource('/tmp/课件.pdf');
+    await tester.pumpAndSettle();
+
+    final feedback = find.text('已下载 1 个资料文件');
+    expect(feedback, findsOneWidget);
+    expect(tester.getTopLeft(feedback).dx, greaterThan(500));
+    expect(find.text('/tmp/课件.pdf'), findsOneWidget);
   });
 }
 

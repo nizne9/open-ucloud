@@ -18,6 +18,8 @@ enum ClientTab { courses, assignments, resources }
 
 enum AssignmentView { undone, course }
 
+enum OperationContext { assignmentDetail, resourceDetail, resourceList }
+
 const _defaultCapabilities = FfiClientCapabilities(
   selfAttendance: false,
   attendanceQrPayloadParsing: false,
@@ -88,6 +90,7 @@ class ClientState {
     this.parsedAttendanceQrPayload,
     this.attendanceQrInputError,
     this.operationMessage,
+    this.operationContext,
     this.errorMessage,
   });
 
@@ -126,6 +129,7 @@ class ClientState {
   final FfiAttendanceQrPayload? parsedAttendanceQrPayload;
   final String? attendanceQrInputError;
   final String? operationMessage;
+  final OperationContext? operationContext;
   final String? errorMessage;
 
   bool get isBusy =>
@@ -168,6 +172,7 @@ class ClientState {
     FfiAttendanceQrPayload? parsedAttendanceQrPayload,
     String? attendanceQrInputError,
     String? operationMessage,
+    OperationContext? operationContext,
     String? errorMessage,
     bool clearSession = false,
     bool clearLogin = false,
@@ -243,6 +248,9 @@ class ClientState {
       operationMessage: clearOperationMessage
           ? null
           : operationMessage ?? this.operationMessage,
+      operationContext: clearOperationMessage
+          ? null
+          : operationContext ?? this.operationContext,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
   }
@@ -467,6 +475,14 @@ class ClientController extends Notifier<ClientState> {
     );
   }
 
+  void editLoginCredentials() {
+    state = ClientState(
+      phase: ClientPhase.unauthenticated,
+      pendingUsername: state.pendingUsername,
+      pendingPassword: state.pendingPassword,
+    );
+  }
+
   Future<void> logout() async {
     final gateway = ref.read(openCloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
@@ -483,6 +499,9 @@ class ClientController extends Notifier<ClientState> {
   void selectTab(ClientTab tab) {
     state = state.copyWith(
       selectedTab: tab,
+      downloadedPaths: const [],
+      resourceDownloadProgressCurrent: 0,
+      resourceDownloadProgressTotal: 0,
       clearOperationMessage: true,
       clearError: true,
     );
@@ -714,6 +733,7 @@ class ClientController extends Notifier<ClientState> {
         ],
         assignmentUploading: false,
         operationMessage: '已上传附件 ${uploaded.fileName}',
+        operationContext: OperationContext.assignmentDetail,
         clearError: true,
       );
     } on FfiAuthError catch (error) {
@@ -757,6 +777,7 @@ class ClientController extends Notifier<ClientState> {
     state = state.copyWith(
       assignmentAttachments: attachments,
       operationMessage: '已移除附件 ${removed.name}',
+      operationContext: OperationContext.assignmentDetail,
       clearError: true,
     );
   }
@@ -836,6 +857,7 @@ class ClientController extends Notifier<ClientState> {
           title: detail.title,
         ),
         operationMessage: '作业已提交',
+        operationContext: OperationContext.assignmentDetail,
       );
     } on FfiAuthError catch (error) {
       if (error.code != FfiAuthErrorCode.sessionExpired &&
@@ -869,6 +891,7 @@ class ClientController extends Notifier<ClientState> {
       selectedResourceCourseId: siteId,
       resources: const [],
       resourcesLoading: true,
+      resourceDownloading: false,
       downloadedPaths: const [],
       resourceDownloadProgressCurrent: 0,
       resourceDownloadProgressTotal: 0,
@@ -912,6 +935,9 @@ class ClientController extends Notifier<ClientState> {
     state = state.copyWith(
       selectedResourceId: resource.resourceId,
       resourceDetailLoading: true,
+      downloadedPaths: const [],
+      resourceDownloadProgressCurrent: 0,
+      resourceDownloadProgressTotal: 0,
       clearResourceDetail: true,
       clearOperationMessage: true,
       clearError: true,
@@ -984,6 +1010,10 @@ class ClientController extends Notifier<ClientState> {
   void clearResourceSelection() {
     state = state.copyWith(
       resourceDetailLoading: false,
+      resourceDownloading: false,
+      downloadedPaths: const [],
+      resourceDownloadProgressCurrent: 0,
+      resourceDownloadProgressTotal: 0,
       clearResourceSelection: true,
       clearOperationMessage: true,
       clearError: true,
@@ -1000,6 +1030,8 @@ class ClientController extends Notifier<ClientState> {
     if (payload == null) {
       return;
     }
+    final resourceId = detail.resourceId;
+    final siteId = detail.siteId;
     state = state.copyWith(
       resourceDownloading: true,
       clearError: true,
@@ -1009,11 +1041,18 @@ class ClientController extends Notifier<ClientState> {
     try {
       final response = await gateway.resourceDownload(
         sessionPayload: payload,
-        resourceId: detail.resourceId,
-        siteId: detail.siteId,
+        resourceId: resourceId,
+        siteId: siteId,
         siteName: detail.siteName,
         outputPath: outputPath,
       );
+      if (state.selectedTab != ClientTab.resources ||
+          state.selectedResourceId != resourceId ||
+          state.resourceDetail?.resourceId != resourceId ||
+          state.resourceDetail?.siteId != siteId) {
+        state = state.copyWith(resourceDownloading: false);
+        return;
+      }
       await _persistUpdatedPayload(response.updatedSessionPayload);
       state = state.copyWith(
         resourceDownloading: false,
@@ -1021,6 +1060,7 @@ class ClientController extends Notifier<ClientState> {
         resourceDownloadProgressCurrent: response.writtenPaths.length,
         resourceDownloadProgressTotal: response.records.length,
         operationMessage: _downloadMessage(response.writtenPaths.length),
+        operationContext: OperationContext.resourceDetail,
       );
     } on FfiAuthError catch (error) {
       await _handleSessionError(
@@ -1042,6 +1082,8 @@ class ClientController extends Notifier<ClientState> {
       return;
     }
     final first = state.resources.first;
+    final siteId = first.siteId;
+    final siteName = first.siteName;
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
       return;
@@ -1058,10 +1100,15 @@ class ClientController extends Notifier<ClientState> {
     try {
       final response = await gateway.resourceDownloadCourse(
         sessionPayload: payload,
-        siteId: first.siteId,
-        siteName: first.siteName,
+        siteId: siteId,
+        siteName: siteName,
         outputDir: outputDir,
       );
+      if (state.selectedTab != ClientTab.resources ||
+          state.selectedResourceCourseId != siteId) {
+        state = state.copyWith(resourceDownloading: false);
+        return;
+      }
       await _persistUpdatedPayload(response.updatedSessionPayload);
       state = state.copyWith(
         resourceDownloading: false,
@@ -1069,6 +1116,7 @@ class ClientController extends Notifier<ClientState> {
         resourceDownloadProgressCurrent: response.writtenPaths.length,
         resourceDownloadProgressTotal: response.records.length,
         operationMessage: _downloadMessage(response.writtenPaths.length),
+        operationContext: OperationContext.resourceList,
       );
     } on FfiAuthError catch (error) {
       await _handleSessionError(

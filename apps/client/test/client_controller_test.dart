@@ -468,6 +468,109 @@ void main() {
     expect(container.read(clientControllerProvider).operationMessage, isNull);
   });
 
+  test('single resource download ignores stale selection', () async {
+    final storage = MemorySessionStorage('payload');
+    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailResponse: const FfiCourseResourceDetailResponse(
+        detail: FfiCourseResourceDetail(
+          name: '课件.pdf',
+          resourceId: 'resource-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      ),
+      resourceDownloadFuture: download.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    await controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '课件.pdf',
+        resourceId: 'resource-1',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    final task = controller.downloadResource('/tmp/课件.pdf');
+    await Future<void>.delayed(Duration.zero);
+
+    controller.clearResourceSelection();
+    download.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/课件.pdf'],
+      ),
+    );
+    await task;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadedPaths, isEmpty);
+    expect(state.operationMessage, isNull);
+  });
+
+  test('batch resource download ignores stale course', () async {
+    final storage = MemorySessionStorage('payload');
+    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+      ),
+      resourceDownloadCourseFuture: download.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    await controller.loadResourcesForCourse('site-1');
+    final task = controller.downloadCourseResources('/tmp/downloads');
+    await Future<void>.delayed(Duration.zero);
+
+    await controller.loadResourcesForCourse('site-2');
+    download.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/downloads/课件.pdf'],
+      ),
+    );
+    await task;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.selectedResourceCourseId, 'site-2');
+    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadedPaths, isEmpty);
+    expect(state.operationMessage, isNull);
+  });
+
   test(
     'clears success message when selecting another assignment detail',
     () async {

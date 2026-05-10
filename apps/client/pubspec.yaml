@@ -39,6 +39,7 @@ dependencies:
   open_cloud_ffi:
     path: ../../crates/ffi/dart
   path: ^1.9.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

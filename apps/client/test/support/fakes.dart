@@ -31,6 +31,7 @@ class MemorySessionStorage implements OpenCloudSessionStorage {
 
 class FakeOpenCloudGateway implements OpenCloudGateway {
   FakeOpenCloudGateway({
+    this.authStartResponse,
     this.session,
     this.courseResponse = const FfiCourseResponse(records: [], goingSites: []),
     this.undoneAssignmentsResponse = const FfiAssignmentListResponse(
@@ -54,6 +55,8 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
       records: [],
       writtenPaths: [],
     ),
+    this.resourceDownloadFuture,
+    this.resourceDownloadCourseFuture,
     this.capabilitiesResponse = const FfiClientCapabilities(
       selfAttendance: false,
       attendanceQrPayloadParsing: false,
@@ -66,6 +69,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
        resourceDetailFutures = resourceDetailFutures ?? [];
 
   final FfiAuthSessionResponse? session;
+  final FfiAuthStartResponse? authStartResponse;
   final FfiCourseResponse courseResponse;
   final FfiAssignmentListResponse undoneAssignmentsResponse;
   final FfiAssignmentListResponse courseAssignmentsResponse;
@@ -81,6 +85,8 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final Future<FfiCourseResourceDetailResponse>? resourceDetailFuture;
   final List<Future<FfiCourseResourceDetailResponse>> resourceDetailFutures;
   final FfiCourseResourceDownloadResponse resourceDownloadResponse;
+  final Future<FfiCourseResourceDownloadResponse>? resourceDownloadFuture;
+  final Future<FfiCourseResourceDownloadResponse>? resourceDownloadCourseFuture;
   final FfiClientCapabilities capabilitiesResponse;
   final Object? capabilitiesError;
   final FfiAttendanceQrPayload? parseAttendanceQrPayloadResponse;
@@ -99,6 +105,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
 
   @override
   Future<FfiAuthStartResponse> authStart(String username) async {
+    final response = authStartResponse;
+    if (response != null) {
+      return response;
+    }
     return FfiAuthStartResponse(
       auth: const FfiAuthStartResult(flowId: 'flow-1', requiresCaptcha: false),
       flow: FfiLoginFlow(
@@ -312,6 +322,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
     required String outputPath,
   }) async {
+    final future = resourceDownloadFuture;
+    if (future != null) {
+      return future;
+    }
     return resourceDownloadResponse;
   }
 
@@ -322,6 +336,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
     required String outputDir,
   }) async {
+    final future = resourceDownloadCourseFuture;
+    if (future != null) {
+      return future;
+    }
     return resourceDownloadResponse;
   }
 
