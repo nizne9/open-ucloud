@@ -136,6 +136,52 @@ void main() {
   });
 
   testWidgets(
+    'dashboard stops automatic pending assignment retry after failure',
+    (tester) async {
+      tester.view.physicalSize = const Size(900, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        courseResponse: const FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+          goingSites: [],
+        ),
+        undoneAssignmentsError: Exception('network down'),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sessionStorageProvider.overrideWithValue(
+              MemorySessionStorage('payload'),
+            ),
+            openCloudGatewayProvider.overrideWithValue(gateway),
+          ],
+          child: const OpenCloudApp(),
+        ),
+      );
+
+      for (var i = 0; i < 8; i += 1) {
+        await tester.pump();
+      }
+
+      expect(gateway.undoneAssignmentsCalls, 1);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(OpenCloudApp)),
+      );
+      expect(
+        container.read(clientControllerProvider).errorMessage,
+        contains('未完成作业加载失败'),
+      );
+    },
+  );
+
+  testWidgets(
     'dashboard reloads pending assignments after course assignment list',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 900);

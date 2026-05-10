@@ -275,6 +275,7 @@ final clientControllerProvider =
     NotifierProvider<ClientController, ClientState>(ClientController.new);
 
 class ClientController extends Notifier<ClientState> {
+  int _assignmentListGeneration = 0;
   int _resourceDownloadGeneration = 0;
 
   @override
@@ -519,6 +520,7 @@ class ClientController extends Notifier<ClientState> {
   Future<void> loadUndoneAssignments({
     ClientTab selectedTab = ClientTab.assignments,
   }) async {
+    final generation = ++_assignmentListGeneration;
     state = state.copyWith(
       selectedTab: selectedTab,
       assignmentView: AssignmentView.undone,
@@ -532,19 +534,36 @@ class ClientController extends Notifier<ClientState> {
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
-      state = state.copyWith(assignmentsLoading: false);
+      if (_isCurrentAssignmentListGeneration(generation)) {
+        state = state.copyWith(assignmentsLoading: false);
+      }
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
     try {
       final response = await gateway.assignmentsUndone(sessionPayload: payload);
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        return;
+      }
       await _persistUpdatedPayload(response.updatedSessionPayload);
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        return;
+      }
       state = state.copyWith(
         assignments: response.records,
         assignmentsLoaded: true,
         assignmentsLoading: false,
       );
     } on FfiAuthError catch (error) {
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        if (error.code == FfiAuthErrorCode.sessionExpired) {
+          await _handleSessionError(
+            error,
+            fallbackPhase: ClientPhase.authenticated,
+          );
+        }
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
@@ -554,6 +573,9 @@ class ClientController extends Notifier<ClientState> {
         assignmentsLoading: false,
       );
     } catch (error) {
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        return;
+      }
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
@@ -563,6 +585,7 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> loadCourseAssignments(String siteId) async {
+    final generation = ++_assignmentListGeneration;
     final course = _courseById(siteId);
     state = state.copyWith(
       selectedTab: ClientTab.assignments,
@@ -578,7 +601,9 @@ class ClientController extends Notifier<ClientState> {
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
-      state = state.copyWith(assignmentsLoading: false);
+      if (_isCurrentAssignmentListGeneration(generation)) {
+        state = state.copyWith(assignmentsLoading: false);
+      }
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -589,13 +614,28 @@ class ClientController extends Notifier<ClientState> {
         siteName: course?.name ?? '',
         keyword: '',
       );
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        return;
+      }
       await _persistUpdatedPayload(response.updatedSessionPayload);
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        return;
+      }
       state = state.copyWith(
         assignments: response.records,
         assignmentsLoaded: true,
         assignmentsLoading: false,
       );
     } on FfiAuthError catch (error) {
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        if (error.code == FfiAuthErrorCode.sessionExpired) {
+          await _handleSessionError(
+            error,
+            fallbackPhase: ClientPhase.authenticated,
+          );
+        }
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
@@ -605,6 +645,9 @@ class ClientController extends Notifier<ClientState> {
         assignmentsLoading: false,
       );
     } catch (error) {
+      if (!_isCurrentAssignmentListGeneration(generation)) {
+        return;
+      }
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
@@ -1304,5 +1347,9 @@ class ClientController extends Notifier<ClientState> {
       }
     }
     return null;
+  }
+
+  bool _isCurrentAssignmentListGeneration(int generation) {
+    return generation == _assignmentListGeneration;
   }
 }

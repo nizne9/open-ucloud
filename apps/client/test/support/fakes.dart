@@ -37,10 +37,12 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.undoneAssignmentsResponse = const FfiAssignmentListResponse(
       records: [],
     ),
+    this.undoneAssignmentsFuture,
     this.undoneAssignmentsError,
     this.courseAssignmentsResponse = const FfiAssignmentListResponse(
       records: [],
     ),
+    this.courseAssignmentsFuture,
     this.assignmentDetailResponse,
     this.assignmentDetailFuture,
     List<Future<FfiAssignmentDetailResponse>>? assignmentDetailFutures,
@@ -82,8 +84,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiAuthStartResponse? authStartResponse;
   final FfiCourseResponse courseResponse;
   final FfiAssignmentListResponse undoneAssignmentsResponse;
+  final Future<FfiAssignmentListResponse>? undoneAssignmentsFuture;
   final Object? undoneAssignmentsError;
   final FfiAssignmentListResponse courseAssignmentsResponse;
+  final Future<FfiAssignmentListResponse>? courseAssignmentsFuture;
   final FfiAssignmentDetailResponse? assignmentDetailResponse;
   final Future<FfiAssignmentDetailResponse>? assignmentDetailFuture;
   final List<Future<FfiAssignmentDetailResponse>> assignmentDetailFutures;
@@ -218,6 +222,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     if (error != null) {
       throw error;
     }
+    final future = undoneAssignmentsFuture;
+    if (future != null) {
+      return future;
+    }
     return undoneAssignmentsResponse;
   }
 
@@ -229,6 +237,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String keyword,
   }) async {
     lastCourseAssignmentsSiteId = siteId;
+    final future = courseAssignmentsFuture;
+    if (future != null) {
+      return future;
+    }
     return courseAssignmentsResponse;
   }
 

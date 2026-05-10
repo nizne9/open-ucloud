@@ -953,6 +953,74 @@ void main() {
   );
 
   test(
+    'stale pending assignment responses keep the current course list',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final pendingAssignments = Completer<FfiAssignmentListResponse>();
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        undoneAssignmentsFuture: pendingAssignments.future,
+        courseAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '',
+              id: 'course-work',
+              siteId: 'site-2',
+              siteName: '计算机网络',
+              source: 'course',
+              startTime: '',
+              status: FfiAssignmentStatus.submitted,
+              title: '课程作业',
+            ),
+          ],
+          updatedSessionPayload: 'course-payload',
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+
+      final pendingLoad = controller.loadUndoneAssignments(
+        selectedTab: ClientTab.dashboard,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.loadCourseAssignments('site-2');
+
+      var state = container.read(clientControllerProvider);
+      expect(state.assignmentView, AssignmentView.course);
+      expect(state.selectedAssignmentCourseId, 'site-2');
+      expect(state.assignments.single.id, 'course-work');
+      expect(storage.payload, 'course-payload');
+
+      pendingAssignments.complete(
+        const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '',
+              id: 'pending-work',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '晚到待办',
+            ),
+          ],
+          updatedSessionPayload: 'stale-payload',
+        ),
+      );
+      await pendingLoad;
+
+      state = container.read(clientControllerProvider);
+      expect(state.assignmentView, AssignmentView.course);
+      expect(state.selectedAssignmentCourseId, 'site-2');
+      expect(state.assignments.single.id, 'course-work');
+      expect(state.assignmentsLoading, isFalse);
+      expect(storage.payload, 'course-payload');
+    },
+  );
+
+  test(
     'clears stale assignment detail when selecting another assignment fails',
     () async {
       final storage = MemorySessionStorage('payload');

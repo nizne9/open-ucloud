@@ -828,6 +828,7 @@ class _DashboardPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (state.phase == ClientPhase.authenticated &&
+        state.errorMessage == null &&
         !state.undoneAssignmentsLoaded &&
         !state.assignmentsLoading) {
       Future.microtask(
