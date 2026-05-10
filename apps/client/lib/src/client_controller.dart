@@ -1050,12 +1050,14 @@ class ClientController extends Notifier<ClientState> {
         siteName: detail.siteName,
         outputPath: outputPath,
       );
+      final currentDownload = downloadGeneration == _resourceDownloadGeneration;
       if (downloadGeneration != _resourceDownloadGeneration ||
           state.selectedTab != ClientTab.resources ||
           state.selectedResourceId != resourceId ||
           state.resourceDetail?.resourceId != resourceId ||
           state.resourceDetail?.siteId != siteId) {
-        if (downloadGeneration == _resourceDownloadGeneration) {
+        if (currentDownload) {
+          await _persistUpdatedPayload(response.updatedSessionPayload);
           state = state.copyWith(resourceDownloading: false);
         }
         return;
@@ -1122,10 +1124,12 @@ class ClientController extends Notifier<ClientState> {
         siteName: siteName,
         outputDir: outputDir,
       );
+      final currentDownload = downloadGeneration == _resourceDownloadGeneration;
       if (downloadGeneration != _resourceDownloadGeneration ||
           state.selectedTab != ClientTab.resources ||
           state.selectedResourceCourseId != siteId) {
-        if (downloadGeneration == _resourceDownloadGeneration) {
+        if (currentDownload) {
+          await _persistUpdatedPayload(response.updatedSessionPayload);
           state = state.copyWith(resourceDownloading: false);
         }
         return;

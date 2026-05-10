@@ -513,6 +513,7 @@ void main() {
           ),
         ],
         writtenPaths: ['/tmp/课件.pdf'],
+        updatedSessionPayload: 'stale-download-payload',
       ),
     );
     await task;
@@ -521,6 +522,7 @@ void main() {
     expect(state.resourceDownloading, isFalse);
     expect(state.downloadedPaths, isEmpty);
     expect(state.operationMessage, isNull);
+    expect(storage.payload, 'stale-download-payload');
   });
 
   test('stale single resource download keeps newer download active', () async {
@@ -662,6 +664,7 @@ void main() {
           ),
         ],
         writtenPaths: ['/tmp/downloads/课件.pdf'],
+        updatedSessionPayload: 'stale-course-download-payload',
       ),
     );
     await task;
@@ -671,6 +674,7 @@ void main() {
     expect(state.resourceDownloading, isFalse);
     expect(state.downloadedPaths, isEmpty);
     expect(state.operationMessage, isNull);
+    expect(storage.payload, 'stale-course-download-payload');
   });
 
   test('stale batch resource download keeps newer download active', () async {
