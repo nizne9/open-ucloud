@@ -838,7 +838,8 @@ class _DashboardPane extends ConsumerWidget {
         final secondary = [
           _NextActionCard(state: state),
           _SessionCapabilityCard(state: state),
-          _QrParserSummaryCard(state: state),
+          if (state.capabilities.attendanceQrPayloadParsing)
+            _QrParserSummaryCard(state: state),
         ];
         if (wide) {
           return Row(

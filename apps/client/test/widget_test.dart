@@ -496,6 +496,13 @@ void main() {
   });
 
   testWidgets('restores session and renders courses', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -528,10 +535,12 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
 
-    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Alice'), findsWidgets);
     expect(find.text('软件测试'), findsOneWidget);
     expect(find.byIcon(Icons.notifications_active_outlined), findsOneWidget);
     expect(find.text('解析二维码'), findsNothing);
+    expect(find.text('二维码文本解析'), findsNothing);
+    expect(find.textContaining('checkwork|...'), findsNothing);
   });
 
   testWidgets('renders QR parser entry when capability is enabled', (
