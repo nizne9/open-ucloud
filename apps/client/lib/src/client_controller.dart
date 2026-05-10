@@ -528,6 +528,7 @@ class ClientController extends Notifier<ClientState> {
 
   Future<void> loadUndoneAssignments({
     ClientTab selectedTab = ClientTab.assignments,
+    bool clearGlobalError = true,
   }) async {
     final generation = ++_assignmentListGeneration;
     state = state.copyWith(
@@ -540,7 +541,7 @@ class ClientController extends Notifier<ClientState> {
       clearAssignmentSelection: true,
       clearPendingAssignmentsError: true,
       clearOperationMessage: true,
-      clearError: true,
+      clearError: clearGlobalError,
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
@@ -573,12 +574,6 @@ class ClientController extends Notifier<ClientState> {
       );
     } on FfiAuthError catch (error) {
       if (!_isCurrentAssignmentListGeneration(generation)) {
-        if (error.code == FfiAuthErrorCode.sessionExpired) {
-          await _handleSessionError(
-            error,
-            fallbackPhase: ClientPhase.authenticated,
-          );
-        }
         return;
       }
       await _handleSessionError(
@@ -648,12 +643,6 @@ class ClientController extends Notifier<ClientState> {
       );
     } on FfiAuthError catch (error) {
       if (!_isCurrentAssignmentListGeneration(generation)) {
-        if (error.code == FfiAuthErrorCode.sessionExpired) {
-          await _handleSessionError(
-            error,
-            fallbackPhase: ClientPhase.authenticated,
-          );
-        }
         return;
       }
       await _handleSessionError(

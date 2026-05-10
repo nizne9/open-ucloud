@@ -168,6 +168,84 @@ void main() {
     );
   });
 
+  test('stale pending assignment session expiry keeps new login', () async {
+    final storage = MemorySessionStorage('old-payload');
+    final pendingAssignments = Completer<FfiAssignmentListResponse>();
+    final container = _container(
+      storage: storage,
+      gateway: FakeOpenCloudGateway(
+        session: _session(),
+        undoneAssignmentsFuture: pendingAssignments.future,
+      ),
+    );
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.loadUndoneAssignments(
+      selectedTab: ClientTab.dashboard,
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    await controller.logout();
+    await controller.startLogin(username: 'alice', password: 'secret');
+
+    expect(storage.payload, 'session-payload');
+    expect(
+      container.read(clientControllerProvider).phase,
+      ClientPhase.authenticated,
+    );
+
+    pendingAssignments.completeError(
+      const FfiAuthError(
+        code: FfiAuthErrorCode.sessionExpired,
+        message: 'old session expired',
+      ),
+    );
+    await load;
+
+    expect(storage.payload, 'session-payload');
+    final state = container.read(clientControllerProvider);
+    expect(state.phase, ClientPhase.authenticated);
+    expect(state.errorMessage, isNull);
+  });
+
+  test('stale course assignment session expiry keeps new login', () async {
+    final storage = MemorySessionStorage('old-payload');
+    final courseAssignments = Completer<FfiAssignmentListResponse>();
+    final container = _container(
+      storage: storage,
+      gateway: FakeOpenCloudGateway(
+        session: _session(),
+        courseAssignmentsFuture: courseAssignments.future,
+      ),
+    );
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final load = controller.loadCourseAssignments('site-1');
+    await Future<void>.delayed(Duration.zero);
+
+    await controller.logout();
+    await controller.startLogin(username: 'alice', password: 'secret');
+
+    expect(storage.payload, 'session-payload');
+    expect(
+      container.read(clientControllerProvider).phase,
+      ClientPhase.authenticated,
+    );
+
+    courseAssignments.completeError(
+      const FfiAuthError(
+        code: FfiAuthErrorCode.sessionExpired,
+        message: 'old course session expired',
+      ),
+    );
+    await load;
+
+    expect(storage.payload, 'session-payload');
+    final state = container.read(clientControllerProvider);
+    expect(state.phase, ClientPhase.authenticated);
+    expect(state.errorMessage, isNull);
+  });
+
   test('parses attendance QR payload and preserves plus signs', () async {
     final storage = MemorySessionStorage('payload');
     final gateway = FakeOpenCloudGateway(

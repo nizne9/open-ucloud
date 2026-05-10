@@ -824,13 +824,22 @@ class _DashboardPane extends ConsumerWidget {
       Future.microtask(
         () => ref
             .read(clientControllerProvider.notifier)
-            .loadUndoneAssignments(selectedTab: ClientTab.dashboard),
+            .loadUndoneAssignments(
+              selectedTab: ClientTab.dashboard,
+              clearGlobalError: false,
+            ),
       );
     }
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 860;
+        final dashboardError =
+            state.errorMessage != null &&
+                state.errorMessage != state.pendingAssignmentsErrorMessage
+            ? state.errorMessage
+            : null;
         final primary = [
+          if (dashboardError != null) _ErrorBanner(message: dashboardError),
           _DashboardStatsCard(state: state),
           _CourseContextCard(state: state),
           _PendingAssignmentsCard(state: state),

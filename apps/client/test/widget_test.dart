@@ -229,6 +229,7 @@ void main() {
 
     expect(gateway.coursesCalls, 1);
     expect(gateway.undoneAssignmentsCalls, 1);
+    expect(find.textContaining('课程加载失败'), findsOneWidget);
     expect(find.text('课程错误后的待办'), findsWidgets);
     expect(find.text('重试待办'), findsNothing);
   });
