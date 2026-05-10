@@ -486,6 +486,7 @@ void main() {
     );
     final container = _container(storage: storage, gateway: gateway);
     final controller = container.read(clientControllerProvider.notifier);
+    controller.selectTab(ClientTab.resources);
 
     await controller.selectResource(
       const FfiCourseResourceSummary(
@@ -520,6 +521,107 @@ void main() {
     expect(state.resourceDownloading, isFalse);
     expect(state.downloadedPaths, isEmpty);
     expect(state.operationMessage, isNull);
+  });
+
+  test('stale single resource download keeps newer download active', () async {
+    final storage = MemorySessionStorage('payload');
+    final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailFutures: [
+        Future.value(
+          const FfiCourseResourceDetailResponse(
+            detail: FfiCourseResourceDetail(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ),
+        ),
+        Future.value(
+          const FfiCourseResourceDetailResponse(
+            detail: FfiCourseResourceDetail(
+              name: '新课件.pdf',
+              resourceId: 'resource-new',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ),
+        ),
+      ],
+      resourceDownloadFutures: [firstDownload.future, secondDownload.future],
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+    controller.selectTab(ClientTab.resources);
+
+    await controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '旧课件.pdf',
+        resourceId: 'resource-old',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    final firstTask = controller.downloadResource('/tmp/old.pdf');
+    await Future<void>.delayed(Duration.zero);
+    await controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '新课件.pdf',
+        resourceId: 'resource-new',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    final secondTask = controller.downloadResource('/tmp/new.pdf');
+    await Future<void>.delayed(Duration.zero);
+
+    firstDownload.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '旧课件.pdf',
+            resourceId: 'resource-old',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/old.pdf'],
+      ),
+    );
+    await firstTask;
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, 'resource-new');
+    expect(state.resourceDownloading, isTrue);
+    expect(state.downloadedPaths, isEmpty);
+
+    secondDownload.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '新课件.pdf',
+            resourceId: 'resource-new',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/new.pdf'],
+      ),
+    );
+    await secondTask;
+
+    state = container.read(clientControllerProvider);
+    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadedPaths, ['/tmp/new.pdf']);
   });
 
   test('batch resource download ignores stale course', () async {
@@ -569,6 +671,93 @@ void main() {
     expect(state.resourceDownloading, isFalse);
     expect(state.downloadedPaths, isEmpty);
     expect(state.operationMessage, isNull);
+  });
+
+  test('stale batch resource download keeps newer download active', () async {
+    final storage = MemorySessionStorage('payload');
+    final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourcesResponses: const [
+        FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+        ),
+        FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '新课件.pdf',
+              resourceId: 'resource-new',
+              siteId: 'site-2',
+              siteName: '计算机网络',
+              updatedAt: '',
+            ),
+          ],
+        ),
+      ],
+      resourceDownloadCourseFutures: [
+        firstDownload.future,
+        secondDownload.future,
+      ],
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    await controller.loadResourcesForCourse('site-1');
+    final firstTask = controller.downloadCourseResources('/tmp/old');
+    await Future<void>.delayed(Duration.zero);
+    await controller.loadResourcesForCourse('site-2');
+    final secondTask = controller.downloadCourseResources('/tmp/new');
+    await Future<void>.delayed(Duration.zero);
+
+    firstDownload.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '旧课件.pdf',
+            resourceId: 'resource-old',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/old/旧课件.pdf'],
+      ),
+    );
+    await firstTask;
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedResourceCourseId, 'site-2');
+    expect(state.resourceDownloading, isTrue);
+    expect(state.downloadedPaths, isEmpty);
+
+    secondDownload.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '新课件.pdf',
+            resourceId: 'resource-new',
+            siteId: 'site-2',
+            siteName: '计算机网络',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/new/新课件.pdf'],
+      ),
+    );
+    await secondTask;
+
+    state = container.read(clientControllerProvider);
+    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadedPaths, ['/tmp/new/新课件.pdf']);
   });
 
   test(

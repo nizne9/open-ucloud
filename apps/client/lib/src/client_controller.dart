@@ -268,6 +268,8 @@ final clientControllerProvider =
     NotifierProvider<ClientController, ClientState>(ClientController.new);
 
 class ClientController extends Notifier<ClientState> {
+  int _resourceDownloadGeneration = 0;
+
   @override
   ClientState build() => const ClientState.bootstrapping();
 
@@ -1032,6 +1034,8 @@ class ClientController extends Notifier<ClientState> {
     }
     final resourceId = detail.resourceId;
     final siteId = detail.siteId;
+    _resourceDownloadGeneration += 1;
+    final downloadGeneration = _resourceDownloadGeneration;
     state = state.copyWith(
       resourceDownloading: true,
       clearError: true,
@@ -1046,11 +1050,14 @@ class ClientController extends Notifier<ClientState> {
         siteName: detail.siteName,
         outputPath: outputPath,
       );
-      if (state.selectedTab != ClientTab.resources ||
+      if (downloadGeneration != _resourceDownloadGeneration ||
+          state.selectedTab != ClientTab.resources ||
           state.selectedResourceId != resourceId ||
           state.resourceDetail?.resourceId != resourceId ||
           state.resourceDetail?.siteId != siteId) {
-        state = state.copyWith(resourceDownloading: false);
+        if (downloadGeneration == _resourceDownloadGeneration) {
+          state = state.copyWith(resourceDownloading: false);
+        }
         return;
       }
       await _persistUpdatedPayload(response.updatedSessionPayload);
@@ -1063,12 +1070,21 @@ class ClientController extends Notifier<ClientState> {
         operationContext: OperationContext.resourceDetail,
       );
     } on FfiAuthError catch (error) {
+      if (downloadGeneration != _resourceDownloadGeneration &&
+          error.code != FfiAuthErrorCode.sessionExpired) {
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
-      state = state.copyWith(resourceDownloading: false);
+      if (downloadGeneration == _resourceDownloadGeneration) {
+        state = state.copyWith(resourceDownloading: false);
+      }
     } catch (error) {
+      if (downloadGeneration != _resourceDownloadGeneration) {
+        return;
+      }
       state = state.copyWith(
         resourceDownloading: false,
         errorMessage: '资料下载失败：$error',
@@ -1088,6 +1104,8 @@ class ClientController extends Notifier<ClientState> {
     if (payload == null) {
       return;
     }
+    _resourceDownloadGeneration += 1;
+    final downloadGeneration = _resourceDownloadGeneration;
     state = state.copyWith(
       resourceDownloading: true,
       resourceDownloadProgressCurrent: 0,
@@ -1104,9 +1122,12 @@ class ClientController extends Notifier<ClientState> {
         siteName: siteName,
         outputDir: outputDir,
       );
-      if (state.selectedTab != ClientTab.resources ||
+      if (downloadGeneration != _resourceDownloadGeneration ||
+          state.selectedTab != ClientTab.resources ||
           state.selectedResourceCourseId != siteId) {
-        state = state.copyWith(resourceDownloading: false);
+        if (downloadGeneration == _resourceDownloadGeneration) {
+          state = state.copyWith(resourceDownloading: false);
+        }
         return;
       }
       await _persistUpdatedPayload(response.updatedSessionPayload);
@@ -1119,12 +1140,21 @@ class ClientController extends Notifier<ClientState> {
         operationContext: OperationContext.resourceList,
       );
     } on FfiAuthError catch (error) {
+      if (downloadGeneration != _resourceDownloadGeneration &&
+          error.code != FfiAuthErrorCode.sessionExpired) {
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
-      state = state.copyWith(resourceDownloading: false);
+      if (downloadGeneration == _resourceDownloadGeneration) {
+        state = state.copyWith(resourceDownloading: false);
+      }
     } catch (error) {
+      if (downloadGeneration != _resourceDownloadGeneration) {
+        return;
+      }
       state = state.copyWith(
         resourceDownloading: false,
         errorMessage: '课程资料下载失败：$error',

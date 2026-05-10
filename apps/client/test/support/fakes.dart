@@ -57,6 +57,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     ),
     this.resourceDownloadFuture,
     this.resourceDownloadCourseFuture,
+    List<Future<FfiCourseResourceDownloadResponse>>? resourceDownloadFutures,
+    List<Future<FfiCourseResourceDownloadResponse>>?
+    resourceDownloadCourseFutures,
+    List<FfiCourseResourcesResponse>? resourcesResponses,
     this.capabilitiesResponse = const FfiClientCapabilities(
       selfAttendance: false,
       attendanceQrPayloadParsing: false,
@@ -65,8 +69,13 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.parseAttendanceQrPayloadResponse,
     this.parseAttendanceQrPayloadError,
     this.sessionSummaryError,
-  }) : assignmentDetailFutures = assignmentDetailFutures ?? [],
-       resourceDetailFutures = resourceDetailFutures ?? [];
+  }) : assignmentDetailFutures = List.of(assignmentDetailFutures ?? []),
+       resourceDetailFutures = List.of(resourceDetailFutures ?? []),
+       resourceDownloadFutures = List.of(resourceDownloadFutures ?? []),
+       resourceDownloadCourseFutures = List.of(
+         resourceDownloadCourseFutures ?? [],
+       ),
+       resourcesResponses = List.of(resourcesResponses ?? []);
 
   final FfiAuthSessionResponse? session;
   final FfiAuthStartResponse? authStartResponse;
@@ -87,6 +96,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiCourseResourceDownloadResponse resourceDownloadResponse;
   final Future<FfiCourseResourceDownloadResponse>? resourceDownloadFuture;
   final Future<FfiCourseResourceDownloadResponse>? resourceDownloadCourseFuture;
+  final List<Future<FfiCourseResourceDownloadResponse>> resourceDownloadFutures;
+  final List<Future<FfiCourseResourceDownloadResponse>>
+  resourceDownloadCourseFutures;
+  final List<FfiCourseResourcesResponse> resourcesResponses;
   final FfiClientCapabilities capabilitiesResponse;
   final Object? capabilitiesError;
   final FfiAttendanceQrPayload? parseAttendanceQrPayloadResponse;
@@ -285,6 +298,9 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
   }) async {
     lastResourcesSiteId = siteId;
+    if (resourcesResponses.isNotEmpty) {
+      return resourcesResponses.removeAt(0);
+    }
     return resourcesResponse;
   }
 
@@ -322,6 +338,9 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
     required String outputPath,
   }) async {
+    if (resourceDownloadFutures.isNotEmpty) {
+      return resourceDownloadFutures.removeAt(0);
+    }
     final future = resourceDownloadFuture;
     if (future != null) {
       return future;
@@ -336,6 +355,9 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
     required String outputDir,
   }) async {
+    if (resourceDownloadCourseFutures.isNotEmpty) {
+      return resourceDownloadCourseFutures.removeAt(0);
+    }
     final future = resourceDownloadCourseFuture;
     if (future != null) {
       return future;
