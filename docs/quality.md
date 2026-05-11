@@ -25,6 +25,10 @@ dart analyze
 flutter test
 ```
 
+Widget tests should cover current user-visible behavior and active regressions.
+When a UI element is removed, delete tests that only assert the old label or
+card is absent unless the absence is the product behavior being protected.
+
 FFI API changes should also regenerate Flutter Rust Bridge bindings:
 
 ```bash

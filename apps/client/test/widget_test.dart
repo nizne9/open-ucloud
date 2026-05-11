@@ -40,7 +40,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('总览工作台'), findsWidgets);
-    expect(find.text('课程、待交作业、资料更新和会话健康集中到一个桌面视图。'), findsOneWidget);
+    expect(find.text('查看课程、待交作业和资料更新。'), findsOneWidget);
     expect(find.text('登录状态'), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
@@ -133,8 +133,8 @@ void main() {
     expect(find.text('1'), findsWidgets);
     expect(find.text('待提交作业'), findsWidgets);
     expect(find.text('实验报告'), findsWidgets);
-    expect(find.text('Alice'), findsOneWidget);
-    expect(find.text('会话已恢复 · 本机安全存储'), findsOneWidget);
+    expect(find.text('Alice'), findsWidgets);
+    expect(find.text('已登录'), findsOneWidget);
   });
 
   testWidgets(
@@ -358,9 +358,7 @@ void main() {
     },
   );
 
-  testWidgets('account page exposes session actions and QR parser capability', (
-    tester,
-  ) async {
+  testWidgets('account page exposes session actions', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -376,10 +374,6 @@ void main() {
           ),
           openCloudGatewayProvider.overrideWithValue(
             FakeOpenCloudGateway(
-              capabilitiesResponse: const FfiClientCapabilities(
-                selfAttendance: false,
-                attendanceQrPayloadParsing: true,
-              ),
               session: _session(),
               courseResponse: const FfiCourseResponse(
                 records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -397,9 +391,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('账户状态'), findsOneWidget);
-    expect(find.text('安全存储'), findsOneWidget);
-    expect(find.text('退出登录会清理本机凭据，并回到登录表单。'), findsOneWidget);
-    expect(find.text('解析二维码'), findsOneWidget);
+    expect(find.text('Alice'), findsWidgets);
+    expect(find.text('退出登录'), findsOneWidget);
+    expect(find.text('同步课程'), findsWidgets);
     expect(find.byIcon(Icons.brightness_6_outlined), findsOneWidget);
   });
 
@@ -588,8 +582,6 @@ void main() {
     expect(find.text('软件测试'), findsOneWidget);
     expect(find.byIcon(Icons.notifications_active_outlined), findsOneWidget);
     expect(find.text('解析二维码'), findsNothing);
-    expect(find.text('二维码文本解析'), findsNothing);
-    expect(find.textContaining('checkwork|...'), findsNothing);
   });
 
   testWidgets('renders QR parser entry when capability is enabled', (

@@ -122,28 +122,28 @@ const _clientDestinations = [
     icon: Icons.dashboard_outlined,
     label: '总览',
     title: '总览工作台',
-    subtitle: '课程、待交作业、资料更新和会话健康集中到一个桌面视图。',
+    subtitle: '查看课程、待交作业和资料更新。',
   ),
   _ClientDestination(
     tab: ClientTab.assignments,
     icon: Icons.assignment_outlined,
     label: '作业',
     title: '作业处理',
-    subtitle: '默认待提交队列，详情、附件和提交动作保留在当前上下文。',
+    subtitle: '查看要求、上传附件并提交作业。',
   ),
   _ClientDestination(
     tab: ClientTab.resources,
     icon: Icons.folder_outlined,
     label: '资料',
     title: '资料下载',
-    subtitle: '按课程加载资料，下载后展示实际写入路径。',
+    subtitle: '按课程查看和下载资料。',
   ),
   _ClientDestination(
     tab: ClientTab.account,
     icon: Icons.person_outline,
     label: '账户',
     title: '登录状态',
-    subtitle: '会话恢复、安全存储、主题和能力状态集中管理。',
+    subtitle: '查看当前账号并管理登录。',
   ),
 ];
 
@@ -300,10 +300,7 @@ class _SideNavigation extends ConsumerWidget {
                 ),
               const Spacer(),
               if (session != null)
-                _AccountBadge(
-                  name: session.user.realName,
-                  subtitle: '会话已恢复 · 本机安全存储',
-                ),
+                _AccountBadge(name: session.user.realName, subtitle: '已登录'),
             ],
           ),
         ),
@@ -585,15 +582,6 @@ class _WorkbenchTopBar extends StatelessWidget {
               ),
             ],
           );
-          final search = TextField(
-            enabled: false,
-            decoration: const InputDecoration(
-              isDense: true,
-              prefixIcon: Icon(Icons.search, size: 18),
-              hintText: '搜索课程、作业或资料',
-              border: OutlineInputBorder(),
-            ),
-          );
           final actions = Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -617,13 +605,7 @@ class _WorkbenchTopBar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  titleBlock,
-                  const SizedBox(height: 10),
-                  search,
-                  const SizedBox(height: 8),
-                  actions,
-                ],
+                children: [titleBlock, const SizedBox(height: 10), actions],
               ),
             );
           }
@@ -633,8 +615,6 @@ class _WorkbenchTopBar extends StatelessWidget {
               children: [
                 Expanded(child: titleBlock),
                 const SizedBox(width: 16),
-                SizedBox(width: 300, child: search),
-                const SizedBox(width: 12),
                 actions,
               ],
             ),
@@ -844,13 +824,9 @@ class _DashboardPane extends ConsumerWidget {
           _CourseContextCard(state: state),
           _PendingAssignmentsCard(state: state),
         ];
-        final secondary = [
-          _NextActionCard(state: state),
-          _SessionCapabilityCard(state: state),
-          if (state.capabilities.attendanceQrPayloadParsing)
-            _QrParserSummaryCard(state: state),
-        ];
-        if (wide) {
+        final nextAction = _NextActionCard.maybe(state: state);
+        final secondary = [?nextAction];
+        if (wide && secondary.isNotEmpty) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -914,7 +890,7 @@ class _DashboardStatsCard extends ConsumerWidget {
                     children: [
                       Text(accountName),
                       Text(
-                        '会话已恢复 · 本机安全存储',
+                        '已登录',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -1031,7 +1007,7 @@ class _CourseContextCard extends ConsumerWidget {
     final controller = ref.read(clientControllerProvider.notifier);
     return _WorkbenchCard(
       title: '课程上下文',
-      subtitle: '点击课程直接切到作业或资料，不再让学生先找入口。',
+      subtitle: '选择课程后查看作业或资料。',
       child: state.courses.isEmpty
           ? const _EmptyInline(icon: Icons.menu_book_outlined, label: '暂无课程')
           : Column(
@@ -1152,7 +1128,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
         state.pendingAssignmentsErrorMessage != null;
     return _WorkbenchCard(
       title: '待办队列',
-      subtitle: '按截止时间和可行动作排序，避免 demo 式的单纯列表。',
+      subtitle: '优先处理仍可提交的作业。',
       child: state.assignmentsLoading
           ? const _LoadingPane(label: '正在加载待提交作业')
           : loadError
@@ -1213,6 +1189,10 @@ class _PendingAssignmentsCard extends ConsumerWidget {
 class _NextActionCard extends ConsumerWidget {
   const _NextActionCard({required this.state});
 
+  static Widget? maybe({required ClientState state}) {
+    return state.assignments.isEmpty ? null : _NextActionCard(state: state);
+  }
+
   final ClientState state;
 
   @override
@@ -1221,9 +1201,9 @@ class _NextActionCard extends ConsumerWidget {
     final next = state.assignments.isEmpty ? null : state.assignments.first;
     return _WorkbenchCard(
       title: '下一步动作',
-      subtitle: '把学生最可能做的事固定在右侧。',
+      subtitle: '从最近的待提交作业继续。',
       child: next == null
-          ? const Text('暂无需要立即处理的作业。')
+          ? const SizedBox.shrink()
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1244,10 +1224,6 @@ class _NextActionCard extends ConsumerWidget {
                       icon: _assignmentIcon(next.status),
                       label: _assignmentStatusText(next.status),
                     ),
-                    const _AssignmentMetaChip(
-                      icon: Icons.save_outlined,
-                      label: '本地草稿未持久化',
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -1265,58 +1241,6 @@ class _NextActionCard extends ConsumerWidget {
   }
 }
 
-class _SessionCapabilityCard extends StatelessWidget {
-  const _SessionCapabilityCard({required this.state});
-
-  final ClientState state;
-
-  @override
-  Widget build(BuildContext context) {
-    return _WorkbenchCard(
-      title: '会话与能力',
-      subtitle: '把隐藏状态变成可解释反馈。',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _InfoRow(label: '安全存储', value: '从系统安全存储读取会话。'),
-          _InfoRow(
-            label: '课程列表',
-            value: state.phase == ClientPhase.loadingCourses
-                ? '正在刷新课程名、课程 ID 和进行中状态。'
-                : '已刷新课程名、课程 ID 和进行中状态。',
-          ),
-          _InfoRow(
-            label: '能力',
-            value: state.capabilities.attendanceQrPayloadParsing
-                ? '可解析官方二维码文本；不提供自助签到提交。'
-                : '签到相关能力保持只读展示。',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QrParserSummaryCard extends ConsumerWidget {
-  const _QrParserSummaryCard({required this.state});
-
-  final ClientState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return _WorkbenchCard(
-      title: '二维码文本解析',
-      subtitle: '只处理用户已经获得的官方文本。',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('粘贴 checkwork|... 后仅展示课程、签到 ID、创建时间和课节 ID，不主动补齐字段，不提交签到。'),
-        ],
-      ),
-    );
-  }
-}
-
 class _AccountPane extends ConsumerWidget {
   const _AccountPane({required this.state});
 
@@ -1325,27 +1249,22 @@ class _AccountPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(clientControllerProvider.notifier);
-    final themeMode = ref.watch(themeModeControllerProvider);
     final session = state.session;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         _WorkbenchCard(
           title: '账户状态',
-          subtitle: '会话恢复、安全存储和退出登录流程。',
+          subtitle: '当前登录账号。',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (session != null) ...[
-                _AccountBadge(
-                  name: session.user.realName,
-                  subtitle: '会话已恢复 · 本机安全存储',
-                ),
+                _AccountBadge(name: session.user.realName, subtitle: '已登录'),
                 const SizedBox(height: 12),
                 _InfoRow(label: '角色', value: _roleLabel(session.selectedRole)),
                 _InfoRow(label: '账号', value: session.user.account),
               ],
-              const _InfoRow(label: '安全存储', value: '退出登录会清理本机凭据，并回到登录表单。'),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
@@ -1363,36 +1282,6 @@ class _AccountPane extends ConsumerWidget {
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-        _WorkbenchCard(
-          title: '主题',
-          subtitle: '保留 light / dark / system 三种方案。',
-          child: Text('当前方案：${_themeModeLabel(themeMode)}。可通过顶部主题菜单切换。'),
-        ),
-        _WorkbenchCard(
-          title: '签到状态',
-          subtitle: '只读状态和官方二维码文本解析。',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                state.capabilities.attendanceQrPayloadParsing
-                    ? '可解析用户已获得的官方二维码文本，不提供签到提交入口。'
-                    : '当前构建不提供二维码文本解析入口。',
-              ),
-              if (state.capabilities.attendanceQrPayloadParsing) ...[
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _openAttendanceQrDialog(context, ref),
-                    icon: const Icon(Icons.qr_code_scanner_outlined),
-                    label: const Text('解析二维码'),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -1520,14 +1409,6 @@ String _roleLabel(FfiRoleName role) {
     FfiRoleName.student => '学生',
     FfiRoleName.teacher => '教师',
     FfiRoleName.assistant => '助教',
-  };
-}
-
-String _themeModeLabel(AppThemeMode mode) {
-  return switch (mode) {
-    AppThemeMode.system => '跟随系统',
-    AppThemeMode.light => '浅色',
-    AppThemeMode.dark => '深色',
   };
 }
 
