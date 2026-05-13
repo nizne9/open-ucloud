@@ -25,6 +25,15 @@ dart analyze
 flutter test
 ```
 
+Android client changes should also verify the Rust FFI library is packaged:
+
+```bash
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+cd apps/client
+flutter build apk --debug
+unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libopen_cloud_ffi.so
+```
+
 Widget tests should cover current user-visible behavior and active regressions.
 When a UI element is removed, delete tests that only assert the old label or
 card is absent unless the absence is the product behavior being protected.

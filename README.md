@@ -63,6 +63,15 @@ cd apps/client
 flutter run -d linux
 ```
 
+Android builds package the Rust FFI library through the Flutter Gradle build.
+Install the Android SDK, NDK, and Rust Android targets before building:
+
+```bash
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+cd apps/client
+flutter build apk --debug
+```
+
 The Flutter client uses `file_selector` for Linux desktop file picking and save
 locations. Assignment attachment upload reads the user-selected file path through
 the Rust FFI boundary. Resource downloads write through Rust so the same
