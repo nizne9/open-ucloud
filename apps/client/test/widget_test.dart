@@ -1397,6 +1397,44 @@ void main() {
     expect(gateway.lastResourcesSiteId, 'site-2');
   });
 
+  testWidgets('narrow resource course picker truncates long course names', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: const FfiCourseResponse(
+        records: [
+          FfiCourseSite(id: 'site-1', siteName: '移动端非常非常长的课程名称用于覆盖下拉选择器宽度边界'),
+        ],
+        goingSites: [],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('narrow resource list shows batch download summary', (
     tester,
   ) async {

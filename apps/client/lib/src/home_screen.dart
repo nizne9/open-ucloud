@@ -1907,6 +1907,7 @@ class _AssignmentsPane extends ConsumerWidget {
       if (state.assignmentView == AssignmentView.course) ...[
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue:
               state.selectedAssignmentCourseId ??
               (state.courses.isEmpty ? null : state.courses.first.id),
@@ -1916,7 +1917,14 @@ class _AssignmentsPane extends ConsumerWidget {
           ),
           items: [
             for (final course in state.courses)
-              DropdownMenuItem(value: course.id, child: Text(course.name)),
+              DropdownMenuItem(
+                value: course.id,
+                child: Text(
+                  course.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -2512,6 +2520,7 @@ class _ResourcesPane extends ConsumerWidget {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue:
                   state.selectedResourceCourseId ??
                   (state.courses.isEmpty ? null : state.courses.first.id),
@@ -2521,7 +2530,14 @@ class _ResourcesPane extends ConsumerWidget {
               ),
               items: [
                 for (final course in state.courses)
-                  DropdownMenuItem(value: course.id, child: Text(course.name)),
+                  DropdownMenuItem(
+                    value: course.id,
+                    child: Text(
+                      course.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
               ],
               onChanged: (value) {
                 if (value != null) {
