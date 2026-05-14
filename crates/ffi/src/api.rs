@@ -1,5 +1,7 @@
 use futures_util::stream::{self, StreamExt};
-use open_cloud_api::{AuthErrorCode, AuthErrorResponse};
+use open_cloud_api::{
+    AuthErrorCode, AuthErrorResponse, CourseResourceDetail, CourseResourceSummary,
+};
 use open_cloud_core::{
     client_capabilities, parse_attendance_qr_payload, refresh_session_if_needed,
     DownloadCancelFlag, DownloadProgress, LoginFlow, OpenCloudClient, OpenCloudEndpoints,
@@ -1114,24 +1116,15 @@ async fn resource_download_course_task(
         status.total = list.records.len() as u32;
         status.updated_session_payload = updated_session_payload.clone();
     });
-    let details = stream::iter(list.records)
-        .map(|resource| {
-            let client = client.clone();
-            let site_id = site_id.clone();
-            let site_name = site_name.clone();
-            let access_token = session.access_token.clone();
-            async move {
-                client
-                    .get_resource_detail(&resource.resource_id, &site_id, &site_name, &access_token)
-                    .await
-                    .map_err(to_ffi_error)
-            }
-        })
-        .buffered(COURSE_DOWNLOAD_CONCURRENCY)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+    let details = fetch_course_resource_details(
+        &client,
+        list.records,
+        &site_id,
+        &site_name,
+        &session.access_token,
+        task.cancel.clone(),
+    )
+    .await?;
 
     for detail in details {
         if task.cancel.is_cancelled() {
@@ -1162,6 +1155,49 @@ async fn resource_download_course_task(
         status.current_file_name = None;
     });
     Ok(())
+}
+
+async fn fetch_course_resource_details<C>(
+    client: &OpenCloudClient<C>,
+    records: Vec<CourseResourceSummary>,
+    site_id: &str,
+    site_name: &str,
+    access_token: &str,
+    cancel: DownloadCancelFlag,
+) -> Result<Vec<CourseResourceDetail>, FfiAuthError>
+where
+    C: open_cloud_core::HttpClient,
+{
+    stream::iter(records)
+        .take_while({
+            let cancel = cancel.clone();
+            move |_| std::future::ready(!cancel.is_cancelled())
+        })
+        .map(|resource| {
+            let client = client.clone();
+            let site_id = site_id.to_string();
+            let site_name = site_name.to_string();
+            let access_token = access_token.to_string();
+            let cancel = cancel.clone();
+            async move {
+                if cancel.is_cancelled() {
+                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                }
+                let detail = client
+                    .get_resource_detail(&resource.resource_id, &site_id, &site_name, &access_token)
+                    .await
+                    .map_err(to_ffi_error)?;
+                if cancel.is_cancelled() {
+                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                }
+                Ok(detail)
+            }
+        })
+        .buffered(COURSE_DOWNLOAD_CONCURRENCY)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect()
 }
 
 fn finish_download_task(task: Arc<DownloadTask>, result: Result<(), FfiAuthError>) {
@@ -1610,19 +1646,26 @@ mod tests {
     #[derive(Clone, Default)]
     struct MockHttp {
         responses: Arc<Mutex<VecDeque<HttpResponse>>>,
+        requests: Arc<Mutex<Vec<HttpRequest>>>,
     }
 
     impl MockHttp {
         fn with(responses: Vec<HttpResponse>) -> Self {
             Self {
                 responses: Arc::new(Mutex::new(VecDeque::from(responses))),
+                requests: Arc::new(Mutex::new(Vec::new())),
             }
+        }
+
+        fn requests(&self) -> Vec<HttpRequest> {
+            self.requests.lock().expect("requests lock").clone()
         }
     }
 
     #[async_trait]
     impl open_cloud_core::HttpClient for MockHttp {
-        async fn send(&self, _request: HttpRequest) -> Result<HttpResponse, AuthError> {
+        async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
+            self.requests.lock().expect("requests lock").push(request);
             self.responses
                 .lock()
                 .expect("responses lock")
@@ -2061,5 +2104,39 @@ mod tests {
             std::fs::read(&result.written_paths[0]).expect("sanitized file"),
             b"new bytes"
         );
+    }
+
+    #[tokio::test]
+    async fn course_detail_fetch_stops_before_network_when_cancelled() {
+        let http = MockHttp::with(vec![response(
+            200,
+            &[],
+            r#"{"success":true,"data":[{"id":"resource-1","name":"课件.pdf"}]}"#,
+        )]);
+        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let cancel = DownloadCancelFlag::new();
+        cancel.cancel();
+
+        let details = fetch_course_resource_details(
+            &client,
+            vec![CourseResourceSummary {
+                ext: None,
+                name: "课件.pdf".to_string(),
+                resource_id: "resource-1".to_string(),
+                site_id: "site-1".to_string(),
+                site_name: "软件测试".to_string(),
+                size_bytes: None,
+                updated_at: String::new(),
+            }],
+            "site-1",
+            "软件测试",
+            "access-token",
+            cancel,
+        )
+        .await
+        .expect("cancelled stream stops cleanly");
+
+        assert!(details.is_empty());
+        assert!(http.requests().is_empty());
     }
 }

@@ -173,6 +173,13 @@ where
                 }
             };
             if (200..300).contains(&response.status) {
+                if cancel.is_cancelled() {
+                    cleanup_partial(&partial_path).await;
+                    return Err(AuthError::new(
+                        AuthErrorCode::UnknownAuthError,
+                        "下载已取消。",
+                    ));
+                }
                 tokio::fs::rename(&partial_path, target_path)
                     .await
                     .map_err(|error| AuthError::upstream(error.to_string()))?;

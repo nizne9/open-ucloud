@@ -671,6 +671,36 @@ async fn download_url_to_path_removes_partial_when_cancelled_before_request() {
     assert!(http.requests().is_empty());
 }
 
+#[tokio::test]
+async fn download_url_to_path_removes_partial_when_cancelled_before_rename() {
+    let http = MockHttp::with(vec![response(200, "file bytes")]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let path = temp_download_path("cancelled-before-rename.txt");
+    let _ = std::fs::remove_file(&path);
+    let cancel = DownloadCancelFlag::new();
+    let progress = {
+        let cancel = cancel.clone();
+        DownloadProgress::new(move |_| {
+            cancel.cancel();
+        })
+    };
+
+    let error = client
+        .download_url_to_path(
+            "https://files.example/download/resource-1",
+            &path,
+            progress,
+            cancel,
+        )
+        .await
+        .expect_err("download is cancelled before rename");
+
+    assert_eq!(error.code, AuthErrorCode::UnknownAuthError);
+    assert!(!path.exists());
+    assert!(partial_files_for(&path).is_empty());
+    assert_eq!(http.requests().len(), 1);
+}
+
 fn temp_download_path(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("open-ucloud-{}-{name}", std::process::id()))
 }
