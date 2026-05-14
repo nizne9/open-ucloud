@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1797930632;
+  int get rustContentHash => -1766479562;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -113,6 +113,15 @@ abstract class RustLibApi extends BaseApi {
   Future<FfiCourseResponse> crateApiCourses(
       {required String sessionPayload, required bool withGoing});
 
+  Future<FfiDownloadTaskStatus> crateApiDownloadTaskCancel(
+      {required String taskId});
+
+  Future<FfiLogoutResponse> crateApiDownloadTaskDispose(
+      {required String taskId});
+
+  Future<FfiDownloadTaskStatus> crateApiDownloadTaskStatus(
+      {required String taskId});
+
   Future<FfiLogoutResponse> crateApiLogout();
 
   Future<FfiAttendanceQrPayload> crateApiParseAttendanceQrPayloadText(
@@ -124,18 +133,18 @@ abstract class RustLibApi extends BaseApi {
       required String siteId,
       required String siteName});
 
-  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownload(
+  Future<FfiDownloadTaskStartResponse> crateApiResourceDownloadCourseStart(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName,
+      required String outputDir});
+
+  Future<FfiDownloadTaskStartResponse> crateApiResourceDownloadStart(
       {required String sessionPayload,
       required String resourceId,
       required String siteId,
       required String siteName,
       required String outputPath});
-
-  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownloadCourse(
-      {required String sessionPayload,
-      required String siteId,
-      required String siteName,
-      required String outputDir});
 
   Future<FfiCourseResourcesResponse> crateApiResourcesForCourse(
       {required String sessionPayload,
@@ -402,12 +411,88 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<FfiDownloadTaskStatus> crateApiDownloadTaskCancel(
+      {required String taskId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(taskId, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 10, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_download_task_status,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiDownloadTaskCancelConstMeta,
+      argValues: [taskId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDownloadTaskCancelConstMeta => const TaskConstMeta(
+        debugName: "download_task_cancel",
+        argNames: ["taskId"],
+      );
+
+  @override
+  Future<FfiLogoutResponse> crateApiDownloadTaskDispose(
+      {required String taskId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(taskId, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 11, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_logout_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiDownloadTaskDisposeConstMeta,
+      argValues: [taskId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDownloadTaskDisposeConstMeta =>
+      const TaskConstMeta(
+        debugName: "download_task_dispose",
+        argNames: ["taskId"],
+      );
+
+  @override
+  Future<FfiDownloadTaskStatus> crateApiDownloadTaskStatus(
+      {required String taskId}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(taskId, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 12, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_download_task_status,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiDownloadTaskStatusConstMeta,
+      argValues: [taskId],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDownloadTaskStatusConstMeta => const TaskConstMeta(
+        debugName: "download_task_status",
+        argNames: ["taskId"],
+      );
+
+  @override
   Future<FfiLogoutResponse> crateApiLogout() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 10, port: port_);
+            funcId: 13, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_logout_response,
@@ -432,7 +517,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(payload, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 11, port: port_);
+            funcId: 14, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_attendance_qr_payload,
@@ -464,7 +549,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteId, serializer);
         sse_encode_String(siteName, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 12, port: port_);
+            funcId: 15, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resource_detail_response,
@@ -482,7 +567,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownload(
+  Future<FfiDownloadTaskStartResponse> crateApiResourceDownloadCourseStart(
+      {required String sessionPayload,
+      required String siteId,
+      required String siteName,
+      required String outputDir}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_String(sessionPayload, serializer);
+        sse_encode_String(siteId, serializer);
+        sse_encode_String(siteName, serializer);
+        sse_encode_String(outputDir, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 16, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_ffi_download_task_start_response,
+        decodeErrorData: sse_decode_ffi_auth_error,
+      ),
+      constMeta: kCrateApiResourceDownloadCourseStartConstMeta,
+      argValues: [sessionPayload, siteId, siteName, outputDir],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiResourceDownloadCourseStartConstMeta =>
+      const TaskConstMeta(
+        debugName: "resource_download_course_start",
+        argNames: ["sessionPayload", "siteId", "siteName", "outputDir"],
+      );
+
+  @override
+  Future<FfiDownloadTaskStartResponse> crateApiResourceDownloadStart(
       {required String sessionPayload,
       required String resourceId,
       required String siteId,
@@ -497,20 +614,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteName, serializer);
         sse_encode_String(outputPath, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 13, port: port_);
+            funcId: 17, port: port_);
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_ffi_course_resource_download_response,
+        decodeSuccessData: sse_decode_ffi_download_task_start_response,
         decodeErrorData: sse_decode_ffi_auth_error,
       ),
-      constMeta: kCrateApiResourceDownloadConstMeta,
+      constMeta: kCrateApiResourceDownloadStartConstMeta,
       argValues: [sessionPayload, resourceId, siteId, siteName, outputPath],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiResourceDownloadConstMeta => const TaskConstMeta(
-        debugName: "resource_download",
+  TaskConstMeta get kCrateApiResourceDownloadStartConstMeta =>
+      const TaskConstMeta(
+        debugName: "resource_download_start",
         argNames: [
           "sessionPayload",
           "resourceId",
@@ -518,38 +636,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "siteName",
           "outputPath"
         ],
-      );
-
-  @override
-  Future<FfiCourseResourceDownloadResponse> crateApiResourceDownloadCourse(
-      {required String sessionPayload,
-      required String siteId,
-      required String siteName,
-      required String outputDir}) {
-    return handler.executeNormal(NormalTask(
-      callFfi: (port_) {
-        final serializer = SseSerializer(generalizedFrbRustBinding);
-        sse_encode_String(sessionPayload, serializer);
-        sse_encode_String(siteId, serializer);
-        sse_encode_String(siteName, serializer);
-        sse_encode_String(outputDir, serializer);
-        pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 14, port: port_);
-      },
-      codec: SseCodec(
-        decodeSuccessData: sse_decode_ffi_course_resource_download_response,
-        decodeErrorData: sse_decode_ffi_auth_error,
-      ),
-      constMeta: kCrateApiResourceDownloadCourseConstMeta,
-      argValues: [sessionPayload, siteId, siteName, outputDir],
-      apiImpl: this,
-    ));
-  }
-
-  TaskConstMeta get kCrateApiResourceDownloadCourseConstMeta =>
-      const TaskConstMeta(
-        debugName: "resource_download_course",
-        argNames: ["sessionPayload", "siteId", "siteName", "outputDir"],
       );
 
   @override
@@ -564,7 +650,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(siteId, serializer);
         sse_encode_String(siteName, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 15, port: port_);
+            funcId: 18, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_course_resources_response,
@@ -589,7 +675,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         final serializer = SseSerializer(generalizedFrbRustBinding);
         sse_encode_String(sessionPayload, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 16, port: port_);
+            funcId: 19, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_ffi_auth_session_response,
@@ -921,20 +1007,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  FfiCourseResourceDownloadResponse
-      dco_decode_ffi_course_resource_download_response(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
-    return FfiCourseResourceDownloadResponse(
-      records: dco_decode_list_ffi_course_resource_detail(arr[0]),
-      writtenPaths: dco_decode_list_String(arr[1]),
-      updatedSessionPayload: dco_decode_opt_String(arr[2]),
-    );
-  }
-
-  @protected
   FfiCourseResourceSummary dco_decode_ffi_course_resource_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -986,6 +1058,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return FfiCourseSite(
       id: dco_decode_String(arr[0]),
       siteName: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
+  FfiDownloadTaskStartResponse dco_decode_ffi_download_task_start_response(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return FfiDownloadTaskStartResponse(
+      taskId: dco_decode_String(arr[0]),
+      status: dco_decode_ffi_download_task_status(arr[1]),
+    );
+  }
+
+  @protected
+  FfiDownloadTaskState dco_decode_ffi_download_task_state(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return FfiDownloadTaskState.values[raw as int];
+  }
+
+  @protected
+  FfiDownloadTaskStatus dco_decode_ffi_download_task_status(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    return FfiDownloadTaskStatus(
+      taskId: dco_decode_String(arr[0]),
+      state: dco_decode_ffi_download_task_state(arr[1]),
+      current: dco_decode_u_32(arr[2]),
+      total: dco_decode_u_32(arr[3]),
+      bytesDownloaded: dco_decode_u_64(arr[4]),
+      currentFileName: dco_decode_opt_String(arr[5]),
+      writtenPaths: dco_decode_list_String(arr[6]),
+      records: dco_decode_list_ffi_course_resource_detail(arr[7]),
+      errorMessage: dco_decode_opt_String(arr[8]),
+      updatedSessionPayload: dco_decode_opt_String(arr[9]),
     );
   }
 
@@ -1158,6 +1269,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  int dco_decode_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -1515,20 +1632,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  FfiCourseResourceDownloadResponse
-      sse_decode_ffi_course_resource_download_response(
-          SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_records = sse_decode_list_ffi_course_resource_detail(deserializer);
-    var var_writtenPaths = sse_decode_list_String(deserializer);
-    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
-    return FfiCourseResourceDownloadResponse(
-        records: var_records,
-        writtenPaths: var_writtenPaths,
-        updatedSessionPayload: var_updatedSessionPayload);
-  }
-
-  @protected
   FfiCourseResourceSummary sse_decode_ffi_course_resource_summary(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -1578,6 +1681,50 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_id = sse_decode_String(deserializer);
     var var_siteName = sse_decode_String(deserializer);
     return FfiCourseSite(id: var_id, siteName: var_siteName);
+  }
+
+  @protected
+  FfiDownloadTaskStartResponse sse_decode_ffi_download_task_start_response(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_taskId = sse_decode_String(deserializer);
+    var var_status = sse_decode_ffi_download_task_status(deserializer);
+    return FfiDownloadTaskStartResponse(taskId: var_taskId, status: var_status);
+  }
+
+  @protected
+  FfiDownloadTaskState sse_decode_ffi_download_task_state(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return FfiDownloadTaskState.values[inner];
+  }
+
+  @protected
+  FfiDownloadTaskStatus sse_decode_ffi_download_task_status(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_taskId = sse_decode_String(deserializer);
+    var var_state = sse_decode_ffi_download_task_state(deserializer);
+    var var_current = sse_decode_u_32(deserializer);
+    var var_total = sse_decode_u_32(deserializer);
+    var var_bytesDownloaded = sse_decode_u_64(deserializer);
+    var var_currentFileName = sse_decode_opt_String(deserializer);
+    var var_writtenPaths = sse_decode_list_String(deserializer);
+    var var_records = sse_decode_list_ffi_course_resource_detail(deserializer);
+    var var_errorMessage = sse_decode_opt_String(deserializer);
+    var var_updatedSessionPayload = sse_decode_opt_String(deserializer);
+    return FfiDownloadTaskStatus(
+        taskId: var_taskId,
+        state: var_state,
+        current: var_current,
+        total: var_total,
+        bytesDownloaded: var_bytesDownloaded,
+        currentFileName: var_currentFileName,
+        writtenPaths: var_writtenPaths,
+        records: var_records,
+        errorMessage: var_errorMessage,
+        updatedSessionPayload: var_updatedSessionPayload);
   }
 
   @protected
@@ -1812,6 +1959,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint32();
   }
 
   @protected
@@ -2077,15 +2230,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_ffi_course_resource_download_response(
-      FfiCourseResourceDownloadResponse self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_list_ffi_course_resource_detail(self.records, serializer);
-    sse_encode_list_String(self.writtenPaths, serializer);
-    sse_encode_opt_String(self.updatedSessionPayload, serializer);
-  }
-
-  @protected
   void sse_encode_ffi_course_resource_summary(
       FfiCourseResourceSummary self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -2121,6 +2265,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.siteName, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_download_task_start_response(
+      FfiDownloadTaskStartResponse self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.taskId, serializer);
+    sse_encode_ffi_download_task_status(self.status, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_download_task_state(
+      FfiDownloadTaskState self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_ffi_download_task_status(
+      FfiDownloadTaskStatus self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.taskId, serializer);
+    sse_encode_ffi_download_task_state(self.state, serializer);
+    sse_encode_u_32(self.current, serializer);
+    sse_encode_u_32(self.total, serializer);
+    sse_encode_u_64(self.bytesDownloaded, serializer);
+    sse_encode_opt_String(self.currentFileName, serializer);
+    sse_encode_list_String(self.writtenPaths, serializer);
+    sse_encode_list_ffi_course_resource_detail(self.records, serializer);
+    sse_encode_opt_String(self.errorMessage, serializer);
+    sse_encode_opt_String(self.updatedSessionPayload, serializer);
   }
 
   @protected
@@ -2307,6 +2482,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_box_autoadd_u_64(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint32(self);
   }
 
   @protected

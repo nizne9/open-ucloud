@@ -38,7 +38,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1797930632;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1766479562;
 
 // Section: executor
 
@@ -397,6 +397,105 @@ fn wire__crate__api__courses_impl(
         },
     )
 }
+fn wire__crate__api__download_task_cancel_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "download_task_cancel",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_task_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::FfiAuthError>((move || {
+                    let output_ok = crate::api::download_task_cancel(api_task_id)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__download_task_dispose_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "download_task_dispose",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_task_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::FfiAuthError>((move || {
+                    let output_ok = crate::api::download_task_dispose(api_task_id)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__download_task_status_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "download_task_status",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_task_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::FfiAuthError>((move || {
+                    let output_ok = crate::api::download_task_status(api_task_id)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__logout_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -507,7 +606,7 @@ fn wire__crate__api__resource_detail_impl(
         },
     )
 }
-fn wire__crate__api__resource_download_impl(
+fn wire__crate__api__resource_download_course_start_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -515,7 +614,52 @@ fn wire__crate__api__resource_download_impl(
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "resource_download",
+            debug_name: "resource_download_course_start",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_session_payload = <String>::sse_decode(&mut deserializer);
+            let api_site_id = <String>::sse_decode(&mut deserializer);
+            let api_site_name = <String>::sse_decode(&mut deserializer);
+            let api_output_dir = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::FfiAuthError>(
+                    (move || async move {
+                        let output_ok = crate::api::resource_download_course_start(
+                            api_session_payload,
+                            api_site_id,
+                            api_site_name,
+                            api_output_dir,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__resource_download_start_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "resource_download_start",
             port: Some(port_),
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
@@ -538,57 +682,12 @@ fn wire__crate__api__resource_download_impl(
             move |context| async move {
                 transform_result_sse::<_, crate::api::FfiAuthError>(
                     (move || async move {
-                        let output_ok = crate::api::resource_download(
+                        let output_ok = crate::api::resource_download_start(
                             api_session_payload,
                             api_resource_id,
                             api_site_id,
                             api_site_name,
                             api_output_path,
-                        )
-                        .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
-fn wire__crate__api__resource_download_course_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "resource_download_course",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_session_payload = <String>::sse_decode(&mut deserializer);
-            let api_site_id = <String>::sse_decode(&mut deserializer);
-            let api_site_name = <String>::sse_decode(&mut deserializer);
-            let api_output_dir = <String>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, crate::api::FfiAuthError>(
-                    (move || async move {
-                        let output_ok = crate::api::resource_download_course(
-                            api_session_payload,
-                            api_site_id,
-                            api_site_name,
-                            api_output_dir,
                         )
                         .await?;
                         Ok(output_ok)
@@ -1030,20 +1129,6 @@ impl SseDecode for crate::api::FfiCourseResourceDetailResponse {
     }
 }
 
-impl SseDecode for crate::api::FfiCourseResourceDownloadResponse {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_records = <Vec<crate::api::FfiCourseResourceDetail>>::sse_decode(deserializer);
-        let mut var_writtenPaths = <Vec<String>>::sse_decode(deserializer);
-        let mut var_updatedSessionPayload = <Option<String>>::sse_decode(deserializer);
-        return crate::api::FfiCourseResourceDownloadResponse {
-            records: var_records,
-            written_paths: var_writtenPaths,
-            updated_session_payload: var_updatedSessionPayload,
-        };
-    }
-}
-
 impl SseDecode for crate::api::FfiCourseResourceSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1100,6 +1185,62 @@ impl SseDecode for crate::api::FfiCourseSite {
         return crate::api::FfiCourseSite {
             id: var_id,
             site_name: var_siteName,
+        };
+    }
+}
+
+impl SseDecode for crate::api::FfiDownloadTaskStartResponse {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_taskId = <String>::sse_decode(deserializer);
+        let mut var_status = <crate::api::FfiDownloadTaskStatus>::sse_decode(deserializer);
+        return crate::api::FfiDownloadTaskStartResponse {
+            task_id: var_taskId,
+            status: var_status,
+        };
+    }
+}
+
+impl SseDecode for crate::api::FfiDownloadTaskState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::FfiDownloadTaskState::Queued,
+            1 => crate::api::FfiDownloadTaskState::Running,
+            2 => crate::api::FfiDownloadTaskState::Succeeded,
+            3 => crate::api::FfiDownloadTaskState::Failed,
+            4 => crate::api::FfiDownloadTaskState::Cancelled,
+            5 => crate::api::FfiDownloadTaskState::Disposed,
+            _ => unreachable!("Invalid variant for FfiDownloadTaskState: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::FfiDownloadTaskStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_taskId = <String>::sse_decode(deserializer);
+        let mut var_state = <crate::api::FfiDownloadTaskState>::sse_decode(deserializer);
+        let mut var_current = <u32>::sse_decode(deserializer);
+        let mut var_total = <u32>::sse_decode(deserializer);
+        let mut var_bytesDownloaded = <u64>::sse_decode(deserializer);
+        let mut var_currentFileName = <Option<String>>::sse_decode(deserializer);
+        let mut var_writtenPaths = <Vec<String>>::sse_decode(deserializer);
+        let mut var_records = <Vec<crate::api::FfiCourseResourceDetail>>::sse_decode(deserializer);
+        let mut var_errorMessage = <Option<String>>::sse_decode(deserializer);
+        let mut var_updatedSessionPayload = <Option<String>>::sse_decode(deserializer);
+        return crate::api::FfiDownloadTaskStatus {
+            task_id: var_taskId,
+            state: var_state,
+            current: var_current,
+            total: var_total,
+            bytes_downloaded: var_bytesDownloaded,
+            current_file_name: var_currentFileName,
+            written_paths: var_writtenPaths,
+            records: var_records,
+            error_message: var_errorMessage,
+            updated_session_payload: var_updatedSessionPayload,
         };
     }
 }
@@ -1360,6 +1501,13 @@ impl SseDecode for Option<u64> {
     }
 }
 
+impl SseDecode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u32::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for u64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1397,18 +1545,23 @@ fn pde_ffi_dispatcher_primary_impl(
         7 => wire__crate__api__auth_start_impl(port, ptr, rust_vec_len, data_len),
         8 => wire__crate__api__capabilities_impl(port, ptr, rust_vec_len, data_len),
         9 => wire__crate__api__courses_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__logout_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__parse_attendance_qr_payload_text_impl(
+        10 => wire__crate__api__download_task_cancel_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__download_task_dispose_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__download_task_status_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__logout_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__parse_attendance_qr_payload_text_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__resource_detail_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__resource_download_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__resource_download_course_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__resources_for_course_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__session_summary_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__resource_detail_impl(port, ptr, rust_vec_len, data_len),
+        16 => {
+            wire__crate__api__resource_download_course_start_impl(port, ptr, rust_vec_len, data_len)
+        }
+        17 => wire__crate__api__resource_download_start_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__resources_for_course_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__session_summary_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1877,28 +2030,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiCourseResourceDetailRespon
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::FfiCourseResourceDownloadResponse {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.records.into_into_dart().into_dart(),
-            self.written_paths.into_into_dart().into_dart(),
-            self.updated_session_payload.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::FfiCourseResourceDownloadResponse
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiCourseResourceDownloadResponse>
-    for crate::api::FfiCourseResourceDownloadResponse
-{
-    fn into_into_dart(self) -> crate::api::FfiCourseResourceDownloadResponse {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::FfiCourseResourceSummary {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -1977,6 +2108,81 @@ impl flutter_rust_bridge::IntoDart for crate::api::FfiCourseSite {
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::FfiCourseSite {}
 impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiCourseSite> for crate::api::FfiCourseSite {
     fn into_into_dart(self) -> crate::api::FfiCourseSite {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::FfiDownloadTaskStartResponse {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.task_id.into_into_dart().into_dart(),
+            self.status.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::FfiDownloadTaskStartResponse
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiDownloadTaskStartResponse>
+    for crate::api::FfiDownloadTaskStartResponse
+{
+    fn into_into_dart(self) -> crate::api::FfiDownloadTaskStartResponse {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::FfiDownloadTaskState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Queued => 0.into_dart(),
+            Self::Running => 1.into_dart(),
+            Self::Succeeded => 2.into_dart(),
+            Self::Failed => 3.into_dart(),
+            Self::Cancelled => 4.into_dart(),
+            Self::Disposed => 5.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::FfiDownloadTaskState
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiDownloadTaskState>
+    for crate::api::FfiDownloadTaskState
+{
+    fn into_into_dart(self) -> crate::api::FfiDownloadTaskState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::FfiDownloadTaskStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.task_id.into_into_dart().into_dart(),
+            self.state.into_into_dart().into_dart(),
+            self.current.into_into_dart().into_dart(),
+            self.total.into_into_dart().into_dart(),
+            self.bytes_downloaded.into_into_dart().into_dart(),
+            self.current_file_name.into_into_dart().into_dart(),
+            self.written_paths.into_into_dart().into_dart(),
+            self.records.into_into_dart().into_dart(),
+            self.error_message.into_into_dart().into_dart(),
+            self.updated_session_payload.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::FfiDownloadTaskStatus
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::FfiDownloadTaskStatus>
+    for crate::api::FfiDownloadTaskStatus
+{
+    fn into_into_dart(self) -> crate::api::FfiDownloadTaskStatus {
         self
     }
 }
@@ -2334,15 +2540,6 @@ impl SseEncode for crate::api::FfiCourseResourceDetailResponse {
     }
 }
 
-impl SseEncode for crate::api::FfiCourseResourceDownloadResponse {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Vec<crate::api::FfiCourseResourceDetail>>::sse_encode(self.records, serializer);
-        <Vec<String>>::sse_encode(self.written_paths, serializer);
-        <Option<String>>::sse_encode(self.updated_session_payload, serializer);
-    }
-}
-
 impl SseEncode for crate::api::FfiCourseResourceSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2378,6 +2575,50 @@ impl SseEncode for crate::api::FfiCourseSite {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.site_name, serializer);
+    }
+}
+
+impl SseEncode for crate::api::FfiDownloadTaskStartResponse {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.task_id, serializer);
+        <crate::api::FfiDownloadTaskStatus>::sse_encode(self.status, serializer);
+    }
+}
+
+impl SseEncode for crate::api::FfiDownloadTaskState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::FfiDownloadTaskState::Queued => 0,
+                crate::api::FfiDownloadTaskState::Running => 1,
+                crate::api::FfiDownloadTaskState::Succeeded => 2,
+                crate::api::FfiDownloadTaskState::Failed => 3,
+                crate::api::FfiDownloadTaskState::Cancelled => 4,
+                crate::api::FfiDownloadTaskState::Disposed => 5,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::FfiDownloadTaskStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.task_id, serializer);
+        <crate::api::FfiDownloadTaskState>::sse_encode(self.state, serializer);
+        <u32>::sse_encode(self.current, serializer);
+        <u32>::sse_encode(self.total, serializer);
+        <u64>::sse_encode(self.bytes_downloaded, serializer);
+        <Option<String>>::sse_encode(self.current_file_name, serializer);
+        <Vec<String>>::sse_encode(self.written_paths, serializer);
+        <Vec<crate::api::FfiCourseResourceDetail>>::sse_encode(self.records, serializer);
+        <Option<String>>::sse_encode(self.error_message, serializer);
+        <Option<String>>::sse_encode(self.updated_session_payload, serializer);
     }
 }
 
@@ -2581,6 +2822,13 @@ impl SseEncode for Option<u64> {
         if let Some(value) = self {
             <u64>::sse_encode(value, serializer);
         }
+    }
+}
+
+impl SseEncode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
     }
 }
 

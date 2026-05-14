@@ -1,13 +1,24 @@
 use open_cloud_api::{AuthErrorCode, AuthErrorResponse};
 use open_cloud_core::{
-    client_capabilities, parse_attendance_qr_payload, refresh_session_if_needed, LoginFlow,
-    OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
+    client_capabilities, parse_attendance_qr_payload, refresh_session_if_needed,
+    DownloadCancelFlag, DownloadProgress, LoginFlow, OpenCloudClient, OpenCloudEndpoints,
+    ReqwestHttpClient,
 };
 use open_cloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::task::JoinHandle;
+
+const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
+const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
+    "ade", "adp", "apk", "app", "bat", "bin", "cmd", "com", "cpl", "dll", "dmg", "exe", "hta",
+    "ins", "iso", "jar", "js", "jse", "lnk", "msc", "msi", "msp", "mst", "pif", "scr", "sh", "vb",
+    "vbe", "vbs", "ws", "wsc", "wsf", "wsh",
+];
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -260,6 +271,39 @@ pub struct FfiCourseResourceDownloadResponse {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum FfiDownloadTaskState {
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+    Disposed,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FfiDownloadTaskStatus {
+    pub task_id: String,
+    pub state: FfiDownloadTaskState,
+    pub current: u32,
+    pub total: u32,
+    pub bytes_downloaded: u64,
+    pub current_file_name: Option<String>,
+    pub written_paths: Vec<String>,
+    pub records: Vec<FfiCourseResourceDetail>,
+    pub error_message: Option<String>,
+    pub updated_session_payload: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FfiDownloadTaskStartResponse {
+    pub task_id: String,
+    pub status: FfiDownloadTaskStatus,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FfiAuthStartResponse {
     pub auth: FfiAuthStartResult,
     pub flow: FfiLoginFlow,
@@ -303,17 +347,95 @@ impl From<AuthErrorResponse> for FfiAuthError {
     }
 }
 
+struct DownloadTask {
+    status: Mutex<FfiDownloadTaskStatus>,
+    cancel: DownloadCancelFlag,
+    handle: Mutex<Option<JoinHandle<()>>>,
+}
+
+struct ResourceDownloadTaskRequest {
+    session_payload: String,
+    resource_id: String,
+    site_id: String,
+    site_name: String,
+    output_path: String,
+    now_ms: u64,
+}
+
+static DOWNLOAD_TASKS: OnceLock<Mutex<HashMap<String, Arc<DownloadTask>>>> = OnceLock::new();
+static SHARED_CLIENT: OnceLock<OpenCloudClient<ReqwestHttpClient>> = OnceLock::new();
+
+fn download_tasks() -> &'static Mutex<HashMap<String, Arc<DownloadTask>>> {
+    DOWNLOAD_TASKS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn shared_default_client() -> Result<&'static OpenCloudClient<ReqwestHttpClient>, FfiAuthError> {
+    if let Some(client) = SHARED_CLIENT.get() {
+        return Ok(client);
+    }
+    let http = ReqwestHttpClient::new().map_err(to_ffi_error)?;
+    let _ = SHARED_CLIENT.set(OpenCloudClient::new(http, OpenCloudEndpoints::default()));
+    SHARED_CLIENT.get().ok_or_else(|| {
+        error(
+            AuthErrorCode::UnknownAuthError,
+            "HTTP 客户端初始化失败，请重试。",
+        )
+    })
+}
+
+fn create_download_task(total: u32) -> (String, Arc<DownloadTask>, FfiDownloadTaskStatus) {
+    let task_id = uuid::Uuid::new_v4().to_string();
+    let status = FfiDownloadTaskStatus {
+        task_id: task_id.clone(),
+        state: FfiDownloadTaskState::Queued,
+        current: 0,
+        total,
+        bytes_downloaded: 0,
+        current_file_name: None,
+        written_paths: Vec::new(),
+        records: Vec::new(),
+        error_message: None,
+        updated_session_payload: None,
+    };
+    let task = Arc::new(DownloadTask {
+        status: Mutex::new(status.clone()),
+        cancel: DownloadCancelFlag::new(),
+        handle: Mutex::new(None),
+    });
+    download_tasks()
+        .lock()
+        .expect("download task map poisoned")
+        .insert(task_id.clone(), task.clone());
+    (task_id, task, status)
+}
+
+fn read_download_status(task_id: &str) -> Result<FfiDownloadTaskStatus, FfiAuthError> {
+    let task = download_tasks()
+        .lock()
+        .expect("download task map poisoned")
+        .get(task_id)
+        .cloned()
+        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+    let status = task.status.lock().expect("download task poisoned").clone();
+    Ok(status)
+}
+
+fn update_download_status(task: &DownloadTask, f: impl FnOnce(&mut FfiDownloadTaskStatus)) {
+    let mut status = task.status.lock().expect("download task poisoned");
+    f(&mut status);
+}
+
 pub async fn auth_start(username: String) -> Result<FfiAuthStartResponse, FfiAuthError> {
-    let client = default_client()?;
-    auth_start_with_client(&client, username).await
+    let client = shared_default_client()?;
+    auth_start_with_client(client, username).await
 }
 
 pub async fn auth_finish(
     request: FfiAuthFinishRequest,
     flow: FfiLoginFlow,
 ) -> Result<FfiAuthFinishResponse, FfiAuthError> {
-    let client = default_client()?;
-    auth_finish_with_client(&client, request, flow).await
+    let client = shared_default_client()?;
+    auth_finish_with_client(client, request, flow).await
 }
 
 pub fn session_summary(session_payload: String) -> Result<FfiAuthSessionResponse, FfiAuthError> {
@@ -340,15 +462,15 @@ pub async fn courses(
     session_payload: String,
     with_going: bool,
 ) -> Result<FfiCourseResponse, FfiAuthError> {
-    let client = default_client()?;
-    courses_with_client(&client, session_payload, with_going, now_ms()).await
+    let client = shared_default_client()?;
+    courses_with_client(client, session_payload, with_going, now_ms()).await
 }
 
 pub async fn assignments_undone(
     session_payload: String,
 ) -> Result<FfiAssignmentListResponse, FfiAuthError> {
-    let client = default_client()?;
-    assignments_undone_with_client(&client, session_payload, now_ms()).await
+    let client = shared_default_client()?;
+    assignments_undone_with_client(client, session_payload, now_ms()).await
 }
 
 pub async fn assignments_for_course(
@@ -357,9 +479,9 @@ pub async fn assignments_for_course(
     site_name: String,
     keyword: String,
 ) -> Result<FfiAssignmentListResponse, FfiAuthError> {
-    let client = default_client()?;
+    let client = shared_default_client()?;
     assignments_for_course_with_client(
-        &client,
+        client,
         session_payload,
         site_id,
         site_name,
@@ -373,8 +495,8 @@ pub async fn assignment_detail(
     session_payload: String,
     assignment_id: String,
 ) -> Result<FfiAssignmentDetailResponse, FfiAuthError> {
-    let client = default_client()?;
-    assignment_detail_with_client(&client, session_payload, assignment_id, now_ms()).await
+    let client = shared_default_client()?;
+    assignment_detail_with_client(client, session_payload, assignment_id, now_ms()).await
 }
 
 pub async fn assignment_upload(
@@ -382,9 +504,8 @@ pub async fn assignment_upload(
     assignment_id: String,
     file_path: String,
 ) -> Result<FfiAssignmentUploadResponse, FfiAuthError> {
-    let client = default_client()?;
-    assignment_upload_with_client(&client, session_payload, assignment_id, file_path, now_ms())
-        .await
+    let client = shared_default_client()?;
+    assignment_upload_with_client(client, session_payload, assignment_id, file_path, now_ms()).await
 }
 
 pub async fn assignment_submit(
@@ -393,9 +514,9 @@ pub async fn assignment_submit(
     content: String,
     attachment_ids: Vec<String>,
 ) -> Result<FfiAssignmentSubmitResponse, FfiAuthError> {
-    let client = default_client()?;
+    let client = shared_default_client()?;
     assignment_submit_with_client(
-        &client,
+        client,
         session_payload,
         assignment_id,
         content,
@@ -410,8 +531,8 @@ pub async fn resources_for_course(
     site_id: String,
     site_name: String,
 ) -> Result<FfiCourseResourcesResponse, FfiAuthError> {
-    let client = default_client()?;
-    resources_for_course_with_client(&client, session_payload, site_id, site_name, now_ms()).await
+    let client = shared_default_client()?;
+    resources_for_course_with_client(client, session_payload, site_id, site_name, now_ms()).await
 }
 
 pub async fn resource_detail(
@@ -420,9 +541,9 @@ pub async fn resource_detail(
     site_id: String,
     site_name: String,
 ) -> Result<FfiCourseResourceDetailResponse, FfiAuthError> {
-    let client = default_client()?;
+    let client = shared_default_client()?;
     resource_detail_with_client(
-        &client,
+        client,
         session_payload,
         resource_id,
         site_id,
@@ -432,42 +553,104 @@ pub async fn resource_detail(
     .await
 }
 
-pub async fn resource_download(
+pub async fn resource_download_start(
     session_payload: String,
     resource_id: String,
     site_id: String,
     site_name: String,
     output_path: String,
-) -> Result<FfiCourseResourceDownloadResponse, FfiAuthError> {
-    let client = default_client()?;
-    resource_download_with_client(
-        &client,
-        session_payload,
-        resource_id,
-        site_id,
-        site_name,
-        output_path,
-        now_ms(),
-    )
-    .await
+) -> Result<FfiDownloadTaskStartResponse, FfiAuthError> {
+    let client = shared_default_client()?.clone();
+    let (task_id, task, status) = create_download_task(1);
+    let worker_task = task.clone();
+    let worker_task_id = task_id.clone();
+    let handle = tokio::spawn(async move {
+        let result = resource_download_task(
+            client,
+            worker_task.clone(),
+            ResourceDownloadTaskRequest {
+                session_payload,
+                resource_id,
+                site_id,
+                site_name,
+                output_path,
+                now_ms: now_ms(),
+            },
+        )
+        .await;
+        finish_download_task(worker_task, result);
+    });
+    *task.handle.lock().expect("download task poisoned") = Some(handle);
+    Ok(FfiDownloadTaskStartResponse {
+        task_id: worker_task_id,
+        status,
+    })
 }
 
-pub async fn resource_download_course(
+pub async fn resource_download_course_start(
     session_payload: String,
     site_id: String,
     site_name: String,
     output_dir: String,
-) -> Result<FfiCourseResourceDownloadResponse, FfiAuthError> {
-    let client = default_client()?;
-    resource_download_course_with_client(
-        &client,
-        session_payload,
-        site_id,
-        site_name,
-        output_dir,
-        now_ms(),
-    )
-    .await
+) -> Result<FfiDownloadTaskStartResponse, FfiAuthError> {
+    let client = shared_default_client()?.clone();
+    let (task_id, task, status) = create_download_task(0);
+    let worker_task = task.clone();
+    let worker_task_id = task_id.clone();
+    let handle = tokio::spawn(async move {
+        let result = resource_download_course_task(
+            client,
+            worker_task.clone(),
+            session_payload,
+            site_id,
+            site_name,
+            output_dir,
+            now_ms(),
+        )
+        .await;
+        finish_download_task(worker_task, result);
+    });
+    *task.handle.lock().expect("download task poisoned") = Some(handle);
+    Ok(FfiDownloadTaskStartResponse {
+        task_id: worker_task_id,
+        status,
+    })
+}
+
+pub fn download_task_status(task_id: String) -> Result<FfiDownloadTaskStatus, FfiAuthError> {
+    read_download_status(&task_id)
+}
+
+pub fn download_task_cancel(task_id: String) -> Result<FfiDownloadTaskStatus, FfiAuthError> {
+    let task = download_tasks()
+        .lock()
+        .expect("download task map poisoned")
+        .get(&task_id)
+        .cloned()
+        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+    task.cancel.cancel();
+    update_download_status(&task, |status| {
+        if matches!(
+            status.state,
+            FfiDownloadTaskState::Queued | FfiDownloadTaskState::Running
+        ) {
+            status.state = FfiDownloadTaskState::Cancelled;
+            status.error_message = Some("下载已取消。".to_string());
+        }
+    });
+    read_download_status(&task_id)
+}
+
+pub fn download_task_dispose(task_id: String) -> Result<FfiLogoutResponse, FfiAuthError> {
+    let task = download_tasks()
+        .lock()
+        .expect("download task map poisoned")
+        .remove(&task_id)
+        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+    task.cancel.cancel();
+    Ok(FfiLogoutResponse {
+        clear_session: false,
+    })
 }
 
 pub fn logout() -> FfiLogoutResponse {
@@ -665,11 +848,12 @@ where
         ));
     }
     let path = PathBuf::from(file_path);
-    let bytes = fs::read(&path).map_err(fs_error)?;
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "invalid upload file name"))?;
+    validate_upload_file_metadata(&path, file_name)?;
+    let bytes = fs::read(&path).map_err(fs_error)?;
     let upload = client
         .upload_assignment_file(
             &detail,
@@ -764,6 +948,7 @@ where
     })
 }
 
+#[cfg(test)]
 async fn resource_download_with_client<C>(
     client: &OpenCloudClient<C>,
     session_payload: String,
@@ -782,7 +967,14 @@ where
         .get_resource_detail(&resource_id, &site_id, &site_name, &session.access_token)
         .await
         .map_err(to_ffi_error)?;
-    let written_path = download_resource_to_path(client, &detail, Path::new(&output_path)).await?;
+    let written_path = download_resource_to_path(
+        client,
+        &detail,
+        Path::new(&output_path),
+        DownloadProgress::default(),
+        DownloadCancelFlag::default(),
+    )
+    .await?;
     Ok(FfiCourseResourceDownloadResponse {
         records: vec![detail.into()],
         written_paths: vec![written_path.display().to_string()],
@@ -790,6 +982,7 @@ where
     })
 }
 
+#[cfg(test)]
 async fn resource_download_course_with_client<C>(
     client: &OpenCloudClient<C>,
     session_payload: String,
@@ -826,7 +1019,14 @@ where
             .await
             .map_err(to_ffi_error)?;
         let target = Path::new(&output_dir).join(sanitize_file_name(&detail.name));
-        let written_path = download_resource_to_path(client, &detail, &target).await?;
+        let written_path = download_resource_to_path(
+            client,
+            &detail,
+            &target,
+            DownloadProgress::default(),
+            DownloadCancelFlag::default(),
+        )
+        .await?;
         records.push(detail.into());
         written_paths.push(written_path.display().to_string());
     }
@@ -835,6 +1035,143 @@ where
         written_paths,
         updated_session_payload,
     })
+}
+
+async fn resource_download_task(
+    client: OpenCloudClient<ReqwestHttpClient>,
+    task: Arc<DownloadTask>,
+    request: ResourceDownloadTaskRequest,
+) -> Result<(), FfiAuthError> {
+    update_download_status(&task, |status| {
+        status.state = FfiDownloadTaskState::Running;
+        status.total = 1;
+    });
+    let (session, updated_session_payload) =
+        refreshed_session(&client, request.session_payload, request.now_ms).await?;
+    let detail = client
+        .get_resource_detail(
+            &request.resource_id,
+            &request.site_id,
+            &request.site_name,
+            &session.access_token,
+        )
+        .await
+        .map_err(to_ffi_error)?;
+    update_download_status(&task, |status| {
+        status.current_file_name = Some(detail.name.clone());
+        status.updated_session_payload = updated_session_payload.clone();
+        status.records = vec![detail.clone().into()];
+    });
+    let progress_task = task.clone();
+    let progress = DownloadProgress::new(move |bytes| {
+        update_download_status(&progress_task, |status| {
+            status.bytes_downloaded = status.bytes_downloaded.saturating_add(bytes);
+        });
+    });
+    let written_path = download_resource_to_path(
+        &client,
+        &detail,
+        Path::new(&request.output_path),
+        progress,
+        task.cancel.clone(),
+    )
+    .await?;
+    update_download_status(&task, |status| {
+        status.current = 1;
+        status.written_paths = vec![written_path.display().to_string()];
+        status.current_file_name = None;
+    });
+    Ok(())
+}
+
+async fn resource_download_course_task(
+    client: OpenCloudClient<ReqwestHttpClient>,
+    task: Arc<DownloadTask>,
+    session_payload: String,
+    site_id: String,
+    site_name: String,
+    output_dir: String,
+    now_ms: u64,
+) -> Result<(), FfiAuthError> {
+    update_download_status(&task, |status| {
+        status.state = FfiDownloadTaskState::Running;
+    });
+    let (session, updated_session_payload) =
+        refreshed_session(&client, session_payload, now_ms).await?;
+    let list = client
+        .get_course_resources(
+            &site_id,
+            &site_name,
+            &session.user.user_id,
+            &session.access_token,
+        )
+        .await
+        .map_err(to_ffi_error)?;
+    fs::create_dir_all(&output_dir).map_err(fs_error)?;
+    update_download_status(&task, |status| {
+        status.total = list.records.len() as u32;
+        status.updated_session_payload = updated_session_payload.clone();
+    });
+    for resource in list.records {
+        if task.cancel.is_cancelled() {
+            return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+        }
+        let detail = client
+            .get_resource_detail(
+                &resource.resource_id,
+                &site_id,
+                &site_name,
+                &session.access_token,
+            )
+            .await
+            .map_err(to_ffi_error)?;
+        update_download_status(&task, |status| {
+            status.current_file_name = Some(detail.name.clone());
+            status.records.push(detail.clone().into());
+        });
+        let progress_task = task.clone();
+        let progress = DownloadProgress::new(move |bytes| {
+            update_download_status(&progress_task, |status| {
+                status.bytes_downloaded = status.bytes_downloaded.saturating_add(bytes);
+            });
+        });
+        let target = Path::new(&output_dir).join(sanitize_file_name(&detail.name));
+        let written_path =
+            download_resource_to_path(&client, &detail, &target, progress, task.cancel.clone())
+                .await?;
+        update_download_status(&task, |status| {
+            status.current = status.current.saturating_add(1);
+            status
+                .written_paths
+                .push(written_path.display().to_string());
+        });
+    }
+    update_download_status(&task, |status| {
+        status.current_file_name = None;
+    });
+    Ok(())
+}
+
+fn finish_download_task(task: Arc<DownloadTask>, result: Result<(), FfiAuthError>) {
+    update_download_status(&task, |status| match result {
+        Ok(()) => {
+            if !matches!(status.state, FfiDownloadTaskState::Cancelled) {
+                status.state = FfiDownloadTaskState::Succeeded;
+                status.current_file_name = None;
+                status.error_message = None;
+            }
+        }
+        Err(error) => {
+            if matches!(status.state, FfiDownloadTaskState::Cancelled) {
+                status.current_file_name = None;
+                status.error_message = Some("下载已取消。".to_string());
+            } else {
+                status.state = FfiDownloadTaskState::Failed;
+                status.current_file_name = None;
+                status.error_message = Some(error.message);
+            }
+        }
+    });
 }
 
 async fn refreshed_session<C>(
@@ -862,6 +1199,8 @@ async fn download_resource_to_path<C>(
     client: &OpenCloudClient<C>,
     detail: &open_cloud_api::CourseResourceDetail,
     requested_path: &Path,
+    progress: DownloadProgress,
+    cancel: DownloadCancelFlag,
 ) -> Result<PathBuf, FfiAuthError>
 where
     C: open_cloud_core::HttpClient,
@@ -875,8 +1214,10 @@ where
     let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent).map_err(fs_error)?;
     let path = next_download_path(requested_path)?;
-    let bytes = client.download_url_bytes(url).await.map_err(to_ffi_error)?;
-    fs::write(&path, bytes).map_err(fs_error)?;
+    client
+        .download_url_to_path(url, &path, progress, cancel)
+        .await
+        .map_err(to_ffi_error)?;
     Ok(path)
 }
 
@@ -928,9 +1269,36 @@ fn fs_error(source: std::io::Error) -> FfiAuthError {
     error(AuthErrorCode::UnknownAuthError, source.to_string())
 }
 
-fn default_client() -> Result<OpenCloudClient<ReqwestHttpClient>, FfiAuthError> {
-    let http = ReqwestHttpClient::new().map_err(to_ffi_error)?;
-    Ok(OpenCloudClient::new(http, OpenCloudEndpoints::default()))
+fn validate_upload_file_metadata(path: &Path, file_name: &str) -> Result<(), FfiAuthError> {
+    if file_name.contains(['\r', '\n']) {
+        return Err(error(
+            AuthErrorCode::InvalidFileName,
+            "上传文件名不能包含换行符。",
+        ));
+    }
+    let metadata = fs::metadata(path).map_err(fs_error)?;
+    if metadata.len() == 0 {
+        return Err(error(AuthErrorCode::EmptyUpload, "上传文件不能为空。"));
+    }
+    if metadata.len() > MAX_ASSIGNMENT_UPLOAD_BYTES {
+        return Err(error(
+            AuthErrorCode::FileTooLarge,
+            "单个附件不能超过 25 MB。",
+        ));
+    }
+    let extension = file_name
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.trim().to_ascii_lowercase());
+    if extension
+        .as_deref()
+        .is_some_and(|extension| BLOCKED_UPLOAD_EXTENSIONS.contains(&extension))
+    {
+        return Err(error(
+            AuthErrorCode::FileTypeNotAllowed,
+            "当前不支持上传可执行文件，请改用文档、图片、压缩包或代码文本。",
+        ));
+    }
+    Ok(())
 }
 
 fn encode_session_payload(session: &AuthSession) -> Result<String, FfiAuthError> {

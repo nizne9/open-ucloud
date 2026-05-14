@@ -6,8 +6,9 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `assignment_detail_with_client`, `assignment_submit_with_client`, `assignment_upload_with_client`, `assignments_for_course_with_client`, `assignments_undone_with_client`, `auth_finish_with_client`, `auth_start_with_client`, `courses_with_client`, `decode_session_payload`, `default_client`, `download_resource_to_path`, `encode_session_payload`, `error`, `fs_error`, `next_download_path`, `now_ms`, `refreshed_session`, `resource_detail_with_client`, `resource_download_course_with_client`, `resource_download_with_client`, `resources_for_course_with_client`, `sanitize_file_name`, `to_ffi_error`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `assignment_detail_with_client`, `assignment_submit_with_client`, `assignment_upload_with_client`, `assignments_for_course_with_client`, `assignments_undone_with_client`, `auth_finish_with_client`, `auth_start_with_client`, `courses_with_client`, `create_download_task`, `decode_session_payload`, `default_client`, `download_resource_to_path`, `download_tasks`, `encode_session_payload`, `error`, `finish_download_task`, `fs_error`, `next_download_path`, `now_ms`, `read_download_status`, `refreshed_session`, `resource_detail_with_client`, `resource_download_course_task`, `resource_download_course_with_client`, `resource_download_task`, `resource_download_with_client`, `resources_for_course_with_client`, `sanitize_file_name`, `shared_default_client`, `to_ffi_error`, `update_download_status`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadTask`, `FfiCourseResourceDownloadResponse`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 Future<FfiAuthStartResponse> authStart({required String username}) =>
     RustLib.instance.api.crateApiAuthStart(username: username);
@@ -91,29 +92,38 @@ Future<FfiCourseResourceDetailResponse> resourceDetail(
         siteId: siteId,
         siteName: siteName);
 
-Future<FfiCourseResourceDownloadResponse> resourceDownload(
+Future<FfiDownloadTaskStartResponse> resourceDownloadStart(
         {required String sessionPayload,
         required String resourceId,
         required String siteId,
         required String siteName,
         required String outputPath}) =>
-    RustLib.instance.api.crateApiResourceDownload(
+    RustLib.instance.api.crateApiResourceDownloadStart(
         sessionPayload: sessionPayload,
         resourceId: resourceId,
         siteId: siteId,
         siteName: siteName,
         outputPath: outputPath);
 
-Future<FfiCourseResourceDownloadResponse> resourceDownloadCourse(
+Future<FfiDownloadTaskStartResponse> resourceDownloadCourseStart(
         {required String sessionPayload,
         required String siteId,
         required String siteName,
         required String outputDir}) =>
-    RustLib.instance.api.crateApiResourceDownloadCourse(
+    RustLib.instance.api.crateApiResourceDownloadCourseStart(
         sessionPayload: sessionPayload,
         siteId: siteId,
         siteName: siteName,
         outputDir: outputDir);
+
+Future<FfiDownloadTaskStatus> downloadTaskStatus({required String taskId}) =>
+    RustLib.instance.api.crateApiDownloadTaskStatus(taskId: taskId);
+
+Future<FfiDownloadTaskStatus> downloadTaskCancel({required String taskId}) =>
+    RustLib.instance.api.crateApiDownloadTaskCancel(taskId: taskId);
+
+Future<FfiLogoutResponse> downloadTaskDispose({required String taskId}) =>
+    RustLib.instance.api.crateApiDownloadTaskDispose(taskId: taskId);
 
 Future<FfiLogoutResponse> logout() => RustLib.instance.api.crateApiLogout();
 
@@ -688,31 +698,6 @@ class FfiCourseResourceDetailResponse {
           updatedSessionPayload == other.updatedSessionPayload;
 }
 
-class FfiCourseResourceDownloadResponse {
-  final List<FfiCourseResourceDetail> records;
-  final List<String> writtenPaths;
-  final String? updatedSessionPayload;
-
-  const FfiCourseResourceDownloadResponse({
-    required this.records,
-    required this.writtenPaths,
-    this.updatedSessionPayload,
-  });
-
-  @override
-  int get hashCode =>
-      records.hashCode ^ writtenPaths.hashCode ^ updatedSessionPayload.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FfiCourseResourceDownloadResponse &&
-          runtimeType == other.runtimeType &&
-          records == other.records &&
-          writtenPaths == other.writtenPaths &&
-          updatedSessionPayload == other.updatedSessionPayload;
-}
-
 class FfiCourseResourceSummary {
   final String? ext;
   final String name;
@@ -821,6 +806,92 @@ class FfiCourseSite {
           runtimeType == other.runtimeType &&
           id == other.id &&
           siteName == other.siteName;
+}
+
+class FfiDownloadTaskStartResponse {
+  final String taskId;
+  final FfiDownloadTaskStatus status;
+
+  const FfiDownloadTaskStartResponse({
+    required this.taskId,
+    required this.status,
+  });
+
+  @override
+  int get hashCode => taskId.hashCode ^ status.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiDownloadTaskStartResponse &&
+          runtimeType == other.runtimeType &&
+          taskId == other.taskId &&
+          status == other.status;
+}
+
+enum FfiDownloadTaskState {
+  queued,
+  running,
+  succeeded,
+  failed,
+  cancelled,
+  disposed,
+  ;
+}
+
+class FfiDownloadTaskStatus {
+  final String taskId;
+  final FfiDownloadTaskState state;
+  final int current;
+  final int total;
+  final BigInt bytesDownloaded;
+  final String? currentFileName;
+  final List<String> writtenPaths;
+  final List<FfiCourseResourceDetail> records;
+  final String? errorMessage;
+  final String? updatedSessionPayload;
+
+  const FfiDownloadTaskStatus({
+    required this.taskId,
+    required this.state,
+    required this.current,
+    required this.total,
+    required this.bytesDownloaded,
+    this.currentFileName,
+    required this.writtenPaths,
+    required this.records,
+    this.errorMessage,
+    this.updatedSessionPayload,
+  });
+
+  @override
+  int get hashCode =>
+      taskId.hashCode ^
+      state.hashCode ^
+      current.hashCode ^
+      total.hashCode ^
+      bytesDownloaded.hashCode ^
+      currentFileName.hashCode ^
+      writtenPaths.hashCode ^
+      records.hashCode ^
+      errorMessage.hashCode ^
+      updatedSessionPayload.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FfiDownloadTaskStatus &&
+          runtimeType == other.runtimeType &&
+          taskId == other.taskId &&
+          state == other.state &&
+          current == other.current &&
+          total == other.total &&
+          bytesDownloaded == other.bytesDownloaded &&
+          currentFileName == other.currentFileName &&
+          writtenPaths == other.writtenPaths &&
+          records == other.records &&
+          errorMessage == other.errorMessage &&
+          updatedSessionPayload == other.updatedSessionPayload;
 }
 
 class FfiGoingSite {

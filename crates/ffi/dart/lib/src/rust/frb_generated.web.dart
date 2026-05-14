@@ -108,10 +108,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       dco_decode_ffi_course_resource_detail_response(dynamic raw);
 
   @protected
-  FfiCourseResourceDownloadResponse
-      dco_decode_ffi_course_resource_download_response(dynamic raw);
-
-  @protected
   FfiCourseResourceSummary dco_decode_ffi_course_resource_summary(dynamic raw);
 
   @protected
@@ -123,6 +119,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FfiCourseSite dco_decode_ffi_course_site(dynamic raw);
+
+  @protected
+  FfiDownloadTaskStartResponse dco_decode_ffi_download_task_start_response(
+      dynamic raw);
+
+  @protected
+  FfiDownloadTaskState dco_decode_ffi_download_task_state(dynamic raw);
+
+  @protected
+  FfiDownloadTaskStatus dco_decode_ffi_download_task_status(dynamic raw);
 
   @protected
   FfiGoingSite dco_decode_ffi_going_site(dynamic raw);
@@ -187,6 +193,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   BigInt dco_decode_u_64(dynamic raw);
@@ -300,11 +309,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           SseDeserializer deserializer);
 
   @protected
-  FfiCourseResourceDownloadResponse
-      sse_decode_ffi_course_resource_download_response(
-          SseDeserializer deserializer);
-
-  @protected
   FfiCourseResourceSummary sse_decode_ffi_course_resource_summary(
       SseDeserializer deserializer);
 
@@ -318,6 +322,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FfiCourseSite sse_decode_ffi_course_site(SseDeserializer deserializer);
+
+  @protected
+  FfiDownloadTaskStartResponse sse_decode_ffi_download_task_start_response(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiDownloadTaskState sse_decode_ffi_download_task_state(
+      SseDeserializer deserializer);
+
+  @protected
+  FfiDownloadTaskStatus sse_decode_ffi_download_task_status(
+      SseDeserializer deserializer);
 
   @protected
   FfiGoingSite sse_decode_ffi_going_site(SseDeserializer deserializer);
@@ -386,6 +402,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer);
@@ -499,10 +518,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       FfiCourseResourceDetailResponse self, SseSerializer serializer);
 
   @protected
-  void sse_encode_ffi_course_resource_download_response(
-      FfiCourseResourceDownloadResponse self, SseSerializer serializer);
-
-  @protected
   void sse_encode_ffi_course_resource_summary(
       FfiCourseResourceSummary self, SseSerializer serializer);
 
@@ -516,6 +531,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ffi_course_site(FfiCourseSite self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_download_task_start_response(
+      FfiDownloadTaskStartResponse self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_download_task_state(
+      FfiDownloadTaskState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ffi_download_task_status(
+      FfiDownloadTaskStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_ffi_going_site(FfiGoingSite self, SseSerializer serializer);
@@ -587,6 +614,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_64(BigInt self, SseSerializer serializer);
