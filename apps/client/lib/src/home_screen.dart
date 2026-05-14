@@ -1998,6 +1998,8 @@ class _AssignmentDetailCard extends ConsumerStatefulWidget {
 class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
   late final TextEditingController _draftController;
   String? _editingAssignmentId;
+  String _syncedDraftText = '';
+  bool _draftDirty = false;
 
   @override
   void initState() {
@@ -2022,11 +2024,14 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
     final detail = widget.state.assignmentDetail;
     final nextAssignmentId = detail?.id;
     final nextText = widget.state.assignmentDraft;
-    if (_editingAssignmentId == nextAssignmentId &&
-        _draftController.text == nextText) {
+    final assignmentChanged = _editingAssignmentId != nextAssignmentId;
+    final draftChanged = _syncedDraftText != nextText;
+    if (!assignmentChanged && (!draftChanged || _draftDirty)) {
       return;
     }
     _editingAssignmentId = nextAssignmentId;
+    _syncedDraftText = nextText;
+    _draftDirty = false;
     final oldSelection = _draftController.selection;
     _draftController.text = nextText;
     final offset = oldSelection.baseOffset.clamp(0, nextText.length);
@@ -2141,6 +2146,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                   !state.assignmentSubmitting &&
                   !state.assignmentUploading,
               controller: _draftController,
+              onChanged: (_) {
+                _draftDirty = true;
+              },
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
                 labelText: readOnly ? '提交内容（只读）' : '提交内容',

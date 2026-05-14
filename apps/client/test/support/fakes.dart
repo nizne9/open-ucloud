@@ -92,6 +92,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     List<Future<FfiCourseResourceDownloadResponse>>? resourceDownloadFutures,
     List<Future<FfiCourseResourceDownloadResponse>>?
     resourceDownloadCourseFutures,
+    List<Future<FfiDownloadTaskStatus>>? downloadTaskStatusFutures,
     List<FfiDownloadTaskStatus>? downloadTaskStatuses,
     List<FfiCourseResourcesResponse>? resourcesResponses,
     this.capabilitiesResponse = const FfiClientCapabilities(
@@ -108,6 +109,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
        resourceDownloadCourseFutures = List.of(
          resourceDownloadCourseFutures ?? [],
        ),
+       downloadTaskStatusFutures = List.of(downloadTaskStatusFutures ?? []),
        downloadTaskStatuses = List.of(downloadTaskStatuses ?? []),
        resourcesResponses = List.of(resourcesResponses ?? []);
 
@@ -137,6 +139,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final List<Future<FfiCourseResourceDownloadResponse>> resourceDownloadFutures;
   final List<Future<FfiCourseResourceDownloadResponse>>
   resourceDownloadCourseFutures;
+  final List<Future<FfiDownloadTaskStatus>> downloadTaskStatusFutures;
   final List<FfiDownloadTaskStatus> downloadTaskStatuses;
   final List<FfiCourseResourcesResponse> resourcesResponses;
   final FfiClientCapabilities capabilitiesResponse;
@@ -150,6 +153,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   String? lastCourseAssignmentsSiteId;
   String? lastResourcesSiteId;
   List<String> submittedAttachmentIds = const [];
+  int downloadTaskStatusCalls = 0;
 
   @override
   Future<void> init() async {
@@ -448,6 +452,10 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   Future<FfiDownloadTaskStatus> downloadTaskStatus({
     required String taskId,
   }) async {
+    downloadTaskStatusCalls += 1;
+    if (downloadTaskStatusFutures.isNotEmpty) {
+      return downloadTaskStatusFutures.removeAt(0);
+    }
     if (downloadTaskStatuses.isNotEmpty) {
       return downloadTaskStatuses.removeAt(0);
     }

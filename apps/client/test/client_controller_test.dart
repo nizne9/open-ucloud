@@ -608,6 +608,79 @@ void main() {
     expect(container.read(clientControllerProvider).operationMessage, isNull);
   });
 
+  test('does not overlap slow download status polls', () async {
+    final storage = MemorySessionStorage('payload');
+    final firstStatus = Completer<FfiDownloadTaskStatus>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailResponse: const FfiCourseResourceDetailResponse(
+        detail: FfiCourseResourceDetail(
+          name: '课件.pdf',
+          resourceId: 'resource-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      ),
+      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/课件.pdf'],
+      ),
+      downloadTaskStatusFutures: [firstStatus.future],
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+    controller.selectTab(ClientTab.resources);
+
+    await controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '课件.pdf',
+        resourceId: 'resource-1',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    final task = controller.downloadResource('/tmp/课件.pdf');
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+
+    expect(gateway.downloadTaskStatusCalls, 1);
+
+    firstStatus.complete(
+      FfiDownloadTaskStatus(
+        taskId: 'task',
+        state: FfiDownloadTaskState.succeeded,
+        current: 1,
+        total: 1,
+        bytesDownloaded: BigInt.zero,
+        writtenPaths: ['/tmp/课件.pdf'],
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+      ),
+    );
+    await task;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadedPaths, ['/tmp/课件.pdf']);
+    expect(state.errorMessage, isNull);
+  });
+
   test('single resource download ignores stale selection', () async {
     final storage = MemorySessionStorage('payload');
     final download = Completer<FfiCourseResourceDownloadResponse>();

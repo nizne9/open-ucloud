@@ -307,6 +307,7 @@ final clientControllerProvider =
 class ClientController extends Notifier<ClientState> {
   int _assignmentListGeneration = 0;
   int _resourceDownloadGeneration = 0;
+  bool _resourceDownloadPollInFlight = false;
   Timer? _resourceDownloadPollTimer;
 
   @override
@@ -1372,7 +1373,7 @@ class ClientController extends Notifier<ClientState> {
       const Duration(milliseconds: 300),
       (timer) {
         unawaited(
-          _pollResourceDownloadTask(
+          _pollResourceDownloadTaskIfIdle(
             taskId,
             downloadGeneration,
             context,
@@ -1381,12 +1382,34 @@ class ClientController extends Notifier<ClientState> {
         );
       },
     );
-    await _pollResourceDownloadTask(
+    await _pollResourceDownloadTaskIfIdle(
       taskId,
       downloadGeneration,
       context,
       isStillCurrent: isStillCurrent,
     );
+  }
+
+  Future<void> _pollResourceDownloadTaskIfIdle(
+    String taskId,
+    int downloadGeneration,
+    OperationContext context, {
+    required bool Function() isStillCurrent,
+  }) async {
+    if (_resourceDownloadPollInFlight) {
+      return;
+    }
+    _resourceDownloadPollInFlight = true;
+    try {
+      await _pollResourceDownloadTask(
+        taskId,
+        downloadGeneration,
+        context,
+        isStillCurrent: isStillCurrent,
+      );
+    } finally {
+      _resourceDownloadPollInFlight = false;
+    }
   }
 
   Future<void> _pollResourceDownloadTask(

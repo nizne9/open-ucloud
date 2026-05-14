@@ -857,6 +857,91 @@ void main() {
     expect(find.text('2. 使用 BERT 进行微调。'), findsOneWidget);
   });
 
+  testWidgets('assignment draft survives unrelated detail state changes', (
+    tester,
+  ) async {
+    final upload = Completer<FfiAssignmentUploadResponse>();
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(
+          FakeOpenCloudGateway(
+            session: _session(),
+            undoneAssignmentsResponse: const FfiAssignmentListResponse(
+              records: [
+                FfiAssignmentSummary(
+                  endTime: '2026-05-03 23:59:59',
+                  id: 'work-1',
+                  siteId: 'site-1',
+                  siteName: '机器学习',
+                  source: 'undone',
+                  startTime: '',
+                  status: FfiAssignmentStatus.pending,
+                  title: '草稿作业',
+                ),
+              ],
+            ),
+            assignmentDetailResponse: const FfiAssignmentDetailResponse(
+              className: '',
+              comment: '',
+              content: '',
+              endTime: '2026-05-03 23:59:59',
+              id: 'work-1',
+              isOvertimeCommit: false,
+              siteId: 'site-1',
+              siteName: '机器学习',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              submittedAt: '',
+              submittedAttachments: [],
+              submittedContent: '',
+              teacherResources: [],
+              title: '草稿作业',
+            ),
+            assignmentUploadFuture: upload.future,
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('草稿作业'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '本地输入的草稿');
+    await tester.pump();
+
+    final uploadTask = container
+        .read(clientControllerProvider.notifier)
+        .uploadAssignmentAttachment('/tmp/report.pdf');
+    await tester.pump();
+
+    expect(find.text('本地输入的草稿'), findsOneWidget);
+
+    upload.complete(
+      const FfiAssignmentUploadResponse(
+        assignmentId: 'work-1',
+        fileName: 'report.pdf',
+        resourceId: 'resource-1',
+        siteId: 'site-1',
+        siteName: '机器学习',
+      ),
+    );
+    await uploadTask;
+  });
+
   testWidgets('narrow assignment detail has a back path to the list', (
     tester,
   ) async {
