@@ -2141,7 +2141,6 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                   !state.assignmentSubmitting &&
                   !state.assignmentUploading,
               controller: _draftController,
-              onChanged: controller.updateAssignmentDraft,
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
                 labelText: readOnly ? '提交内容（只读）' : '提交内容',
@@ -2207,7 +2206,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                                 '附件：${state.assignmentAttachments.length} 个',
                           );
                           if (ok) {
-                            await controller.submitAssignmentDraft();
+                            await controller.submitAssignmentDraft(
+                              _draftController.text,
+                            );
                           }
                         },
                   icon: const Icon(Icons.send_outlined),
@@ -2397,6 +2398,22 @@ String _selectedResourceCourseName(ClientState state) {
   return '当前课程';
 }
 
+String _resourceDownloadStatusText(ClientState state) {
+  final progress = state.resourceDownloadProgressTotal == 0
+      ? '正在准备下载'
+      : '正在下载 ${state.resourceDownloadProgressCurrent} / ${state.resourceDownloadProgressTotal} 个文件';
+  final fileName = state.resourceDownloadCurrentFileName;
+  final bytes = state.resourceDownloadBytes <= 0
+      ? null
+      : _formatBytes(BigInt.from(state.resourceDownloadBytes));
+  final fileNameText = fileName?.trim();
+  final details = [
+    ?(fileNameText == null || fileNameText.isEmpty ? null : fileNameText),
+    ?bytes,
+  ];
+  return details.isEmpty ? progress : '$progress · ${details.join(' · ')}';
+}
+
 String _formatBytes(BigInt bytes) {
   final value = bytes.toDouble();
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -2583,11 +2600,20 @@ class _ResourcesPane extends ConsumerWidget {
       ),
       if (state.resourceDownloading) ...[
         const SizedBox(height: 12),
-        Text(
-          state.resourceDownloadProgressTotal == 0
-              ? '正在准备下载'
-              : '正在下载 ${state.resourceDownloadProgressCurrent} / ${state.resourceDownloadProgressTotal} 个文件',
-          style: Theme.of(context).textTheme.bodySmall,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _resourceDownloadStatusText(state),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () => controller.cancelActiveResourceDownload(),
+              icon: const Icon(Icons.close),
+              label: const Text('取消'),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         LinearProgressIndicator(
@@ -2604,17 +2630,24 @@ class _ResourcesPane extends ConsumerWidget {
         const _EmptyText(icon: Icons.folder_off_outlined, label: '当前课程暂无资料'),
       ] else ...[
         const SizedBox(height: 12),
-        for (final resource in state.resources)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              selected: state.selectedResourceId == resource.resourceId,
-              leading: const Icon(Icons.insert_drive_file_outlined),
-              title: Text(resource.name),
-              subtitle: Text(_resourceSummaryText(resource)),
-              onTap: () => controller.selectResource(resource),
-            ),
-          ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: state.resources.length,
+          itemBuilder: (context, index) {
+            final resource = state.resources[index];
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                selected: state.selectedResourceId == resource.resourceId,
+                leading: const Icon(Icons.insert_drive_file_outlined),
+                title: Text(resource.name),
+                subtitle: Text(_resourceSummaryText(resource)),
+                onTap: () => controller.selectResource(resource),
+              ),
+            );
+          },
+        ),
       ],
     ];
   }

@@ -72,7 +72,7 @@ abstract interface class OpenCloudGateway {
     required String siteName,
   });
 
-  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse> resourceDownload({
+  Future<open_cloud_ffi.FfiDownloadTaskStartResponse> resourceDownloadStart({
     required String sessionPayload,
     required String resourceId,
     required String siteId,
@@ -80,12 +80,24 @@ abstract interface class OpenCloudGateway {
     required String outputPath,
   });
 
-  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse>
-  resourceDownloadCourse({
+  Future<open_cloud_ffi.FfiDownloadTaskStartResponse>
+  resourceDownloadCourseStart({
     required String sessionPayload,
     required String siteId,
     required String siteName,
     required String outputDir,
+  });
+
+  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskStatus({
+    required String taskId,
+  });
+
+  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskCancel({
+    required String taskId,
+  });
+
+  Future<open_cloud_ffi.FfiLogoutResponse> downloadTaskDispose({
+    required String taskId,
   });
 
   Future<open_cloud_ffi.FfiLogoutResponse> logout();
@@ -244,14 +256,14 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse> resourceDownload({
+  Future<open_cloud_ffi.FfiDownloadTaskStartResponse> resourceDownloadStart({
     required String sessionPayload,
     required String resourceId,
     required String siteId,
     required String siteName,
     required String outputPath,
   }) {
-    return open_cloud_ffi.resourceDownload(
+    return open_cloud_ffi.resourceDownloadStart(
       sessionPayload: sessionPayload,
       resourceId: resourceId,
       siteId: siteId,
@@ -261,19 +273,40 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiCourseResourceDownloadResponse>
-  resourceDownloadCourse({
+  Future<open_cloud_ffi.FfiDownloadTaskStartResponse>
+  resourceDownloadCourseStart({
     required String sessionPayload,
     required String siteId,
     required String siteName,
     required String outputDir,
   }) {
-    return open_cloud_ffi.resourceDownloadCourse(
+    return open_cloud_ffi.resourceDownloadCourseStart(
       sessionPayload: sessionPayload,
       siteId: siteId,
       siteName: siteName,
       outputDir: outputDir,
     );
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskStatus({
+    required String taskId,
+  }) {
+    return open_cloud_ffi.downloadTaskStatus(taskId: taskId);
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskCancel({
+    required String taskId,
+  }) {
+    return open_cloud_ffi.downloadTaskCancel(taskId: taskId);
+  }
+
+  @override
+  Future<open_cloud_ffi.FfiLogoutResponse> downloadTaskDispose({
+    required String taskId,
+  }) {
+    return open_cloud_ffi.downloadTaskDispose(taskId: taskId);
   }
 
   @override

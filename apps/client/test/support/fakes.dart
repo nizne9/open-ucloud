@@ -29,6 +29,34 @@ class MemorySessionStorage implements OpenCloudSessionStorage {
   }
 }
 
+FfiDownloadTaskStatus _succeededDownloadStatus(
+  String taskId,
+  FfiCourseResourceDownloadResponse response,
+) {
+  return FfiDownloadTaskStatus(
+    taskId: taskId,
+    state: FfiDownloadTaskState.succeeded,
+    current: response.writtenPaths.length,
+    total: response.records.length,
+    bytesDownloaded: BigInt.zero,
+    writtenPaths: response.writtenPaths,
+    records: response.records,
+    updatedSessionPayload: response.updatedSessionPayload,
+  );
+}
+
+class FfiCourseResourceDownloadResponse {
+  const FfiCourseResourceDownloadResponse({
+    required this.records,
+    required this.writtenPaths,
+    this.updatedSessionPayload,
+  });
+
+  final List<FfiCourseResourceDetail> records;
+  final List<String> writtenPaths;
+  final String? updatedSessionPayload;
+}
+
 class FakeOpenCloudGateway implements OpenCloudGateway {
   FakeOpenCloudGateway({
     this.authStartResponse,
@@ -64,6 +92,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     List<Future<FfiCourseResourceDownloadResponse>>? resourceDownloadFutures,
     List<Future<FfiCourseResourceDownloadResponse>>?
     resourceDownloadCourseFutures,
+    List<FfiDownloadTaskStatus>? downloadTaskStatuses,
     List<FfiCourseResourcesResponse>? resourcesResponses,
     this.capabilitiesResponse = const FfiClientCapabilities(
       selfAttendance: false,
@@ -79,6 +108,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
        resourceDownloadCourseFutures = List.of(
          resourceDownloadCourseFutures ?? [],
        ),
+       downloadTaskStatuses = List.of(downloadTaskStatuses ?? []),
        resourcesResponses = List.of(resourcesResponses ?? []);
 
   final FfiAuthSessionResponse? session;
@@ -107,6 +137,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final List<Future<FfiCourseResourceDownloadResponse>> resourceDownloadFutures;
   final List<Future<FfiCourseResourceDownloadResponse>>
   resourceDownloadCourseFutures;
+  final List<FfiDownloadTaskStatus> downloadTaskStatuses;
   final List<FfiCourseResourcesResponse> resourcesResponses;
   final FfiClientCapabilities capabilitiesResponse;
   final Object? capabilitiesError;
@@ -357,38 +388,102 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<FfiCourseResourceDownloadResponse> resourceDownload({
+  Future<FfiDownloadTaskStartResponse> resourceDownloadStart({
     required String sessionPayload,
     required String resourceId,
     required String siteId,
     required String siteName,
     required String outputPath,
   }) async {
-    if (resourceDownloadFutures.isNotEmpty) {
-      return resourceDownloadFutures.removeAt(0);
-    }
-    final future = resourceDownloadFuture;
-    if (future != null) {
-      return future;
-    }
-    return resourceDownloadResponse;
+    final taskId = 'download-${DateTime.now().microsecondsSinceEpoch}';
+    final response = resourceDownloadFutures.isNotEmpty
+        ? await resourceDownloadFutures.removeAt(0)
+        : resourceDownloadFuture != null
+        ? await resourceDownloadFuture!
+        : resourceDownloadResponse;
+    downloadTaskStatuses.add(_succeededDownloadStatus(taskId, response));
+    return FfiDownloadTaskStartResponse(
+      taskId: taskId,
+      status: FfiDownloadTaskStatus(
+        taskId: taskId,
+        state: FfiDownloadTaskState.running,
+        current: 0,
+        total: response.records.isEmpty ? 1 : response.records.length,
+        bytesDownloaded: BigInt.zero,
+        writtenPaths: const [],
+        records: const [],
+      ),
+    );
   }
 
   @override
-  Future<FfiCourseResourceDownloadResponse> resourceDownloadCourse({
+  Future<FfiDownloadTaskStartResponse> resourceDownloadCourseStart({
     required String sessionPayload,
     required String siteId,
     required String siteName,
     required String outputDir,
   }) async {
-    if (resourceDownloadCourseFutures.isNotEmpty) {
-      return resourceDownloadCourseFutures.removeAt(0);
+    final taskId = 'download-course-${DateTime.now().microsecondsSinceEpoch}';
+    final response = resourceDownloadCourseFutures.isNotEmpty
+        ? await resourceDownloadCourseFutures.removeAt(0)
+        : resourceDownloadCourseFuture != null
+        ? await resourceDownloadCourseFuture!
+        : resourceDownloadResponse;
+    downloadTaskStatuses.add(_succeededDownloadStatus(taskId, response));
+    return FfiDownloadTaskStartResponse(
+      taskId: taskId,
+      status: FfiDownloadTaskStatus(
+        taskId: taskId,
+        state: FfiDownloadTaskState.running,
+        current: 0,
+        total: response.records.length,
+        bytesDownloaded: BigInt.zero,
+        writtenPaths: const [],
+        records: const [],
+      ),
+    );
+  }
+
+  @override
+  Future<FfiDownloadTaskStatus> downloadTaskStatus({
+    required String taskId,
+  }) async {
+    if (downloadTaskStatuses.isNotEmpty) {
+      return downloadTaskStatuses.removeAt(0);
     }
-    final future = resourceDownloadCourseFuture;
-    if (future != null) {
-      return future;
-    }
-    return resourceDownloadResponse;
+    return FfiDownloadTaskStatus(
+      taskId: taskId,
+      state: FfiDownloadTaskState.succeeded,
+      current: 0,
+      total: 0,
+      bytesDownloaded: BigInt.zero,
+      writtenPaths: const [],
+      records: const [],
+    );
+  }
+
+  @override
+  Future<FfiDownloadTaskStatus> downloadTaskCancel({
+    required String taskId,
+  }) async {
+    downloadTaskStatuses.clear();
+    return FfiDownloadTaskStatus(
+      taskId: taskId,
+      state: FfiDownloadTaskState.cancelled,
+      current: 0,
+      total: 0,
+      bytesDownloaded: BigInt.zero,
+      writtenPaths: const [],
+      records: const [],
+      errorMessage: '下载已取消。',
+    );
+  }
+
+  @override
+  Future<FfiLogoutResponse> downloadTaskDispose({
+    required String taskId,
+  }) async {
+    return const FfiLogoutResponse(clearSession: false);
   }
 
   @override

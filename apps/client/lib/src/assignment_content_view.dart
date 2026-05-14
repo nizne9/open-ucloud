@@ -4,15 +4,35 @@ import 'package:html/parser.dart' as html_parser;
 
 const _assignmentLineBreakMarker = '\u{E000}';
 
-class AssignmentContentView extends StatelessWidget {
+class AssignmentContentView extends StatefulWidget {
   const AssignmentContentView({super.key, required this.content});
 
   final String content;
 
   @override
+  State<AssignmentContentView> createState() => _AssignmentContentViewState();
+}
+
+class _AssignmentContentViewState extends State<AssignmentContentView> {
+  late List<_AssignmentContentBlock> _blocks;
+
+  @override
+  void initState() {
+    super.initState();
+    _blocks = _parseAssignmentContent(widget.content);
+  }
+
+  @override
+  void didUpdateWidget(covariant AssignmentContentView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.content != widget.content) {
+      _blocks = _parseAssignmentContent(widget.content);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final blocks = _parseAssignmentContent(content);
-    if (blocks.isEmpty) {
+    if (_blocks.isEmpty) {
       return const SizedBox.shrink();
     }
     return ConstrainedBox(
@@ -30,7 +50,7 @@ class AssignmentContentView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final block in blocks) _AssignmentContentBlockView(block),
+              for (final block in _blocks) _AssignmentContentBlockView(block),
             ],
           ),
         ),
