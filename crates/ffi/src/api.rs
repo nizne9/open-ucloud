@@ -1,3 +1,4 @@
+use futures_util::stream::{self, StreamExt};
 use open_cloud_api::{AuthErrorCode, AuthErrorResponse};
 use open_cloud_core::{
     client_capabilities, parse_attendance_qr_payload, refresh_session_if_needed,
@@ -19,6 +20,7 @@ const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
     "ins", "iso", "jar", "js", "jse", "lnk", "msc", "msi", "msp", "mst", "pif", "scr", "sh", "vb",
     "vbe", "vbs", "ws", "wsc", "wsf", "wsh",
 ];
+const COURSE_DOWNLOAD_CONCURRENCY: usize = 4;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1112,19 +1114,29 @@ async fn resource_download_course_task(
         status.total = list.records.len() as u32;
         status.updated_session_payload = updated_session_payload.clone();
     });
-    for resource in list.records {
+    let details = stream::iter(list.records)
+        .map(|resource| {
+            let client = client.clone();
+            let site_id = site_id.clone();
+            let site_name = site_name.clone();
+            let access_token = session.access_token.clone();
+            async move {
+                client
+                    .get_resource_detail(&resource.resource_id, &site_id, &site_name, &access_token)
+                    .await
+                    .map_err(to_ffi_error)
+            }
+        })
+        .buffered(COURSE_DOWNLOAD_CONCURRENCY)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for detail in details {
         if task.cancel.is_cancelled() {
             return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
         }
-        let detail = client
-            .get_resource_detail(
-                &resource.resource_id,
-                &site_id,
-                &site_name,
-                &session.access_token,
-            )
-            .await
-            .map_err(to_ffi_error)?;
         update_download_status(&task, |status| {
             status.current_file_name = Some(detail.name.clone());
             status.records.push(detail.clone().into());

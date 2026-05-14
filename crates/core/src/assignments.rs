@@ -1,6 +1,7 @@
 use crate::protocol::{parse_ucloud_envelope, value_to_string};
 use crate::resources::{portal_json_headers, raw_resource_id, RawResourceDetail};
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
+use futures_util::stream::{self, StreamExt};
 use open_cloud_api::{
     AssignmentDetailResponse, AssignmentListResponse, AssignmentResource, AssignmentStatus,
     AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse, AuthErrorCode,
@@ -10,6 +11,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
 const MAX_ASSIGNMENT_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
+const PREVIEW_URL_CONCURRENCY: usize = 4;
 const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
     "ade", "adp", "apk", "app", "bat", "bin", "cmd", "com", "cpl", "dll", "dmg", "exe", "hta",
     "ins", "iso", "jar", "js", "jse", "lnk", "msc", "msi", "msp", "mst", "pif", "scr", "sh", "vb",
@@ -267,24 +269,28 @@ where
         resources: Vec<RawResourceDetail>,
         access_token: &str,
     ) -> Result<Vec<AssignmentResource>, AuthError> {
-        let mut output = Vec::new();
-        for detail in resources {
-            let Some(resource_id) = raw_resource_id(&detail) else {
-                continue;
-            };
-            let preview_url = self
-                .get_resource_download_url(&resource_id, access_token)
-                .await?;
-            output.push(AssignmentResource {
-                ext: detail.ext,
-                name: pick_string([detail.name, detail.file_name, Some(resource_id.clone())])
-                    .unwrap_or_default(),
-                preview_url,
-                resource_id,
-                storage_id: detail.storage_id,
-            });
-        }
-        Ok(output)
+        stream::iter(resources)
+            .filter_map(|detail| async move {
+                raw_resource_id(&detail).map(|resource_id| (detail, resource_id))
+            })
+            .map(|(detail, resource_id)| async move {
+                let preview_url = self
+                    .get_resource_download_url(&resource_id, access_token)
+                    .await?;
+                Ok(AssignmentResource {
+                    ext: detail.ext,
+                    name: pick_string([detail.name, detail.file_name, Some(resource_id.clone())])
+                        .unwrap_or_default(),
+                    preview_url,
+                    resource_id,
+                    storage_id: detail.storage_id,
+                })
+            })
+            .buffered(PREVIEW_URL_CONCURRENCY)
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect()
     }
 }
 
