@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use open_cloud_api::{AssignmentDetailResponse, AssignmentStatus, AuthErrorCode};
 use open_cloud_core::{
-    AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, HttpResponse, OpenCloudClient,
-    OpenCloudEndpoints,
+    AuthError, DownloadCancelFlag, DownloadProgress, HttpBody, HttpClient, HttpMethod, HttpRequest,
+    HttpResponse, OpenCloudClient, OpenCloudEndpoints,
 };
 use std::collections::VecDeque;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Default)]
@@ -604,4 +605,92 @@ async fn download_url_bytes_follows_download_redirects() {
     let requests = http.requests();
     assert_eq!(requests.len(), 2);
     assert_eq!(requests[1].url, "https://files.example/object/resource-1");
+}
+
+#[tokio::test]
+async fn download_url_to_path_streams_redirected_body_to_partial_then_renames() {
+    let http = MockHttp::with(vec![
+        response_with_headers(302, &[("Location", "/object/resource-1")], ""),
+        response(200, "file bytes"),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let path = temp_download_path("streamed-resource.txt");
+    let _ = std::fs::remove_file(&path);
+    let bytes_seen = Arc::new(Mutex::new(0_u64));
+    let progress = {
+        let bytes_seen = bytes_seen.clone();
+        DownloadProgress::new(move |bytes| {
+            *bytes_seen.lock().expect("progress lock") += bytes;
+        })
+    };
+
+    let written = client
+        .download_url_to_path(
+            "https://files.example/download/resource-1",
+            &path,
+            progress,
+            DownloadCancelFlag::new(),
+        )
+        .await
+        .expect("download writes target");
+
+    assert_eq!(written, path);
+    assert_eq!(
+        std::fs::read(&path).expect("downloaded file"),
+        b"file bytes"
+    );
+    assert_eq!(*bytes_seen.lock().expect("progress lock"), 10);
+    assert!(!partial_files_for(&path)
+        .into_iter()
+        .any(|path| path.exists()));
+    let _ = std::fs::remove_file(&path);
+}
+
+#[tokio::test]
+async fn download_url_to_path_removes_partial_when_cancelled_before_request() {
+    let http = MockHttp::with(vec![response(200, "file bytes")]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let path = temp_download_path("cancelled-resource.txt");
+    let _ = std::fs::remove_file(&path);
+    let cancel = DownloadCancelFlag::new();
+    cancel.cancel();
+
+    let error = client
+        .download_url_to_path(
+            "https://files.example/download/resource-1",
+            &path,
+            DownloadProgress::default(),
+            cancel,
+        )
+        .await
+        .expect_err("download is cancelled");
+
+    assert_eq!(error.code, AuthErrorCode::UnknownAuthError);
+    assert!(!path.exists());
+    assert!(partial_files_for(&path).is_empty());
+    assert!(http.requests().is_empty());
+}
+
+fn temp_download_path(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("open-ucloud-{}-{name}", std::process::id()))
+}
+
+fn partial_files_for(target: &std::path::Path) -> Vec<PathBuf> {
+    let parent = target.parent().expect("target parent");
+    let file_name = target
+        .file_name()
+        .and_then(|value| value.to_str())
+        .expect("target file name");
+    std::fs::read_dir(parent)
+        .expect("temp dir")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .is_some_and(|name| {
+                    name.starts_with(&format!(".{file_name}.")) && name.ends_with(".part")
+                })
+        })
+        .collect()
 }

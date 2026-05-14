@@ -1,8 +1,15 @@
 use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
-use crate::{AuthError, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
-use open_cloud_api::{CourseResourceDetail, CourseResourceSummary, CourseResourcesResponse};
+use crate::{
+    AuthError, DownloadCancelFlag, DownloadProgress, HttpClient, HttpMethod, HttpRequest,
+    OpenCloudClient,
+};
+use open_cloud_api::{
+    AuthErrorCode, CourseResourceDetail, CourseResourceSummary, CourseResourcesResponse,
+};
 use serde::Deserialize;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
 const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
 const MAX_DOWNLOAD_REDIRECTS: usize = 10;
@@ -123,6 +130,72 @@ where
         Err(AuthError::upstream("资料下载重定向次数过多。"))
     }
 
+    pub async fn download_url_to_path(
+        &self,
+        url: &str,
+        target_path: &Path,
+        progress: DownloadProgress,
+        cancel: DownloadCancelFlag,
+    ) -> Result<PathBuf, AuthError> {
+        let parent = target_path.parent().unwrap_or_else(|| Path::new("."));
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        let partial_path = partial_download_path(target_path);
+        let mut next_url = url.to_string();
+        for _ in 0..=MAX_DOWNLOAD_REDIRECTS {
+            if cancel.is_cancelled() {
+                cleanup_partial(&partial_path).await;
+                return Err(AuthError::new(
+                    AuthErrorCode::UnknownAuthError,
+                    "下载已取消。",
+                ));
+            }
+            let response = self
+                .http
+                .download_to_path(
+                    HttpRequest {
+                        method: HttpMethod::Get,
+                        url: next_url.clone(),
+                        headers: Vec::new(),
+                        body: None,
+                    },
+                    &partial_path,
+                    progress.clone(),
+                    cancel.clone(),
+                )
+                .await;
+            let response = match response {
+                Ok(response) => response,
+                Err(error) => {
+                    cleanup_partial(&partial_path).await;
+                    return Err(error);
+                }
+            };
+            if (200..300).contains(&response.status) {
+                tokio::fs::rename(&partial_path, target_path)
+                    .await
+                    .map_err(|error| AuthError::upstream(error.to_string()))?;
+                return Ok(target_path.to_path_buf());
+            }
+            cleanup_partial(&partial_path).await;
+            if is_download_redirect(response.status) {
+                let location = response
+                    .header("Location")
+                    .ok_or_else(|| AuthError::upstream("资料下载重定向缺少 Location。"))?
+                    .to_string();
+                next_url = resolve_download_redirect(&next_url, &location)?;
+                continue;
+            }
+            return Err(AuthError::upstream(format!(
+                "资料下载失败。 HTTP status {}.",
+                response.status
+            )));
+        }
+        cleanup_partial(&partial_path).await;
+        Err(AuthError::upstream("资料下载重定向次数过多。"))
+    }
+
     pub(crate) async fn get_resource_details_by_ids(
         &self,
         resource_ids: &[String],
@@ -184,6 +257,19 @@ where
                 .unwrap_or_default(),
         })
     }
+}
+
+fn partial_download_path(target_path: &Path) -> PathBuf {
+    let file_name = target_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("download");
+    target_path.with_file_name(format!(".{file_name}.{}.part", Uuid::new_v4()))
+}
+
+async fn cleanup_partial(path: &Path) {
+    let _ = tokio::fs::remove_file(path).await;
 }
 
 fn is_download_redirect(status: u16) -> bool {

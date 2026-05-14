@@ -18,5 +18,6 @@ pub use error::AuthError;
 pub use extensions::client_capabilities;
 pub use session::{refresh_session_if_needed, SessionManager};
 pub use transport::{
-    HttpBody, HttpClient, HttpMethod, HttpRequest, HttpResponse, ReqwestHttpClient,
+    DownloadCancelFlag, DownloadProgress, HttpBody, HttpClient, HttpMethod, HttpRequest,
+    HttpResponse, HttpResponseHead, ReqwestHttpClient,
 };

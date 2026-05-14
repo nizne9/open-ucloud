@@ -1,5 +1,13 @@
 use crate::AuthError;
 use async_trait::async_trait;
+use futures_util::StreamExt;
+use open_cloud_api::AuthErrorCode;
+use std::path::Path;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HttpMethod {
@@ -19,6 +27,46 @@ pub struct HttpRequest {
 pub enum HttpBody {
     Text(String),
     Bytes(Vec<u8>),
+}
+
+pub type DownloadProgressCallback = Arc<dyn Fn(u64) + Send + Sync + 'static>;
+
+#[derive(Clone, Default)]
+pub struct DownloadProgress {
+    callback: Option<DownloadProgressCallback>,
+}
+
+impl DownloadProgress {
+    pub fn new(callback: impl Fn(u64) + Send + Sync + 'static) -> Self {
+        Self {
+            callback: Some(Arc::new(callback)),
+        }
+    }
+
+    pub fn add(&self, bytes: u64) {
+        if let Some(callback) = &self.callback {
+            callback(bytes);
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct DownloadCancelFlag {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl DownloadCancelFlag {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
 }
 
 impl HttpBody {
@@ -59,9 +107,58 @@ impl HttpResponse {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HttpResponseHead {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+}
+
+impl HttpResponseHead {
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_str())
+    }
+}
+
 #[async_trait]
 pub trait HttpClient: Clone + Send + Sync + 'static {
     async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError>;
+
+    async fn download_to_path(
+        &self,
+        request: HttpRequest,
+        path: &Path,
+        progress: DownloadProgress,
+        cancel: DownloadCancelFlag,
+    ) -> Result<HttpResponseHead, AuthError> {
+        if cancel.is_cancelled() {
+            return Err(cancelled_error());
+        }
+        let response = self.send(request).await?;
+        if cancel.is_cancelled() {
+            return Err(cancelled_error());
+        }
+        let head = HttpResponseHead {
+            status: response.status,
+            headers: response.headers.clone(),
+        };
+        if !(200..300).contains(&response.status) {
+            return Ok(head);
+        }
+        let mut file = tokio::fs::File::create(path)
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        file.write_all(&response.body)
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        progress.add(response.body.len() as u64);
+        file.flush()
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        Ok(head)
+    }
 }
 
 #[derive(Clone, Default)]
@@ -122,4 +219,71 @@ impl HttpClient for ReqwestHttpClient {
             body,
         })
     }
+
+    async fn download_to_path(
+        &self,
+        request: HttpRequest,
+        path: &Path,
+        progress: DownloadProgress,
+        cancel: DownloadCancelFlag,
+    ) -> Result<HttpResponseHead, AuthError> {
+        if cancel.is_cancelled() {
+            return Err(cancelled_error());
+        }
+        let method = match request.method {
+            HttpMethod::Get => reqwest::Method::GET,
+            HttpMethod::Post => reqwest::Method::POST,
+        };
+        let mut builder = self.client.request(method, &request.url);
+        for (name, value) in &request.headers {
+            builder = builder.header(name, value);
+        }
+        if let Some(body) = request.body {
+            builder = match body {
+                HttpBody::Text(value) => builder.body(value),
+                HttpBody::Bytes(value) => builder.body(value),
+            };
+        }
+        let response = builder
+            .send()
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        let status = response.status().as_u16();
+        let headers = response
+            .headers()
+            .iter()
+            .filter_map(|(name, value)| {
+                value
+                    .to_str()
+                    .ok()
+                    .map(|value| (name.as_str().to_string(), value.to_string()))
+            })
+            .collect();
+        let head = HttpResponseHead { status, headers };
+        if !(200..300).contains(&status) {
+            return Ok(head);
+        }
+        let mut file = tokio::fs::File::create(path)
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            if cancel.is_cancelled() {
+                return Err(cancelled_error());
+            }
+            let chunk = chunk.map_err(|error| AuthError::upstream(error.to_string()))?;
+            file.write_all(&chunk)
+                .await
+                .map_err(|error| AuthError::upstream(error.to_string()))?;
+            progress.add(chunk.len() as u64);
+        }
+        file.flush()
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        Ok(head)
+    }
+}
+
+fn cancelled_error() -> AuthError {
+    AuthError::new(AuthErrorCode::UnknownAuthError, "下载已取消。")
 }
