@@ -3,6 +3,8 @@ import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
 
 const _assignmentLineBreakMarker = '\u{E000}';
+const _assignmentContentCacheLimit = 12;
+final _assignmentContentBlockCache = <String, List<_AssignmentContentBlock>>{};
 
 class AssignmentContentView extends StatefulWidget {
   const AssignmentContentView({super.key, required this.content});
@@ -19,14 +21,14 @@ class _AssignmentContentViewState extends State<AssignmentContentView> {
   @override
   void initState() {
     super.initState();
-    _blocks = _parseAssignmentContent(widget.content);
+    _blocks = _parseAssignmentContentCached(widget.content);
   }
 
   @override
   void didUpdateWidget(covariant AssignmentContentView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.content != widget.content) {
-      _blocks = _parseAssignmentContent(widget.content);
+      _blocks = _parseAssignmentContentCached(widget.content);
     }
   }
 
@@ -123,6 +125,24 @@ List<_AssignmentContentBlock> _parseAssignmentContent(String content) {
         ),
       ];
     }
+  }
+  return blocks;
+}
+
+List<_AssignmentContentBlock> _parseAssignmentContentCached(String content) {
+  final cached = _assignmentContentBlockCache.remove(content);
+  if (cached != null) {
+    _assignmentContentBlockCache[content] = cached;
+    return cached;
+  }
+  final blocks = List<_AssignmentContentBlock>.unmodifiable(
+    _parseAssignmentContent(content),
+  );
+  _assignmentContentBlockCache[content] = blocks;
+  if (_assignmentContentBlockCache.length > _assignmentContentCacheLimit) {
+    _assignmentContentBlockCache.remove(
+      _assignmentContentBlockCache.keys.first,
+    );
   }
   return blocks;
 }

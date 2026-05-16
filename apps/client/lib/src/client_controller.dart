@@ -1460,6 +1460,10 @@ class ClientController extends Notifier<ClientState> {
       return;
     }
 
+    if (!terminal && _matchesCurrentResourceDownloadStatus(status)) {
+      return;
+    }
+
     state = state.copyWith(
       resourceDownloading: !terminal,
       downloadedPaths: status.writtenPaths,
@@ -1490,6 +1494,30 @@ class ClientController extends Notifier<ClientState> {
 
   String _downloadMessage(int count) {
     return '已下载 $count 个资料文件';
+  }
+
+  bool _matchesCurrentResourceDownloadStatus(FfiDownloadTaskStatus status) {
+    return state.resourceDownloading &&
+        _stringListsEqual(state.downloadedPaths, status.writtenPaths) &&
+        state.resourceDownloadProgressCurrent == status.current &&
+        state.resourceDownloadProgressTotal == status.total &&
+        state.resourceDownloadBytes == status.bytesDownloaded.toInt() &&
+        state.resourceDownloadCurrentFileName == status.currentFileName;
+  }
+
+  bool _stringListsEqual(List<String> left, List<String> right) {
+    if (identical(left, right)) {
+      return true;
+    }
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> _loadCourses(

@@ -681,6 +681,105 @@ void main() {
     expect(state.errorMessage, isNull);
   });
 
+  test(
+    'skips repeated download progress state with no visible change',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        resourceDetailResponse: const FfiCourseResourceDetailResponse(
+          detail: FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ),
+        resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+          records: [
+            FfiCourseResourceDetail(
+              name: '课件.pdf',
+              resourceId: 'resource-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+          writtenPaths: ['/tmp/课件.pdf'],
+        ),
+        downloadTaskStatuses: [
+          FfiDownloadTaskStatus(
+            taskId: 'task',
+            state: FfiDownloadTaskState.running,
+            current: 0,
+            total: 1,
+            bytesDownloaded: BigInt.zero,
+            writtenPaths: const [],
+            records: const [],
+            currentFileName: '课件.pdf',
+          ),
+          FfiDownloadTaskStatus(
+            taskId: 'task',
+            state: FfiDownloadTaskState.running,
+            current: 1,
+            total: 1,
+            bytesDownloaded: BigInt.from(2048),
+            writtenPaths: const [],
+            records: const [],
+            currentFileName: '课件.pdf',
+          ),
+        ],
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      addTearDown(container.dispose);
+      final controller = container.read(clientControllerProvider.notifier);
+      controller.selectTab(ClientTab.resources);
+
+      await controller.selectResource(
+        const FfiCourseResourceSummary(
+          name: '课件.pdf',
+          resourceId: 'resource-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      );
+
+      var notifications = 0;
+      final subscription = container.listen<ClientState>(
+        clientControllerProvider,
+        (_, _) => notifications += 1,
+      );
+      addTearDown(subscription.close);
+
+      await controller.downloadResource('/tmp/课件.pdf');
+
+      expect(gateway.downloadTaskStatusCalls, 1);
+      expect(notifications, 2);
+      expect(
+        container.read(clientControllerProvider).resourceDownloading,
+        isTrue,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      var state = container.read(clientControllerProvider);
+      expect(gateway.downloadTaskStatusCalls, 2);
+      expect(notifications, 3);
+      expect(state.resourceDownloadProgressCurrent, 1);
+      expect(state.resourceDownloadBytes, 2048);
+
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      state = container.read(clientControllerProvider);
+      expect(gateway.downloadTaskStatusCalls, 3);
+      expect(state.resourceDownloading, isFalse);
+      expect(state.downloadedPaths, ['/tmp/课件.pdf']);
+      expect(state.operationMessage, '已下载 1 个资料文件');
+    },
+  );
+
   test('single resource download ignores stale selection', () async {
     final storage = MemorySessionStorage('payload');
     final download = Completer<FfiCourseResourceDownloadResponse>();
