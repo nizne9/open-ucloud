@@ -668,8 +668,7 @@ Future<bool> _selectClientTab(
     return false;
   }
   if (state.selectedTab == ClientTab.assignments) {
-    if (_hasUnsavedAssignmentChanges(state) &&
-        !await _confirmDiscardAssignmentChanges(context)) {
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
       return false;
     }
   } else if (state.selectedTab == ClientTab.resources &&
@@ -707,8 +706,7 @@ Future<void> _refreshCoursesWithGuards(
     return;
   }
   if (state.selectedTab == ClientTab.assignments) {
-    if (_hasUnsavedAssignmentChanges(state) &&
-        !await _confirmDiscardAssignmentChanges(context)) {
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
       return;
     }
   } else if (state.selectedTab == ClientTab.resources &&
@@ -790,7 +788,12 @@ Future<bool> _prepareForAssignmentContextChange(
   if (!_hasUnsavedAssignmentChanges(state)) {
     return true;
   }
-  return _confirmDiscardAssignmentChanges(context);
+  final discard = await _confirmDiscardAssignmentChanges(context);
+  if (!discard) {
+    return false;
+  }
+  ref.read(clientControllerProvider.notifier).clearAssignmentSelection();
+  return true;
 }
 
 Future<bool> _prepareForResourceContextChange(

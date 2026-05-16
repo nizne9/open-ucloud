@@ -1314,6 +1314,19 @@ void main() {
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(find.text('未提交答案'), findsOneWidget);
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('放弃未提交的修改？'), findsOneWidget);
+    await tester.tap(find.text('放弃修改'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('未提交答案'), findsNothing);
+    expect(find.text('返回作业列表'), findsNothing);
   });
 
   testWidgets('draft attachments are not shown as submitted attachments', (
