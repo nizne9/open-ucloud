@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data' as typed_data;
 
@@ -173,8 +174,11 @@ class _ClientNavigationBar extends ConsumerWidget {
     );
     return NavigationBar(
       selectedIndex: _destinationIndex(selectedTab),
-      onDestinationSelected: (index) =>
-          _selectClientTab(_clientDestinations[index].tab, ref),
+      onDestinationSelected: (index) {
+        unawaited(
+          _selectClientTab(_clientDestinations[index].tab, ref, context),
+        );
+      },
       destinations: [
         for (final destination in _clientDestinations)
           NavigationDestination(
@@ -199,7 +203,6 @@ class _AuthenticatedPane extends ConsumerWidget {
       builder: (context, constraints) {
         final content = switch (selectedTab) {
           ClientTab.dashboard => const _DashboardPane(),
-          ClientTab.courses => const _CoursePane(),
           ClientTab.assignments => const _AssignmentsPane(),
           ClientTab.resources => const _ResourcesPane(),
           ClientTab.account => const _AccountPane(),
@@ -228,7 +231,13 @@ class _AuthenticatedPane extends ConsumerWidget {
                 selectedIndex: _destinationIndex(selectedTab),
                 labelType: NavigationRailLabelType.all,
                 onDestinationSelected: (index) {
-                  _selectClientTab(_clientDestinations[index].tab, ref);
+                  unawaited(
+                    _selectClientTab(
+                      _clientDestinations[index].tab,
+                      ref,
+                      context,
+                    ),
+                  );
                 },
                 destinations: [
                   for (final destination in _clientDestinations)
@@ -302,8 +311,15 @@ class _SideNavigation extends ConsumerWidget {
                     selected:
                         navigationState.selectedTab ==
                         _clientDestinations[index].tab,
-                    onTap: () =>
-                        _selectClientTab(_clientDestinations[index].tab, ref),
+                    onTap: () {
+                      unawaited(
+                        _selectClientTab(
+                          _clientDestinations[index].tab,
+                          ref,
+                          context,
+                        ),
+                      );
+                    },
                   ),
                 ),
               const Spacer(),
@@ -526,7 +542,11 @@ class _WorkbenchFrame extends ConsumerWidget {
             destination: destination,
             compact: compact,
             themeMode: themeMode,
-            onRefresh: isBusy ? null : controller.refreshCourses,
+            onRefresh: isBusy
+                ? null
+                : () {
+                    unawaited(_refreshCoursesWithGuards(context, ref));
+                  },
             onLogout: isBusy ? null : controller.logout,
           ),
           Expanded(child: child),
@@ -633,25 +653,155 @@ class _WorkbenchTopBar extends StatelessWidget {
   }
 }
 
-void _selectClientTab(ClientTab tab, WidgetRef ref) {
+Future<bool> _selectClientTab(
+  ClientTab tab,
+  WidgetRef ref,
+  BuildContext context,
+) async {
   final controller = ref.read(clientControllerProvider.notifier);
   final state = ref.read(clientControllerProvider);
+  if (state.selectedTab == tab) {
+    return true;
+  }
+  if (state.selectedTab == ClientTab.assignments &&
+      !_canLeaveAssignmentDetail(state)) {
+    return false;
+  }
+  if (state.selectedTab == ClientTab.assignments) {
+    if (_hasUnsavedAssignmentChanges(state) &&
+        !await _confirmDiscardAssignmentChanges(context)) {
+      return false;
+    }
+  } else if (state.selectedTab == ClientTab.resources &&
+      state.resourceDownloading) {
+    if (!await _confirmCancelResourceDownload(context, ref)) {
+      return false;
+    }
+  }
   controller.selectTab(tab);
+  final nextState = ref.read(clientControllerProvider);
   if (tab == ClientTab.dashboard &&
-      !state.undoneAssignmentsLoaded &&
-      !state.assignmentsLoading) {
+      !nextState.undoneAssignmentsLoaded &&
+      !nextState.assignmentsLoading) {
     controller.loadUndoneAssignments(selectedTab: ClientTab.dashboard);
   }
   if (tab == ClientTab.assignments &&
-      !state.undoneAssignmentsLoaded &&
-      !state.assignmentsLoading) {
+      !nextState.undoneAssignmentsLoaded &&
+      !nextState.assignmentsLoading) {
     controller.loadUndoneAssignments();
   }
   if (tab == ClientTab.resources &&
-      state.resources.isEmpty &&
-      state.courses.isNotEmpty) {
-    controller.loadResourcesForCourse(state.courses.first.id);
+      nextState.resources.isEmpty &&
+      nextState.courses.isNotEmpty) {
+    controller.loadResourcesForCourse(nextState.courses.first.id);
   }
+  return true;
+}
+
+Future<void> _refreshCoursesWithGuards(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final state = ref.read(clientControllerProvider);
+  if (!_canLeaveAssignmentDetail(state)) {
+    return;
+  }
+  if (state.selectedTab == ClientTab.assignments) {
+    if (_hasUnsavedAssignmentChanges(state) &&
+        !await _confirmDiscardAssignmentChanges(context)) {
+      return;
+    }
+  } else if (state.selectedTab == ClientTab.resources &&
+      state.resourceDownloading) {
+    if (!await _confirmCancelResourceDownload(context, ref)) {
+      return;
+    }
+  }
+  await ref.read(clientControllerProvider.notifier).refreshCourses();
+}
+
+bool _canLeaveAssignmentDetail(ClientState state) {
+  return !state.assignmentUploading && !state.assignmentSubmitting;
+}
+
+bool _hasUnsavedAssignmentChanges(ClientState state) {
+  final detail = state.assignmentDetail;
+  if (detail == null) {
+    return false;
+  }
+  if (state.assignmentDraft != detail.submittedContent) {
+    return true;
+  }
+  if (state.assignmentAttachments.length !=
+      detail.submittedAttachments.length) {
+    return true;
+  }
+  for (var index = 0; index < state.assignmentAttachments.length; index += 1) {
+    final draft = state.assignmentAttachments[index];
+    final submitted = detail.submittedAttachments[index];
+    if (draft.name != submitted.name ||
+        draft.resourceId != submitted.resourceId ||
+        draft.previewUrl != submitted.previewUrl) {
+      return true;
+    }
+  }
+  return false;
+}
+
+Future<bool> _confirmDiscardAssignmentChanges(BuildContext context) {
+  return _confirm(
+    context,
+    title: '放弃未提交的修改？',
+    content: '当前作业的正文或附件还没有提交。继续后将丢弃这些本地修改。',
+    confirmLabel: '放弃修改',
+  );
+}
+
+Future<bool> _confirmCancelResourceDownload(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final ok = await _confirm(
+    context,
+    title: '取消当前下载？',
+    content: '当前资料下载还在进行。继续前需要先取消这个下载任务。',
+    confirmLabel: '取消下载',
+  );
+  if (!ok) {
+    return false;
+  }
+  final contextHint =
+      ref.read(clientControllerProvider).operationContext ??
+      OperationContext.resourceList;
+  await ref
+      .read(clientControllerProvider.notifier)
+      .cancelActiveResourceDownload(context: contextHint);
+  return true;
+}
+
+Future<bool> _prepareForAssignmentContextChange(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final state = ref.read(clientControllerProvider);
+  if (!_canLeaveAssignmentDetail(state)) {
+    return false;
+  }
+  if (!_hasUnsavedAssignmentChanges(state)) {
+    return true;
+  }
+  return _confirmDiscardAssignmentChanges(context);
+}
+
+Future<bool> _prepareForResourceContextChange(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final state = ref.read(clientControllerProvider);
+  if (!state.resourceDownloading) {
+    return true;
+  }
+  return _confirmCancelResourceDownload(context, ref);
 }
 
 class _LoginPane extends ConsumerStatefulWidget {
@@ -943,8 +1093,8 @@ class _DashboardStatsCard extends ConsumerWidget {
                   _MetricTile(
                     value: state.capabilities.attendanceQrPayloadParsing
                         ? '可解析'
-                        : '只读',
-                    label: '签到状态',
+                        : '不可用',
+                    label: '二维码文本',
                   ),
                 ],
               );
@@ -1081,7 +1231,7 @@ class _CourseContextRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      course.going ? '${course.id} · going' : course.id,
+                      course.going ? '${course.id} · 活动进行中' : course.id,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1187,7 +1337,14 @@ class _PendingAssignmentsCard extends ConsumerWidget {
                       ),
                       trailing: FilledButton.tonal(
                         onPressed: () async {
-                          controller.selectTab(ClientTab.assignments);
+                          final selected = await _selectClientTab(
+                            ClientTab.assignments,
+                            ref,
+                            context,
+                          );
+                          if (!selected) {
+                            return;
+                          }
                           await controller.selectAssignment(assignment);
                         },
                         child: const Text('继续提交'),
@@ -1243,7 +1400,14 @@ class _NextActionCard extends ConsumerWidget {
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: () async {
-                    controller.selectTab(ClientTab.assignments);
+                    final selected = await _selectClientTab(
+                      ClientTab.assignments,
+                      ref,
+                      context,
+                    );
+                    if (!selected) {
+                      return;
+                    }
                     await controller.selectAssignment(next);
                   },
                   icon: const Icon(Icons.arrow_forward),
@@ -1284,7 +1448,11 @@ class _AccountPane extends ConsumerWidget {
                 runSpacing: 8,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: state.isBusy ? null : controller.refreshCourses,
+                    onPressed: state.isBusy
+                        ? null
+                        : () {
+                            unawaited(_refreshCoursesWithGuards(context, ref));
+                          },
                     icon: const Icon(Icons.refresh),
                     label: const Text('同步课程'),
                   ),
@@ -1435,234 +1603,6 @@ void _openAttendanceQrDialog(BuildContext context, WidgetRef ref) {
   );
 }
 
-class _CoursePane extends ConsumerWidget {
-  const _CoursePane();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(clientControllerProvider);
-    final session = state.session;
-    final controller = ref.read(clientControllerProvider.notifier);
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        if (session != null)
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-            leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-            title: Text(session.user.realName),
-            subtitle: Text(_roleLabel(session.selectedRole)),
-          ),
-        if (state.errorMessage != null) ...[
-          const SizedBox(height: 8),
-          _ErrorBanner(message: state.errorMessage!),
-        ],
-        if (state.phase == ClientPhase.loadingCourses) ...[
-          const SizedBox(height: 24),
-          const _LoadingPane(label: '正在加载课程'),
-        ] else ...[
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '课程',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              if (state.capabilities.attendanceQrPayloadParsing)
-                OutlinedButton.icon(
-                  onPressed: () {
-                    ref
-                        .read(clientControllerProvider.notifier)
-                        .clearAttendanceQrPayloadParseState();
-                    showDialog<void>(
-                      context: context,
-                      builder: (_) => const _AttendanceQrPayloadDialog(),
-                    );
-                  },
-                  icon: const Icon(Icons.qr_code_scanner_outlined),
-                  label: const Text('解析二维码'),
-                ),
-            ],
-          ),
-          if (state.courses.isEmpty) ...[
-            const SizedBox(height: 48),
-            Icon(
-              Icons.inbox_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '暂无课程',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ] else ...[
-            const SizedBox(height: 8),
-            for (final course in state.courses)
-              _CourseCard(
-                course: course,
-                onAssignments: () =>
-                    controller.loadCourseAssignments(course.id),
-                onResources: () => controller.loadResourcesForCourse(course.id),
-              ),
-          ],
-        ],
-      ],
-    );
-  }
-
-  String _roleLabel(FfiRoleName role) {
-    return switch (role) {
-      FfiRoleName.student => '学生',
-      FfiRoleName.teacher => '教师',
-      FfiRoleName.assistant => '助教',
-    };
-  }
-}
-
-class _CourseCard extends StatelessWidget {
-  const _CourseCard({
-    required this.course,
-    required this.onAssignments,
-    required this.onResources,
-  });
-
-  final CourseItem course;
-  final VoidCallback onAssignments;
-  final VoidCallback onResources;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final stackActions = constraints.maxWidth < 520;
-          final courseSummary = Row(
-            children: [
-              Icon(
-                course.going
-                    ? Icons.radio_button_checked
-                    : Icons.menu_book_outlined,
-                color: course.going ? colorScheme.primary : colorScheme.outline,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      course.name,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        Text(
-                          course.id,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: colorScheme.onSurfaceVariant),
-                        ),
-                        if (course.going)
-                          _StatusPill(
-                            icon: Icons.notifications_active_outlined,
-                            label: '正在进行',
-                            color: colorScheme.primary,
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-          final actions = Wrap(
-            alignment: stackActions ? WrapAlignment.end : WrapAlignment.start,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: onAssignments,
-                icon: const Icon(Icons.assignment_outlined),
-                label: const Text('查看作业'),
-              ),
-              FilledButton.tonalIcon(
-                onPressed: onResources,
-                icon: const Icon(Icons.folder_outlined),
-                label: const Text('查看资料'),
-              ),
-            ],
-          );
-
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-            child: stackActions
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      courseSummary,
-                      const SizedBox(height: 12),
-                      actions,
-                    ],
-                  )
-                : Row(
-                    children: [
-                      Expanded(child: courseSummary),
-                      const SizedBox(width: 12),
-                      actions,
-                    ],
-                  ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: color),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _AttendanceQrPayloadDialog extends ConsumerStatefulWidget {
   const _AttendanceQrPayloadDialog();
 
@@ -1811,7 +1751,15 @@ class _AssignmentsPane extends ConsumerWidget {
                     onPressed:
                         state.assignmentUploading || state.assignmentSubmitting
                         ? null
-                        : controller.clearAssignmentSelection,
+                        : () async {
+                            if (!await _prepareForAssignmentContextChange(
+                              context,
+                              ref,
+                            )) {
+                              return;
+                            }
+                            controller.clearAssignmentSelection();
+                          },
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('返回作业列表'),
                   ),
@@ -1898,8 +1846,12 @@ class _AssignmentsPane extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           sliver: SliverList.builder(
             itemCount: state.assignments.length,
-            itemBuilder: (context, index) =>
-                _assignmentListItem(ref, state, state.assignments[index]),
+            itemBuilder: (context, index) => _assignmentListItem(
+              context,
+              ref,
+              state,
+              state.assignments[index],
+            ),
           ),
         ),
     ];
@@ -1910,7 +1862,6 @@ class _AssignmentsPane extends ConsumerWidget {
     WidgetRef ref,
     ClientState state,
   ) {
-    final controller = ref.read(clientControllerProvider.notifier);
     return [
       if (state.errorMessage != null) ...[
         _ErrorBanner(message: state.errorMessage!),
@@ -1935,11 +1886,10 @@ class _AssignmentsPane extends ConsumerWidget {
               selected: {state.assignmentView},
               onSelectionChanged: (selection) {
                 final next = selection.single;
-                if (next == AssignmentView.undone) {
-                  controller.loadUndoneAssignments();
-                } else if (state.courses.isNotEmpty) {
-                  controller.loadCourseAssignments(state.courses.first.id);
+                if (next == state.assignmentView) {
+                  return;
                 }
+                unawaited(_changeAssignmentView(context, ref, next));
               },
             ),
           ),
@@ -1948,18 +1898,7 @@ class _AssignmentsPane extends ConsumerWidget {
             onPressed: state.assignmentsLoading
                 ? null
                 : () {
-                    if (state.assignmentView == AssignmentView.undone) {
-                      controller.loadUndoneAssignments();
-                    } else {
-                      final siteId =
-                          state.selectedAssignmentCourseId ??
-                          (state.courses.isEmpty
-                              ? null
-                              : state.courses.first.id);
-                      if (siteId != null) {
-                        controller.loadCourseAssignments(siteId);
-                      }
-                    }
+                    unawaited(_refreshAssignments(context, ref));
                   },
             icon: const Icon(Icons.refresh),
           ),
@@ -1988,8 +1927,8 @@ class _AssignmentsPane extends ConsumerWidget {
               ),
           ],
           onChanged: (value) {
-            if (value != null) {
-              controller.loadCourseAssignments(value);
+            if (value != null && value != state.selectedAssignmentCourseId) {
+              unawaited(_loadCourseAssignmentsGuarded(context, ref, value));
             }
           },
         ),
@@ -1997,12 +1936,75 @@ class _AssignmentsPane extends ConsumerWidget {
     ];
   }
 
+  Future<void> _changeAssignmentView(
+    BuildContext context,
+    WidgetRef ref,
+    AssignmentView next,
+  ) async {
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
+      return;
+    }
+    final controller = ref.read(clientControllerProvider.notifier);
+    final state = ref.read(clientControllerProvider);
+    if (next == AssignmentView.undone) {
+      controller.loadUndoneAssignments();
+    } else if (state.courses.isNotEmpty) {
+      controller.loadCourseAssignments(state.courses.first.id);
+    }
+  }
+
+  Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
+      return;
+    }
+    final controller = ref.read(clientControllerProvider.notifier);
+    final currentState = ref.read(clientControllerProvider);
+    if (currentState.assignmentView == AssignmentView.undone) {
+      controller.loadUndoneAssignments();
+    } else {
+      final siteId =
+          currentState.selectedAssignmentCourseId ??
+          (currentState.courses.isEmpty ? null : currentState.courses.first.id);
+      if (siteId != null) {
+        controller.loadCourseAssignments(siteId);
+      }
+    }
+  }
+
+  Future<void> _loadCourseAssignmentsGuarded(
+    BuildContext context,
+    WidgetRef ref,
+    String siteId,
+  ) async {
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
+      return;
+    }
+    ref.read(clientControllerProvider.notifier).loadCourseAssignments(siteId);
+  }
+
+  Future<void> _selectAssignmentGuarded(
+    BuildContext context,
+    WidgetRef ref,
+    FfiAssignmentSummary assignment,
+  ) async {
+    final state = ref.read(clientControllerProvider);
+    if (state.selectedAssignmentId == assignment.id) {
+      return;
+    }
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
+      return;
+    }
+    await ref
+        .read(clientControllerProvider.notifier)
+        .selectAssignment(assignment);
+  }
+
   Widget _assignmentListItem(
+    BuildContext context,
     WidgetRef ref,
     ClientState state,
     FfiAssignmentSummary assignment,
   ) {
-    final controller = ref.read(clientControllerProvider.notifier);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -2012,7 +2014,9 @@ class _AssignmentsPane extends ConsumerWidget {
         subtitle: Text('${assignment.siteName}\n截止：${assignment.endTime}'),
         isThreeLine: true,
         trailing: Text(_assignmentStatusLabel(assignment.status)),
-        onTap: () => controller.selectAssignment(assignment),
+        onTap: () {
+          unawaited(_selectAssignmentGuarded(context, ref, assignment));
+        },
       ),
     );
   }
@@ -2104,6 +2108,8 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
     }
     final expired = detail.status == FfiAssignmentStatus.expired;
     final readOnly = expired;
+    final resubmitting = detail.status == FfiAssignmentStatus.submitted;
+    final submitLabel = resubmitting ? '重新提交' : '提交';
     final courseName = _assignmentCourseName(state, detail);
     final submittedAttachments = detail.submittedAttachments;
     return Card(
@@ -2199,8 +2205,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                   !state.assignmentSubmitting &&
                   !state.assignmentUploading,
               controller: _draftController,
-              onChanged: (_) {
+              onChanged: (value) {
                 _draftDirty = true;
+                controller.updateAssignmentDraft(value);
               },
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
@@ -2219,9 +2226,8 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
               runSpacing: 8,
               children: [
                 for (final attachment in state.assignmentAttachments)
-                  InputChip(
-                    avatar: const Icon(Icons.attach_file, size: 18),
-                    label: Text(attachment.name),
+                  _DraftAttachmentChip(
+                    attachment: attachment,
                     onDeleted: readOnly || state.assignmentSubmitting
                         ? null
                         : () => controller.removeAssignmentAttachment(
@@ -2260,11 +2266,15 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                       : () async {
                           final ok = await _confirm(
                             context,
-                            title: '提交作业',
-                            content:
-                                '将提交「${detail.title}」\n'
-                                '课程：$courseName\n'
-                                '附件：${state.assignmentAttachments.length} 个',
+                            title: submitLabel,
+                            content: resubmitting
+                                ? '将覆盖/更新「${detail.title}」当前已提交的内容。\n'
+                                      '课程：$courseName\n'
+                                      '附件：${state.assignmentAttachments.length} 个'
+                                : '将提交「${detail.title}」\n'
+                                      '课程：$courseName\n'
+                                      '附件：${state.assignmentAttachments.length} 个',
+                            confirmLabel: submitLabel,
                           );
                           if (ok) {
                             await controller.submitAssignmentDraft(
@@ -2273,10 +2283,53 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                           }
                         },
                   icon: const Icon(Icons.send_outlined),
-                  label: Text(state.assignmentSubmitting ? '提交中' : '提交'),
+                  label: Text(state.assignmentSubmitting ? '提交中' : submitLabel),
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DraftAttachmentChip extends StatelessWidget {
+  const _DraftAttachmentChip({
+    required this.attachment,
+    required this.onDeleted,
+  });
+
+  final AssignmentAttachmentState attachment;
+  final VoidCallback? onDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewUrl = attachment.previewUrl?.trim();
+    if (previewUrl == null || previewUrl.isEmpty) {
+      return InputChip(
+        avatar: const Icon(Icons.attach_file, size: 18),
+        label: Text(attachment.name),
+        onDeleted: onDeleted,
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, right: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InputChip(
+              avatar: const Icon(Icons.attach_file, size: 18),
+              label: Text(attachment.name),
+              onDeleted: onDeleted,
+              side: BorderSide.none,
+            ),
+            _LinkActions(url: previewUrl),
           ],
         ),
       ),
@@ -2516,14 +2569,23 @@ class _ResourcesPane extends ConsumerWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
-                    onPressed: controller.clearResourceSelection,
+                    onPressed: () async {
+                      if (!await _prepareForResourceContextChange(
+                        context,
+                        ref,
+                      )) {
+                        return;
+                      }
+                      controller.clearResourceSelection();
+                    },
                     icon: const Icon(Icons.arrow_back),
                     label: const Text('返回资料列表'),
                   ),
                 ),
                 const SizedBox(height: 8),
                 _ResourceDetailCard(state: state),
-                if (state.downloadedPaths.isNotEmpty) ...[
+                if (state.operationContext == OperationContext.resourceDetail &&
+                    state.downloadedPaths.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   _DownloadSummary(paths: state.downloadedPaths),
                 ],
@@ -2561,7 +2623,9 @@ class _ResourcesPane extends ConsumerWidget {
                       const SizedBox(height: 12),
                     _ResourceDetailCard(state: state),
                   ],
-                  if (state.downloadedPaths.isNotEmpty) ...[
+                  if (state.operationContext ==
+                          OperationContext.resourceDetail &&
+                      state.downloadedPaths.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _DownloadSummary(paths: state.downloadedPaths),
                   ],
@@ -2623,10 +2687,12 @@ class _ResourcesPane extends ConsumerWidget {
           sliver: SliverList.builder(
             itemCount: state.resources.length,
             itemBuilder: (context, index) =>
-                _resourceListItem(ref, state, state.resources[index]),
+                _resourceListItem(context, ref, state, state.resources[index]),
           ),
         ),
-      if (includeDownloadSummary && state.downloadedPaths.isNotEmpty)
+      if (includeDownloadSummary &&
+          state.operationContext == OperationContext.resourceList &&
+          state.downloadedPaths.isNotEmpty)
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           sliver: SliverToBoxAdapter(
@@ -2671,8 +2737,10 @@ class _ResourcesPane extends ConsumerWidget {
                   ),
               ],
               onChanged: (value) {
-                if (value != null) {
-                  controller.loadResourcesForCourse(value);
+                if (value != null && value != state.selectedResourceCourseId) {
+                  unawaited(
+                    _loadResourcesForCourseGuarded(context, ref, value),
+                  );
                 }
               },
             ),
@@ -2682,9 +2750,9 @@ class _ResourcesPane extends ConsumerWidget {
             tooltip: '刷新资料',
             onPressed: state.resourcesLoading || state.courses.isEmpty
                 ? null
-                : () => controller.loadResourcesForCourse(
-                    state.selectedResourceCourseId ?? state.courses.first.id,
-                  ),
+                : () {
+                    unawaited(_refreshResources(context, ref));
+                  },
             icon: const Icon(Icons.refresh),
           ),
           IconButton(
@@ -2712,8 +2780,95 @@ class _ResourcesPane extends ConsumerWidget {
           ),
         ],
       ),
-      if (state.resourceDownloading) ...[
+      if (state.resourceDownloading &&
+          state.operationContext == OperationContext.resourceList) ...[
         const SizedBox(height: 12),
+        _ResourceDownloadProgress(
+          state: state,
+          onCancel: () => controller.cancelActiveResourceDownload(
+            context: OperationContext.resourceList,
+          ),
+        ),
+      ],
+    ];
+  }
+
+  Widget _resourceListItem(
+    BuildContext context,
+    WidgetRef ref,
+    ClientState state,
+    FfiCourseResourceSummary resource,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        selected: state.selectedResourceId == resource.resourceId,
+        leading: const Icon(Icons.insert_drive_file_outlined),
+        title: Text(resource.name),
+        subtitle: Text(_resourceSummaryText(resource)),
+        onTap: () {
+          unawaited(_selectResourceGuarded(context, ref, resource));
+        },
+      ),
+    );
+  }
+
+  Future<void> _loadResourcesForCourseGuarded(
+    BuildContext context,
+    WidgetRef ref,
+    String siteId,
+  ) async {
+    if (!await _prepareForResourceContextChange(context, ref)) {
+      return;
+    }
+    ref.read(clientControllerProvider.notifier).loadResourcesForCourse(siteId);
+  }
+
+  Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
+    if (!await _prepareForResourceContextChange(context, ref)) {
+      return;
+    }
+    final state = ref.read(clientControllerProvider);
+    final siteId =
+        state.selectedResourceCourseId ??
+        (state.courses.isEmpty ? null : state.courses.first.id);
+    if (siteId != null) {
+      ref
+          .read(clientControllerProvider.notifier)
+          .loadResourcesForCourse(siteId);
+    }
+  }
+
+  Future<void> _selectResourceGuarded(
+    BuildContext context,
+    WidgetRef ref,
+    FfiCourseResourceSummary resource,
+  ) async {
+    final state = ref.read(clientControllerProvider);
+    if (state.selectedResourceId == resource.resourceId) {
+      return;
+    }
+    if (!await _prepareForResourceContextChange(context, ref)) {
+      return;
+    }
+    await ref.read(clientControllerProvider.notifier).selectResource(resource);
+  }
+}
+
+class _ResourceDownloadProgress extends StatelessWidget {
+  const _ResourceDownloadProgress({
+    required this.state,
+    required this.onCancel,
+  });
+
+  final ClientState state;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
         Row(
           children: [
             Expanded(
@@ -2723,7 +2878,7 @@ class _ResourcesPane extends ConsumerWidget {
               ),
             ),
             TextButton.icon(
-              onPressed: () => controller.cancelActiveResourceDownload(),
+              onPressed: onCancel,
               icon: const Icon(Icons.close),
               label: const Text('取消'),
             ),
@@ -2737,24 +2892,6 @@ class _ResourcesPane extends ConsumerWidget {
                     state.resourceDownloadProgressTotal,
         ),
       ],
-    ];
-  }
-
-  Widget _resourceListItem(
-    WidgetRef ref,
-    ClientState state,
-    FfiCourseResourceSummary resource,
-  ) {
-    final controller = ref.read(clientControllerProvider.notifier);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        selected: state.selectedResourceId == resource.resourceId,
-        leading: const Icon(Icons.insert_drive_file_outlined),
-        title: Text(resource.name),
-        subtitle: Text(_resourceSummaryText(resource)),
-        onTap: () => controller.selectResource(resource),
-      ),
     );
   }
 }
@@ -2817,6 +2954,16 @@ class _ResourceDetailCard extends ConsumerWidget {
                 detail.downloadUrl!.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
               _LinkValue(url: detail.downloadUrl!.trim()),
+            ],
+            if (state.operationContext == OperationContext.resourceDetail &&
+                state.resourceDownloading) ...[
+              const SizedBox(height: 12),
+              _ResourceDownloadProgress(
+                state: state,
+                onCancel: () => controller.cancelActiveResourceDownload(
+                  context: OperationContext.resourceDetail,
+                ),
+              ),
             ],
             const SizedBox(height: 12),
             Align(
@@ -2980,6 +3127,7 @@ Future<bool> _confirm(
   BuildContext context, {
   required String title,
   required String content,
+  String confirmLabel = '确认',
 }) async {
   return await showDialog<bool>(
         context: context,
@@ -2993,7 +3141,7 @@ Future<bool> _confirm(
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('确认'),
+              child: Text(confirmLabel),
             ),
           ],
         ),

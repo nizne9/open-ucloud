@@ -132,6 +132,8 @@ void main() {
     expect(find.text('本期课程'), findsOneWidget);
     expect(find.text('1'), findsWidgets);
     expect(find.text('待提交作业'), findsWidgets);
+    expect(find.text('二维码文本'), findsOneWidget);
+    expect(find.text('签到状态'), findsNothing);
     expect(find.text('实验报告'), findsWidgets);
     expect(find.text('Alice'), findsWidgets);
     expect(find.text('已登录'), findsOneWidget);
@@ -581,6 +583,8 @@ void main() {
     expect(find.text('Alice'), findsWidgets);
     expect(find.text('软件测试'), findsOneWidget);
     expect(find.byIcon(Icons.notifications_active_outlined), findsOneWidget);
+    expect(find.text('site-1 · 活动进行中'), findsOneWidget);
+    expect(find.text('site-1 · going'), findsNothing);
     expect(find.text('解析二维码'), findsNothing);
   });
 
@@ -1151,10 +1155,165 @@ void main() {
     expect(find.text('模板.docx'), findsOneWidget);
     expect(find.text('已提交附件'), findsOneWidget);
     expect(find.text('答案.pdf'), findsWidgets);
-    expect(find.byTooltip('打开链接'), findsNWidgets(2));
-    expect(find.byTooltip('复制链接'), findsNWidgets(2));
+    expect(find.byTooltip('打开链接'), findsNWidgets(3));
+    expect(find.byTooltip('复制链接'), findsNWidgets(3));
     expect(find.widgetWithText(TextField, '提交内容'), findsOneWidget);
     expect(find.widgetWithText(TextField, '提交内容（只读）'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '重新提交'), findsOneWidget);
+
+    await tester.ensureVisible(find.widgetWithText(FilledButton, '重新提交'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '重新提交'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('重新提交'), findsWidgets);
+    expect(find.textContaining('覆盖/更新'), findsOneWidget);
+  });
+
+  testWidgets('expired assignment detail remains read-only', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                records: [
+                  FfiAssignmentSummary(
+                    endTime: '2026-05-03 23:59:59',
+                    id: 'work-1',
+                    siteId: 'site-1',
+                    siteName: '软件测试',
+                    source: 'undone',
+                    startTime: '',
+                    status: FfiAssignmentStatus.expired,
+                    title: '过期实验报告',
+                  ),
+                ],
+              ),
+              assignmentDetailResponse: const FfiAssignmentDetailResponse(
+                className: '',
+                comment: '',
+                content: '完成实验',
+                endTime: '2026-05-03 23:59:59',
+                id: 'work-1',
+                isOvertimeCommit: false,
+                siteId: 'site-1',
+                siteName: '软件测试',
+                startTime: '',
+                status: FfiAssignmentStatus.expired,
+                submittedAt: '',
+                submittedAttachments: [],
+                submittedContent: '旧答案',
+                teacherResources: [],
+                title: '过期实验报告',
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('过期实验报告'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(TextField, '提交内容（只读）'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '添加附件'), findsOneWidget);
+    expect(
+      tester
+          .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '添加附件'))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '提交'))
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('assignment draft asks before leaving and keeps text on cancel', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: _twoCourseResponse(),
+              undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                records: [
+                  FfiAssignmentSummary(
+                    endTime: '2026-05-03 23:59:59',
+                    id: 'work-1',
+                    siteId: 'site-1',
+                    siteName: '软件测试',
+                    source: 'undone',
+                    startTime: '',
+                    status: FfiAssignmentStatus.pending,
+                    title: '实验报告',
+                  ),
+                ],
+              ),
+              assignmentDetailResponse: const FfiAssignmentDetailResponse(
+                className: '',
+                comment: '',
+                content: '完成实验',
+                endTime: '2026-05-03 23:59:59',
+                id: 'work-1',
+                isOvertimeCommit: false,
+                siteId: 'site-1',
+                siteName: '软件测试',
+                startTime: '',
+                status: FfiAssignmentStatus.pending,
+                submittedAt: '',
+                submittedAttachments: [],
+                submittedContent: '',
+                teacherResources: [],
+                title: '实验报告',
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实验报告'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, '提交内容'), '未提交答案');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('返回作业列表'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('放弃未提交的修改？'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('未提交答案'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, '同步课程'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('放弃未提交的修改？'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('未提交答案'), findsOneWidget);
   });
 
   testWidgets('draft attachments are not shown as submitted attachments', (
@@ -1232,6 +1391,85 @@ void main() {
 
     expect(find.text('draft.pdf'), findsOneWidget);
     expect(find.text('已提交附件'), findsNothing);
+  });
+
+  testWidgets('draft attachment preview offers open and copy actions', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(
+          FakeOpenCloudGateway(
+            session: _session(),
+            undoneAssignmentsResponse: const FfiAssignmentListResponse(
+              records: [
+                FfiAssignmentSummary(
+                  endTime: '2026-05-03 23:59:59',
+                  id: 'work-1',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  source: 'undone',
+                  startTime: '',
+                  status: FfiAssignmentStatus.pending,
+                  title: '实验报告',
+                ),
+              ],
+            ),
+            assignmentDetailResponse: const FfiAssignmentDetailResponse(
+              className: '',
+              comment: '',
+              content: '完成实验',
+              endTime: '2026-05-03 23:59:59',
+              id: 'work-1',
+              isOvertimeCommit: false,
+              siteId: 'site-1',
+              siteName: '软件测试',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              submittedAt: '',
+              submittedAttachments: [],
+              submittedContent: '',
+              teacherResources: [],
+              title: '实验报告',
+            ),
+            assignmentUploadResponse: const FfiAssignmentUploadResponse(
+              assignmentId: 'work-1',
+              fileName: 'draft.pdf',
+              previewUrl: 'https://example.com/draft.pdf',
+              resourceId: 'draft-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实验报告'));
+    await tester.pumpAndSettle();
+
+    await container
+        .read(clientControllerProvider.notifier)
+        .uploadAssignmentAttachment('/tmp/draft.pdf');
+    await tester.pumpAndSettle();
+
+    expect(find.text('draft.pdf'), findsOneWidget);
+    expect(find.byTooltip('打开链接'), findsOneWidget);
+    expect(find.byTooltip('复制链接'), findsOneWidget);
   });
 
   testWidgets('narrow assignment detail shows operation feedback', (
@@ -1802,6 +2040,100 @@ void main() {
     expect(find.text('课件.pdf'), findsOneWidget);
     expect(find.text('返回资料列表'), findsNothing);
   });
+
+  testWidgets(
+    'narrow resource detail keeps single download feedback in place',
+    (tester) async {
+      tester.view.physicalSize = const Size(640, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final download = Completer<FfiCourseResourceDownloadResponse>();
+      final container = ProviderContainer(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: _twoCourseResponse(),
+              resourcesResponse: const FfiCourseResourcesResponse(
+                records: [
+                  FfiCourseResourceSummary(
+                    name: '课件.pdf',
+                    resourceId: 'resource-1',
+                    siteId: 'site-1',
+                    siteName: '软件测试',
+                    updatedAt: '',
+                  ),
+                ],
+              ),
+              resourceDetailResponse: const FfiCourseResourceDetailResponse(
+                detail: FfiCourseResourceDetail(
+                  name: '课件.pdf',
+                  resourceId: 'resource-1',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  updatedAt: '',
+                ),
+              ),
+              resourceDownloadFuture: download.future,
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const OpenCloudApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('资料'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('课件.pdf'));
+      await tester.pumpAndSettle();
+
+      final task = container
+          .read(clientControllerProvider.notifier)
+          .downloadResource('/tmp/课件.pdf');
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('正在下载'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, '取消'), findsOneWidget);
+      expect(find.text('返回资料列表'), findsOneWidget);
+
+      download.complete(
+        const FfiCourseResourceDownloadResponse(
+          records: [
+            FfiCourseResourceDetail(
+              name: '课件.pdf',
+              resourceId: 'resource-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+          writtenPaths: ['/tmp/课件.pdf'],
+        ),
+      );
+      await task;
+      await tester.pumpAndSettle();
+
+      expect(find.text('已下载 1 个资料文件'), findsOneWidget);
+      expect(find.text('已下载 1 个文件'), findsOneWidget);
+      expect(find.text('/tmp/课件.pdf'), findsOneWidget);
+      expect(find.text('返回资料列表'), findsOneWidget);
+    },
+  );
 
   testWidgets('desktop resource download feedback appears in the detail pane', (
     tester,

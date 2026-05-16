@@ -16,7 +16,7 @@ enum ClientPhase {
   authenticated,
 }
 
-enum ClientTab { dashboard, courses, assignments, resources, account }
+enum ClientTab { dashboard, assignments, resources, account }
 
 enum AssignmentView { undone, course }
 
@@ -196,8 +196,10 @@ class ClientState {
     String? errorMessage,
     bool clearSession = false,
     bool clearLogin = false,
+    bool clearSelectedAssignmentCourse = false,
     bool clearAssignmentSelection = false,
     bool clearAssignmentDetail = false,
+    bool clearSelectedResourceCourse = false,
     bool clearResourceSelection = false,
     bool clearResourceDetail = false,
     bool clearResourceDownloadTask = false,
@@ -233,8 +235,9 @@ class ClientState {
           assignmentDetailLoading ?? this.assignmentDetailLoading,
       assignmentUploading: assignmentUploading ?? this.assignmentUploading,
       assignmentSubmitting: assignmentSubmitting ?? this.assignmentSubmitting,
-      selectedAssignmentCourseId:
-          selectedAssignmentCourseId ?? this.selectedAssignmentCourseId,
+      selectedAssignmentCourseId: clearSelectedAssignmentCourse
+          ? null
+          : selectedAssignmentCourseId ?? this.selectedAssignmentCourseId,
       selectedAssignmentId: clearAssignmentSelection
           ? null
           : selectedAssignmentId ?? this.selectedAssignmentId,
@@ -252,8 +255,9 @@ class ClientState {
       resourceDetailLoading:
           resourceDetailLoading ?? this.resourceDetailLoading,
       resourceDownloading: resourceDownloading ?? this.resourceDownloading,
-      selectedResourceCourseId:
-          selectedResourceCourseId ?? this.selectedResourceCourseId,
+      selectedResourceCourseId: clearSelectedResourceCourse
+          ? null
+          : selectedResourceCourseId ?? this.selectedResourceCourseId,
       selectedResourceId: clearResourceSelection
           ? null
           : selectedResourceId ?? this.selectedResourceId,
@@ -285,9 +289,9 @@ class ClientState {
       operationMessage: clearOperationMessage
           ? null
           : operationMessage ?? this.operationMessage,
-      operationContext: clearOperationMessage
-          ? null
-          : operationContext ?? this.operationContext,
+      operationContext:
+          operationContext ??
+          (clearOperationMessage ? null : this.operationContext),
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
   }
@@ -551,6 +555,9 @@ class ClientController extends Notifier<ClientState> {
     }
     state = state.copyWith(
       selectedTab: tab,
+      resourceDownloading: tab == ClientTab.resources
+          ? state.resourceDownloading
+          : false,
       downloadedPaths: const [],
       resourceDownloadProgressCurrent: 0,
       resourceDownloadProgressTotal: 0,
@@ -908,6 +915,7 @@ class ClientController extends Notifier<ClientState> {
         if (attachment.status == 'uploaded') attachment.resourceId,
     ];
     final draft = draftText ?? state.assignmentDraft;
+    final resubmitting = detail.status == FfiAssignmentStatus.submitted;
     if (draft.trim().isEmpty && attachmentIds.isEmpty) {
       state = state.copyWith(errorMessage: '请先填写作业内容或上传附件。');
       return;
@@ -967,7 +975,7 @@ class ClientController extends Notifier<ClientState> {
           teacherResources: detail.teacherResources,
           title: detail.title,
         ),
-        operationMessage: '作业已提交',
+        operationMessage: resubmitting ? '作业已重新提交' : '作业已提交',
         operationContext: OperationContext.assignmentDetail,
       );
     } on FfiAuthError catch (error) {
@@ -1165,6 +1173,7 @@ class ClientController extends Notifier<ClientState> {
       resourceDownloadBytes: 0,
       resourceDownloadCurrentFileName: detail.name,
       downloadedPaths: const [],
+      operationContext: OperationContext.resourceDetail,
       clearResourceDownloadTask: true,
       clearError: true,
       clearOperationMessage: true,
@@ -1247,6 +1256,7 @@ class ClientController extends Notifier<ClientState> {
       resourceDownloadProgressTotal: state.resources.length,
       resourceDownloadBytes: 0,
       downloadedPaths: const [],
+      operationContext: OperationContext.resourceList,
       clearResourceDownloadTask: true,
       clearResourceDownloadCurrentFileName: true,
       clearOperationMessage: true,
@@ -1309,9 +1319,18 @@ class ClientController extends Notifier<ClientState> {
     }
   }
 
-  Future<void> cancelActiveResourceDownload() async {
+  Future<void> cancelActiveResourceDownload({OperationContext? context}) async {
     final taskId = state.resourceDownloadTaskId;
     if (taskId == null) {
+      if (state.resourceDownloading) {
+        _resourceDownloadGeneration += 1;
+        state = state.copyWith(
+          resourceDownloading: false,
+          operationMessage: '下载已取消',
+          operationContext: context ?? state.operationContext,
+          clearResourceDownloadCurrentFileName: true,
+        );
+      }
       return;
     }
     _resourceDownloadGeneration += 1;
@@ -1328,7 +1347,7 @@ class ClientController extends Notifier<ClientState> {
         resourceDownloadProgressTotal: status.total,
         resourceDownloadBytes: status.bytesDownloaded.toInt(),
         operationMessage: '下载已取消',
-        operationContext: OperationContext.resourceList,
+        operationContext: context ?? state.operationContext,
         clearResourceDownloadTask: true,
         clearResourceDownloadCurrentFileName: true,
       );
@@ -1539,19 +1558,88 @@ class ClientController extends Notifier<ClientState> {
       final goingBySite = {
         for (final going in response.goingSites) going.siteId: going.groupId,
       };
-      state = ClientState(
+      final courses = [
+        for (final course in response.records)
+          CourseItem(
+            id: course.id,
+            name: course.siteName,
+            going: goingBySite.containsKey(course.id),
+            groupId: goingBySite[course.id],
+          ),
+      ];
+      final courseIds = {for (final course in courses) course.id};
+      final nextAssignmentCourseId = state.selectedAssignmentCourseId;
+      final keepAssignmentCourse =
+          nextAssignmentCourseId == null ||
+          courseIds.contains(nextAssignmentCourseId);
+      final fallbackAssignmentCourseId = courses.isEmpty
+          ? null
+          : courses.first.id;
+      final nextResourceCourseId = state.selectedResourceCourseId;
+      final keepResourceCourse =
+          nextResourceCourseId == null ||
+          courseIds.contains(nextResourceCourseId);
+      final fallbackResourceCourseId = courses.isEmpty
+          ? null
+          : courses.first.id;
+      if (!keepResourceCourse) {
+        unawaited(_cancelActiveResourceDownloadSilently());
+      }
+
+      state = state.copyWith(
         phase: ClientPhase.authenticated,
         session: session,
         capabilities: capabilities ?? state.capabilities,
-        courses: [
-          for (final course in response.records)
-            CourseItem(
-              id: course.id,
-              name: course.siteName,
-              going: goingBySite.containsKey(course.id),
-              groupId: goingBySite[course.id],
-            ),
-        ],
+        courses: courses,
+        assignmentView: keepAssignmentCourse
+            ? state.assignmentView
+            : fallbackAssignmentCourseId == null
+            ? AssignmentView.undone
+            : AssignmentView.course,
+        selectedAssignmentCourseId: keepAssignmentCourse
+            ? state.selectedAssignmentCourseId
+            : fallbackAssignmentCourseId,
+        clearSelectedAssignmentCourse:
+            !keepAssignmentCourse && fallbackAssignmentCourseId == null,
+        assignments: keepAssignmentCourse ? state.assignments : const [],
+        assignmentsLoaded: keepAssignmentCourse
+            ? state.assignmentsLoaded
+            : false,
+        assignmentsLoading: keepAssignmentCourse
+            ? state.assignmentsLoading
+            : false,
+        assignmentDetailLoading: keepAssignmentCourse
+            ? state.assignmentDetailLoading
+            : false,
+        resources: keepResourceCourse ? state.resources : const [],
+        resourcesLoading: keepResourceCourse ? state.resourcesLoading : false,
+        resourceDetailLoading: keepResourceCourse
+            ? state.resourceDetailLoading
+            : false,
+        selectedResourceCourseId: keepResourceCourse
+            ? state.selectedResourceCourseId
+            : fallbackResourceCourseId,
+        clearSelectedResourceCourse:
+            !keepResourceCourse && fallbackResourceCourseId == null,
+        resourceDownloading: keepResourceCourse
+            ? state.resourceDownloading
+            : false,
+        downloadedPaths: keepResourceCourse ? state.downloadedPaths : const [],
+        resourceDownloadProgressCurrent: keepResourceCourse
+            ? state.resourceDownloadProgressCurrent
+            : 0,
+        resourceDownloadProgressTotal: keepResourceCourse
+            ? state.resourceDownloadProgressTotal
+            : 0,
+        resourceDownloadBytes: keepResourceCourse
+            ? state.resourceDownloadBytes
+            : 0,
+        clearAssignmentSelection: !keepAssignmentCourse,
+        clearResourceSelection: !keepResourceCourse,
+        clearResourceDownloadTask: !keepResourceCourse,
+        clearResourceDownloadCurrentFileName: !keepResourceCourse,
+        clearOperationMessage: !keepAssignmentCourse || !keepResourceCourse,
+        clearError: true,
       );
     } on FfiAuthError catch (error) {
       if (error.code == FfiAuthErrorCode.sessionExpired) {
@@ -1562,7 +1650,7 @@ class ClientController extends Notifier<ClientState> {
         );
         return;
       }
-      state = ClientState(
+      state = state.copyWith(
         phase: ClientPhase.authenticated,
         session: session,
         capabilities: capabilities ?? state.capabilities,
@@ -1570,7 +1658,7 @@ class ClientController extends Notifier<ClientState> {
         errorMessage: error.message,
       );
     } catch (error) {
-      state = ClientState(
+      state = state.copyWith(
         phase: ClientPhase.authenticated,
         session: session,
         capabilities: capabilities ?? state.capabilities,

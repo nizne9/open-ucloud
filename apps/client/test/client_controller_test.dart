@@ -112,6 +112,161 @@ void main() {
     expect(gateway.coursesCalls, 1);
   });
 
+  test(
+    'refreshCourses preserves current tab, assignment draft, attachments, and resource detail',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        courseResponse: const FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
+          goingSites: [],
+          updatedSessionPayload: 'refreshed-payload',
+        ),
+        courseAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '',
+              id: 'work-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              source: 'course',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '实验报告',
+            ),
+          ],
+        ),
+        assignmentDetailResponse: const FfiAssignmentDetailResponse(
+          className: '',
+          comment: '',
+          content: '',
+          endTime: '',
+          id: 'work-1',
+          isOvertimeCommit: false,
+          siteId: 'site-1',
+          siteName: '软件测试',
+          startTime: '',
+          status: FfiAssignmentStatus.pending,
+          submittedAt: '',
+          submittedAttachments: [],
+          submittedContent: '',
+          teacherResources: [],
+          title: '实验报告',
+        ),
+        assignmentUploadResponse: const FfiAssignmentUploadResponse(
+          assignmentId: 'work-1',
+          fileName: 'draft.pdf',
+          previewUrl: 'https://example.com/draft.pdf',
+          resourceId: 'draft-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+        ),
+        resourcesResponse: const FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '课件.pdf',
+              resourceId: 'resource-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+        ),
+        resourceDetailResponse: const FfiCourseResourceDetailResponse(
+          detail: FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+
+      await controller.bootstrap();
+      await controller.loadCourseAssignments('site-1');
+      await controller.selectAssignment(
+        container.read(clientControllerProvider).assignments.single,
+      );
+      controller.updateAssignmentDraft('未提交草稿');
+      await controller.uploadAssignmentAttachment('/tmp/draft.pdf');
+      await controller.loadResourcesForCourse('site-1');
+      await controller.selectResource(
+        container.read(clientControllerProvider).resources.single,
+      );
+
+      await controller.refreshCourses();
+
+      final state = container.read(clientControllerProvider);
+      expect(state.selectedTab, ClientTab.resources);
+      expect(state.selectedAssignmentId, 'work-1');
+      expect(state.assignmentDraft, '未提交草稿');
+      expect(state.assignmentAttachments.single.previewUrl, contains('draft'));
+      expect(state.selectedResourceId, 'resource-1');
+      expect(state.resourceDetail?.name, '课件.pdf');
+      expect(storage.payload, 'refreshed-payload');
+    },
+  );
+
+  test(
+    'refreshCourses falls back when selected assignment and resource course disappears',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        courseResponse: const FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
+          goingSites: [],
+        ),
+        courseAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '',
+              id: 'work-old',
+              siteId: 'site-old',
+              siteName: '旧课程',
+              source: 'course',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '旧作业',
+            ),
+          ],
+        ),
+        resourcesResponse: const FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-old',
+              siteName: '旧课程',
+              updatedAt: '',
+            ),
+          ],
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+
+      await controller.bootstrap();
+      await controller.loadCourseAssignments('site-old');
+      await controller.loadResourcesForCourse('site-old');
+
+      await controller.refreshCourses();
+
+      final state = container.read(clientControllerProvider);
+      expect(state.assignmentView, AssignmentView.course);
+      expect(state.selectedAssignmentCourseId, 'site-new');
+      expect(state.assignments, isEmpty);
+      expect(state.selectedAssignmentId, isNull);
+      expect(state.selectedResourceCourseId, 'site-new');
+      expect(state.resources, isEmpty);
+      expect(state.selectedResourceId, isNull);
+    },
+  );
+
   test('logout clears secure storage', () async {
     final storage = MemorySessionStorage('payload');
     final container = _container(
