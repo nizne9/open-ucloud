@@ -267,6 +267,62 @@ void main() {
     },
   );
 
+  test(
+    'refreshCourses preserves undone assignments when a stale course selection disappears',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        courseResponse: const FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
+          goingSites: [],
+        ),
+        courseAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '',
+              id: 'course-work',
+              siteId: 'site-old',
+              siteName: '旧课程',
+              source: 'course',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '旧课程作业',
+            ),
+          ],
+        ),
+        undoneAssignmentsResponse: const FfiAssignmentListResponse(
+          records: [
+            FfiAssignmentSummary(
+              endTime: '',
+              id: 'undone-work',
+              siteId: 'site-new',
+              siteName: '新课程',
+              source: 'undone',
+              startTime: '',
+              status: FfiAssignmentStatus.pending,
+              title: '待办作业',
+            ),
+          ],
+        ),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+
+      await controller.bootstrap();
+      await controller.loadCourseAssignments('site-old');
+      await controller.loadUndoneAssignments();
+
+      await controller.refreshCourses();
+
+      final state = container.read(clientControllerProvider);
+      expect(state.assignmentView, AssignmentView.undone);
+      expect(state.selectedAssignmentCourseId, isNull);
+      expect(state.assignments.single.id, 'undone-work');
+      expect(state.assignmentsLoaded, isTrue);
+    },
+  );
+
   test('logout clears secure storage', () async {
     final storage = MemorySessionStorage('payload');
     final container = _container(

@@ -581,6 +581,7 @@ class ClientController extends Notifier<ClientState> {
       assignmentsLoaded: false,
       assignmentsLoading: true,
       assignmentDetailLoading: false,
+      clearSelectedAssignmentCourse: true,
       clearAssignmentSelection: true,
       clearPendingAssignmentsError: true,
       clearOperationMessage: true,
@@ -1569,7 +1570,10 @@ class ClientController extends Notifier<ClientState> {
       ];
       final courseIds = {for (final course in courses) course.id};
       final nextAssignmentCourseId = state.selectedAssignmentCourseId;
+      final assignmentCourseApplies =
+          state.assignmentView == AssignmentView.course;
       final keepAssignmentCourse =
+          !assignmentCourseApplies ||
           nextAssignmentCourseId == null ||
           courseIds.contains(nextAssignmentCourseId);
       final fallbackAssignmentCourseId = courses.isEmpty
@@ -1596,11 +1600,14 @@ class ClientController extends Notifier<ClientState> {
             : fallbackAssignmentCourseId == null
             ? AssignmentView.undone
             : AssignmentView.course,
-        selectedAssignmentCourseId: keepAssignmentCourse
+        selectedAssignmentCourseId: !assignmentCourseApplies
+            ? null
+            : keepAssignmentCourse
             ? state.selectedAssignmentCourseId
             : fallbackAssignmentCourseId,
         clearSelectedAssignmentCourse:
-            !keepAssignmentCourse && fallbackAssignmentCourseId == null,
+            !assignmentCourseApplies ||
+            (!keepAssignmentCourse && fallbackAssignmentCourseId == null),
         assignments: keepAssignmentCourse ? state.assignments : const [],
         assignmentsLoaded: keepAssignmentCourse
             ? state.assignmentsLoaded
