@@ -857,6 +857,82 @@ void main() {
     expect(find.text('2. 使用 BERT 进行微调。'), findsOneWidget);
   });
 
+  testWidgets('assignment list lazily scrolls and opens details', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final assignments = List.generate(
+      60,
+      (index) => FfiAssignmentSummary(
+        endTime: '2026-05-${(index % 28) + 1} 23:59:59',
+        id: 'work-${index + 1}',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: '作业 ${index + 1}',
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: _twoCourseResponse(),
+              undoneAssignmentsResponse: FfiAssignmentListResponse(
+                records: assignments,
+              ),
+              assignmentDetailResponse: const FfiAssignmentDetailResponse(
+                className: '',
+                comment: '',
+                content: '长列表详情',
+                endTime: '2026-05-28 23:59:59',
+                id: 'work-60',
+                isOvertimeCommit: false,
+                siteId: 'site-1',
+                siteName: '软件测试',
+                startTime: '',
+                status: FfiAssignmentStatus.pending,
+                submittedAt: '',
+                submittedAttachments: [],
+                submittedContent: '',
+                teacherResources: [],
+                title: '作业 60 详情',
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('作业 60'),
+      500,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('作业 60'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回作业列表'), findsOneWidget);
+    expect(find.text('作业 60 详情'), findsOneWidget);
+    expect(find.text('长列表详情'), findsOneWidget);
+  });
+
   testWidgets('assignment draft survives unrelated detail state changes', (
     tester,
   ) async {
@@ -1586,6 +1662,70 @@ void main() {
     expect(find.text('已下载 1 个文件'), findsOneWidget);
     expect(find.text('/tmp/课件.pdf'), findsOneWidget);
     expect(find.text('返回资料列表'), findsNothing);
+  });
+
+  testWidgets('resource list lazily scrolls to later files', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final resources = List.generate(
+      80,
+      (index) => FfiCourseResourceSummary(
+        ext: 'pdf',
+        name: '资料 ${index + 1}.pdf',
+        resourceId: 'resource-${index + 1}',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '2026-05-02 10:00:00',
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: _twoCourseResponse(),
+              resourcesResponse: FfiCourseResourcesResponse(records: resources),
+              resourceDetailResponse: const FfiCourseResourceDetailResponse(
+                detail: FfiCourseResourceDetail(
+                  description: '长列表资料详情',
+                  ext: 'pdf',
+                  name: '资料 80.pdf',
+                  resourceId: 'resource-80',
+                  siteId: 'site-1',
+                  siteName: '软件测试',
+                  updatedAt: '2026-05-02 10:00:00',
+                ),
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('资料 80.pdf'),
+      500,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('资料 80.pdf'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回资料列表'), findsOneWidget);
+    expect(find.text('资料 80.pdf'), findsOneWidget);
+    expect(find.text('长列表资料详情'), findsOneWidget);
   });
 
   testWidgets('narrow resource detail shows metadata and returns to list', (

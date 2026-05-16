@@ -1821,20 +1821,14 @@ class _AssignmentsPane extends ConsumerWidget {
               ],
             );
           }
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: _listChildren(context, ref, state),
-          );
+          return _listView(context, ref, state);
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
               width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: _listChildren(context, ref, state),
-              ),
+              child: _listView(context, ref, state),
             ),
             const VerticalDivider(width: 1),
             Expanded(
@@ -1867,7 +1861,51 @@ class _AssignmentsPane extends ConsumerWidget {
     );
   }
 
-  List<Widget> _listChildren(
+  Widget _listView(BuildContext context, WidgetRef ref, ClientState state) {
+    return CustomScrollView(slivers: _listSlivers(context, ref, state));
+  }
+
+  List<Widget> _listSlivers(
+    BuildContext context,
+    WidgetRef ref,
+    ClientState state,
+  ) {
+    final headerChildren = _listHeaderChildren(context, ref, state);
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        sliver: SliverList(delegate: SliverChildListDelegate(headerChildren)),
+      ),
+      if (state.assignmentsLoading)
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
+          sliver: SliverToBoxAdapter(child: _LoadingPane(label: '正在加载作业')),
+        )
+      else if (state.assignments.isEmpty)
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 48, 16, 24),
+          sliver: SliverToBoxAdapter(
+            child: _EmptyText(
+              icon: Icons.assignment_late_outlined,
+              label: state.assignmentView == AssignmentView.undone
+                  ? '当前没有待提交作业'
+                  : '当前课程暂无作业',
+            ),
+          ),
+        )
+      else
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          sliver: SliverList.builder(
+            itemCount: state.assignments.length,
+            itemBuilder: (context, index) =>
+                _assignmentListItem(ref, state, state.assignments[index]),
+          ),
+        ),
+    ];
+  }
+
+  List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
     ClientState state,
@@ -1956,35 +1994,27 @@ class _AssignmentsPane extends ConsumerWidget {
           },
         ),
       ],
-      if (state.assignmentsLoading)
-        const _LoadingPane(label: '正在加载作业')
-      else if (state.assignments.isEmpty) ...[
-        const SizedBox(height: 48),
-        _EmptyText(
-          icon: Icons.assignment_late_outlined,
-          label: state.assignmentView == AssignmentView.undone
-              ? '当前没有待提交作业'
-              : '当前课程暂无作业',
-        ),
-      ] else ...[
-        const SizedBox(height: 12),
-        for (final assignment in state.assignments)
-          Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              selected: state.selectedAssignmentId == assignment.id,
-              leading: Icon(_assignmentIcon(assignment.status)),
-              title: Text(assignment.title),
-              subtitle: Text(
-                '${assignment.siteName}\n截止：${assignment.endTime}',
-              ),
-              isThreeLine: true,
-              trailing: Text(_assignmentStatusLabel(assignment.status)),
-              onTap: () => controller.selectAssignment(assignment),
-            ),
-          ),
-      ],
     ];
+  }
+
+  Widget _assignmentListItem(
+    WidgetRef ref,
+    ClientState state,
+    FfiAssignmentSummary assignment,
+  ) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        selected: state.selectedAssignmentId == assignment.id,
+        leading: Icon(_assignmentIcon(assignment.status)),
+        title: Text(assignment.title),
+        subtitle: Text('${assignment.siteName}\n截止：${assignment.endTime}'),
+        isThreeLine: true,
+        trailing: Text(_assignmentStatusLabel(assignment.status)),
+        onTap: () => controller.selectAssignment(assignment),
+      ),
+    );
   }
 
   IconData _assignmentIcon(FfiAssignmentStatus status) {
@@ -2500,26 +2530,14 @@ class _ResourcesPane extends ConsumerWidget {
               ],
             );
           }
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: [
-              ..._listChildren(context, ref, state),
-              if (state.downloadedPaths.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _DownloadSummary(paths: state.downloadedPaths),
-              ],
-            ],
-          );
+          return _listView(context, ref, state, includeDownloadSummary: true);
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
               width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: _listChildren(context, ref, state),
-              ),
+              child: _listView(context, ref, state),
             ),
             const VerticalDivider(width: 1),
             Expanded(
@@ -2556,7 +2574,69 @@ class _ResourcesPane extends ConsumerWidget {
     );
   }
 
-  List<Widget> _listChildren(
+  Widget _listView(
+    BuildContext context,
+    WidgetRef ref,
+    ClientState state, {
+    bool includeDownloadSummary = false,
+  }) {
+    return CustomScrollView(
+      slivers: _listSlivers(
+        context,
+        ref,
+        state,
+        includeDownloadSummary: includeDownloadSummary,
+      ),
+    );
+  }
+
+  List<Widget> _listSlivers(
+    BuildContext context,
+    WidgetRef ref,
+    ClientState state, {
+    required bool includeDownloadSummary,
+  }) {
+    final headerChildren = _listHeaderChildren(context, ref, state);
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        sliver: SliverList(delegate: SliverChildListDelegate(headerChildren)),
+      ),
+      if (state.resourcesLoading)
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
+          sliver: SliverToBoxAdapter(child: _LoadingPane(label: '正在加载资料')),
+        )
+      else if (state.resources.isEmpty)
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(16, 48, 16, 24),
+          sliver: SliverToBoxAdapter(
+            child: _EmptyText(
+              icon: Icons.folder_off_outlined,
+              label: '当前课程暂无资料',
+            ),
+          ),
+        )
+      else
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          sliver: SliverList.builder(
+            itemCount: state.resources.length,
+            itemBuilder: (context, index) =>
+                _resourceListItem(ref, state, state.resources[index]),
+          ),
+        ),
+      if (includeDownloadSummary && state.downloadedPaths.isNotEmpty)
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          sliver: SliverToBoxAdapter(
+            child: _DownloadSummary(paths: state.downloadedPaths),
+          ),
+        ),
+    ];
+  }
+
+  List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
     ClientState state,
@@ -2657,33 +2737,25 @@ class _ResourcesPane extends ConsumerWidget {
                     state.resourceDownloadProgressTotal,
         ),
       ],
-      if (state.resourcesLoading)
-        const _LoadingPane(label: '正在加载资料')
-      else if (state.resources.isEmpty) ...[
-        const SizedBox(height: 48),
-        const _EmptyText(icon: Icons.folder_off_outlined, label: '当前课程暂无资料'),
-      ] else ...[
-        const SizedBox(height: 12),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: state.resources.length,
-          itemBuilder: (context, index) {
-            final resource = state.resources[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                selected: state.selectedResourceId == resource.resourceId,
-                leading: const Icon(Icons.insert_drive_file_outlined),
-                title: Text(resource.name),
-                subtitle: Text(_resourceSummaryText(resource)),
-                onTap: () => controller.selectResource(resource),
-              ),
-            );
-          },
-        ),
-      ],
     ];
+  }
+
+  Widget _resourceListItem(
+    WidgetRef ref,
+    ClientState state,
+    FfiCourseResourceSummary resource,
+  ) {
+    final controller = ref.read(clientControllerProvider.notifier);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        selected: state.selectedResourceId == resource.resourceId,
+        leading: const Icon(Icons.insert_drive_file_outlined),
+        title: Text(resource.name),
+        subtitle: Text(_resourceSummaryText(resource)),
+        onTap: () => controller.selectResource(resource),
+      ),
+    );
   }
 }
 
