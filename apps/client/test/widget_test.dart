@@ -784,6 +784,66 @@ void main() {
     expect(gateway.lastCourseAssignmentsSiteId, 'site-2');
   });
 
+  testWidgets('assignment course picker resets after course refresh fallback', (
+    tester,
+  ) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponses: const [
+        FfiCourseResponse(
+          records: [
+            FfiCourseSite(id: 'site-old', siteName: '旧课程'),
+            FfiCourseSite(id: 'site-other', siteName: '其他课程'),
+          ],
+          goingSites: [],
+        ),
+        FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
+          goingSites: [],
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('其他课程').last);
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(OpenCloudApp)),
+    );
+    expect(
+      container.read(clientControllerProvider).selectedAssignmentCourseId,
+      'site-other',
+    );
+
+    await container.read(clientControllerProvider.notifier).refreshCourses();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('新课程'), findsOneWidget);
+    expect(
+      container.read(clientControllerProvider).selectedAssignmentCourseId,
+      'site-new',
+    );
+  });
+
   testWidgets('assignment detail renders html content as readable blocks', (
     tester,
   ) async {
@@ -1807,6 +1867,64 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.lastResourcesSiteId, 'site-2');
+  });
+
+  testWidgets('resource course picker resets after course refresh fallback', (
+    tester,
+  ) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponses: const [
+        FfiCourseResponse(
+          records: [
+            FfiCourseSite(id: 'site-old', siteName: '旧课程'),
+            FfiCourseSite(id: 'site-other', siteName: '其他课程'),
+          ],
+          goingSites: [],
+        ),
+        FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
+          goingSites: [],
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('其他课程').last);
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(OpenCloudApp)),
+    );
+    expect(
+      container.read(clientControllerProvider).selectedResourceCourseId,
+      'site-other',
+    );
+
+    await container.read(clientControllerProvider.notifier).refreshCourses();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('新课程'), findsOneWidget);
+    expect(
+      container.read(clientControllerProvider).selectedResourceCourseId,
+      'site-new',
+    );
   });
 
   testWidgets('narrow resource course picker truncates long course names', (

@@ -1865,6 +1865,9 @@ class _AssignmentsPane extends ConsumerWidget {
     WidgetRef ref,
     ClientState state,
   ) {
+    final selectedCourseId =
+        state.selectedAssignmentCourseId ??
+        (state.courses.isEmpty ? null : state.courses.first.id);
     return [
       if (state.errorMessage != null) ...[
         _ErrorBanner(message: state.errorMessage!),
@@ -1910,10 +1913,13 @@ class _AssignmentsPane extends ConsumerWidget {
       if (state.assignmentView == AssignmentView.course) ...[
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
+          key: _courseDropdownKey(
+            'assignment',
+            state.courses,
+            selectedCourseId,
+          ),
           isExpanded: true,
-          initialValue:
-              state.selectedAssignmentCourseId ??
-              (state.courses.isEmpty ? null : state.courses.first.id),
+          initialValue: selectedCourseId,
           decoration: const InputDecoration(
             border: OutlineInputBorder(),
             labelText: '课程',
@@ -2515,6 +2521,15 @@ String _selectedResourceCourseName(ClientState state) {
   return '当前课程';
 }
 
+Key _courseDropdownKey(
+  String scope,
+  List<CourseItem> courses,
+  String? selectedCourseId,
+) {
+  final courseIds = courses.map((course) => course.id).join('|');
+  return ValueKey<String>('$scope:$selectedCourseId:$courseIds');
+}
+
 String _resourceDownloadStatusText(ClientState state) {
   final progress = state.resourceDownloadProgressTotal == 0
       ? '正在准备下载'
@@ -2716,6 +2731,9 @@ class _ResourcesPane extends ConsumerWidget {
     ClientState state,
   ) {
     final controller = ref.read(clientControllerProvider.notifier);
+    final selectedCourseId =
+        state.selectedResourceCourseId ??
+        (state.courses.isEmpty ? null : state.courses.first.id);
     return [
       _FeedbackBanners(
         state: state,
@@ -2725,10 +2743,13 @@ class _ResourcesPane extends ConsumerWidget {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
+              key: _courseDropdownKey(
+                'resource',
+                state.courses,
+                selectedCourseId,
+              ),
               isExpanded: true,
-              initialValue:
-                  state.selectedResourceCourseId ??
-                  (state.courses.isEmpty ? null : state.courses.first.id),
+              initialValue: selectedCourseId,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 labelText: '课程',

@@ -62,6 +62,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.authStartResponse,
     this.session,
     this.courseResponse = const FfiCourseResponse(records: [], goingSites: []),
+    List<FfiCourseResponse>? courseResponses,
     this.courseError,
     this.undoneAssignmentsResponse = const FfiAssignmentListResponse(
       records: [],
@@ -103,7 +104,8 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.parseAttendanceQrPayloadResponse,
     this.parseAttendanceQrPayloadError,
     this.sessionSummaryError,
-  }) : assignmentDetailFutures = List.of(assignmentDetailFutures ?? []),
+  }) : courseResponses = List.of(courseResponses ?? []),
+       assignmentDetailFutures = List.of(assignmentDetailFutures ?? []),
        resourceDetailFutures = List.of(resourceDetailFutures ?? []),
        resourceDownloadFutures = List.of(resourceDownloadFutures ?? []),
        resourceDownloadCourseFutures = List.of(
@@ -116,6 +118,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiAuthSessionResponse? session;
   final FfiAuthStartResponse? authStartResponse;
   final FfiCourseResponse courseResponse;
+  final List<FfiCourseResponse> courseResponses;
   final Object? courseError;
   final FfiAssignmentListResponse undoneAssignmentsResponse;
   final Future<FfiAssignmentListResponse>? undoneAssignmentsFuture;
@@ -252,6 +255,9 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     final error = courseError;
     if (error != null) {
       throw error;
+    }
+    if (courseResponses.isNotEmpty) {
+      return courseResponses.removeAt(0);
     }
     return courseResponse;
   }
