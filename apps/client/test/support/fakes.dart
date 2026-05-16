@@ -154,6 +154,8 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   String? lastResourcesSiteId;
   List<String> submittedAttachmentIds = const [];
   int downloadTaskStatusCalls = 0;
+  final List<String> cancelledDownloadTaskIds = [];
+  final List<String> disposedDownloadTaskIds = [];
 
   @override
   Future<void> init() async {
@@ -474,6 +476,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   Future<FfiDownloadTaskStatus> downloadTaskCancel({
     required String taskId,
   }) async {
+    cancelledDownloadTaskIds.add(taskId);
     downloadTaskStatuses.clear();
     return FfiDownloadTaskStatus(
       taskId: taskId,
@@ -491,6 +494,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   Future<FfiLogoutResponse> downloadTaskDispose({
     required String taskId,
   }) async {
+    disposedDownloadTaskIds.add(taskId);
     return const FfiLogoutResponse(clearSession: false);
   }
 

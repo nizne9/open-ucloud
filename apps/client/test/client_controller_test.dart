@@ -268,6 +268,75 @@ void main() {
   );
 
   test(
+    'refreshCourses cancels a starting resource download when its course disappears',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final download = Completer<FfiCourseResourceDownloadResponse>();
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        courseResponse: const FfiCourseResponse(
+          records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
+          goingSites: [],
+        ),
+        resourcesResponse: const FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-old',
+              siteName: '旧课程',
+              updatedAt: '',
+            ),
+          ],
+        ),
+        resourceDownloadCourseFuture: download.future,
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+
+      await controller.bootstrap();
+      await controller.loadResourcesForCourse('site-old');
+      final task = controller.downloadCourseResources('/tmp/downloads');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        container.read(clientControllerProvider).resourceDownloading,
+        isTrue,
+      );
+      expect(
+        container.read(clientControllerProvider).resourceDownloadTaskId,
+        isNull,
+      );
+
+      await controller.refreshCourses();
+      download.complete(
+        const FfiCourseResourceDownloadResponse(
+          records: [
+            FfiCourseResourceDetail(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-old',
+              siteName: '旧课程',
+              updatedAt: '',
+            ),
+          ],
+          writtenPaths: ['/tmp/downloads/旧课件.pdf'],
+        ),
+      );
+      await task;
+
+      final state = container.read(clientControllerProvider);
+      expect(state.selectedResourceCourseId, 'site-new');
+      expect(state.resourceDownloading, isFalse);
+      expect(state.resourceDownloadTaskId, isNull);
+      expect(state.downloadedPaths, isEmpty);
+      expect(gateway.downloadTaskStatusCalls, 0);
+      expect(gateway.cancelledDownloadTaskIds, hasLength(1));
+      expect(gateway.disposedDownloadTaskIds, gateway.cancelledDownloadTaskIds);
+    },
+  );
+
+  test(
     'refreshCourses preserves undone assignments when a stale course selection disappears',
     () async {
       final storage = MemorySessionStorage('payload');
@@ -1045,7 +1114,9 @@ void main() {
     expect(state.resourceDownloading, isFalse);
     expect(state.downloadedPaths, isEmpty);
     expect(state.operationMessage, isNull);
-    expect(storage.payload, 'stale-download-payload');
+    expect(storage.payload, 'payload');
+    expect(gateway.cancelledDownloadTaskIds, hasLength(1));
+    expect(gateway.disposedDownloadTaskIds, gateway.cancelledDownloadTaskIds);
   });
 
   test('stale single resource download keeps newer download active', () async {
@@ -1197,7 +1268,9 @@ void main() {
     expect(state.resourceDownloading, isFalse);
     expect(state.downloadedPaths, isEmpty);
     expect(state.operationMessage, isNull);
-    expect(storage.payload, 'stale-course-download-payload');
+    expect(storage.payload, 'payload');
+    expect(gateway.cancelledDownloadTaskIds, hasLength(1));
+    expect(gateway.disposedDownloadTaskIds, gateway.cancelledDownloadTaskIds);
   });
 
   test('stale batch resource download keeps newer download active', () async {

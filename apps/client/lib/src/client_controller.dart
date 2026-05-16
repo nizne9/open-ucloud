@@ -1368,6 +1368,11 @@ class ClientController extends Notifier<ClientState> {
   Future<void> _cancelActiveResourceDownloadSilently() async {
     final taskId = state.resourceDownloadTaskId;
     if (taskId == null) {
+      if (state.resourceDownloading) {
+        _resourceDownloadGeneration += 1;
+        _resourceDownloadPollTimer?.cancel();
+        _resourceDownloadPollTimer = null;
+      }
       return;
     }
     _resourceDownloadGeneration += 1;
