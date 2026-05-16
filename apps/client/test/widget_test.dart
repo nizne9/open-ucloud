@@ -1915,6 +1915,74 @@ void main() {
     expect(find.text('返回资料列表'), findsNothing);
   });
 
+  testWidgets('desktop resource list shows batch download summary', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+        writtenPaths: ['/tmp/课件.pdf'],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await container
+        .read(clientControllerProvider.notifier)
+        .downloadCourseResources('/tmp');
+    await tester.pumpAndSettle();
+
+    expect(find.text('已下载 1 个资料文件'), findsOneWidget);
+    expect(find.text('已下载 1 个文件'), findsOneWidget);
+    expect(find.text('/tmp/课件.pdf'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('/tmp/课件.pdf')).dx, lessThan(500));
+  });
+
   testWidgets('resource list lazily scrolls to later files', (tester) async {
     tester.view.physicalSize = const Size(640, 800);
     tester.view.devicePixelRatio = 1;

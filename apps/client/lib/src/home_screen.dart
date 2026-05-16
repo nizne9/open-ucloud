@@ -2602,7 +2602,12 @@ class _ResourcesPane extends ConsumerWidget {
           children: [
             SizedBox(
               width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: _listView(context, ref, state),
+              child: _listView(
+                context,
+                ref,
+                state,
+                includeDownloadSummary: true,
+              ),
             ),
             const VerticalDivider(width: 1),
             Expanded(
