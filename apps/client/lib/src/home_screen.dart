@@ -36,11 +36,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(clientControllerProvider);
+    final phase = ref.watch(
+      clientControllerProvider.select((state) => state.phase),
+    );
     final themeMode = ref.watch(themeModeControllerProvider);
     final authenticated =
-        state.phase == ClientPhase.authenticated ||
-        state.phase == ClientPhase.loadingCourses;
+        phase == ClientPhase.authenticated ||
+        phase == ClientPhase.loadingCourses;
     return Scaffold(
       appBar: authenticated
           ? null
@@ -51,14 +53,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: SafeArea(
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
-          child: switch (state.phase) {
+          child: switch (phase) {
             ClientPhase.bootstrapping => const _LoadingPane(label: '正在恢复会话'),
             ClientPhase.startingLogin => const _LoadingPane(label: '正在初始化登录'),
             ClientPhase.finishingLogin => const _LoadingPane(label: '正在登录'),
-            ClientPhase.loadingCourses => _AuthenticatedPane(state: state),
-            ClientPhase.authenticated => _AuthenticatedPane(state: state),
-            ClientPhase.awaitingCaptcha => _LoginPane(state: state),
-            ClientPhase.unauthenticated => _LoginPane(state: state),
+            ClientPhase.loadingCourses => const _AuthenticatedPane(),
+            ClientPhase.authenticated => const _AuthenticatedPane(),
+            ClientPhase.awaitingCaptcha => const _LoginPane(),
+            ClientPhase.unauthenticated => const _LoginPane(),
           },
         ),
       ),
@@ -162,14 +164,15 @@ int _destinationIndex(ClientTab tab) {
 }
 
 class _ClientNavigationBar extends ConsumerWidget {
-  const _ClientNavigationBar({required this.state});
-
-  final ClientState state;
+  const _ClientNavigationBar();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selectedTab = ref.watch(
+      clientControllerProvider.select((state) => state.selectedTab),
+    );
     return NavigationBar(
-      selectedIndex: _destinationIndex(state.selectedTab),
+      selectedIndex: _destinationIndex(selectedTab),
       onDestinationSelected: (index) =>
           _selectClientTab(_clientDestinations[index].tab, ref),
       destinations: [
@@ -184,31 +187,32 @@ class _ClientNavigationBar extends ConsumerWidget {
 }
 
 class _AuthenticatedPane extends ConsumerWidget {
-  const _AuthenticatedPane({required this.state});
-
-  final ClientState state;
+  const _AuthenticatedPane();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selectedTab = ref.watch(
+      clientControllerProvider.select((state) => state.selectedTab),
+    );
     final themeMode = ref.watch(themeModeControllerProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final content = switch (state.selectedTab) {
-          ClientTab.dashboard => _DashboardPane(state: state),
-          ClientTab.courses => _CoursePane(state: state),
-          ClientTab.assignments => _AssignmentsPane(state: state),
-          ClientTab.resources => _ResourcesPane(state: state),
-          ClientTab.account => _AccountPane(state: state),
+        final content = switch (selectedTab) {
+          ClientTab.dashboard => const _DashboardPane(),
+          ClientTab.courses => const _CoursePane(),
+          ClientTab.assignments => const _AssignmentsPane(),
+          ClientTab.resources => const _ResourcesPane(),
+          ClientTab.account => const _AccountPane(),
         };
         if (constraints.maxWidth >= 1100) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _SideNavigation(state: state),
+              const _SideNavigation(),
               const VerticalDivider(width: 1),
               Expanded(
                 child: _WorkbenchFrame(
-                  state: state,
+                  selectedTab: selectedTab,
                   themeMode: themeMode,
                   child: content,
                 ),
@@ -221,7 +225,7 @@ class _AuthenticatedPane extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               NavigationRail(
-                selectedIndex: _destinationIndex(state.selectedTab),
+                selectedIndex: _destinationIndex(selectedTab),
                 labelType: NavigationRailLabelType.all,
                 onDestinationSelected: (index) {
                   _selectClientTab(_clientDestinations[index].tab, ref);
@@ -237,7 +241,7 @@ class _AuthenticatedPane extends ConsumerWidget {
               const VerticalDivider(width: 1),
               Expanded(
                 child: _WorkbenchFrame(
-                  state: state,
+                  selectedTab: selectedTab,
                   themeMode: themeMode,
                   child: content,
                 ),
@@ -249,13 +253,13 @@ class _AuthenticatedPane extends ConsumerWidget {
           children: [
             Expanded(
               child: _WorkbenchFrame(
-                state: state,
+                selectedTab: selectedTab,
                 themeMode: themeMode,
                 compact: true,
                 child: content,
               ),
             ),
-            _ClientNavigationBar(state: state),
+            const _ClientNavigationBar(),
           ],
         );
       },
@@ -264,14 +268,17 @@ class _AuthenticatedPane extends ConsumerWidget {
 }
 
 class _SideNavigation extends ConsumerWidget {
-  const _SideNavigation({required this.state});
-
-  final ClientState state;
+  const _SideNavigation();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final navigationState = ref.watch(
+      clientControllerProvider.select(
+        (state) => (selectedTab: state.selectedTab, session: state.session),
+      ),
+    );
     final colorScheme = Theme.of(context).colorScheme;
-    final session = state.session;
+    final session = navigationState.session;
     return SizedBox(
       width: 248,
       child: DecoratedBox(
@@ -293,7 +300,8 @@ class _SideNavigation extends ConsumerWidget {
                     number: '${index + 1}'.padLeft(2, '0'),
                     destination: _clientDestinations[index],
                     selected:
-                        state.selectedTab == _clientDestinations[index].tab,
+                        navigationState.selectedTab ==
+                        _clientDestinations[index].tab,
                     onTap: () =>
                         _selectClientTab(_clientDestinations[index].tab, ref),
                   ),
@@ -490,20 +498,23 @@ class _AccountBadge extends StatelessWidget {
 
 class _WorkbenchFrame extends ConsumerWidget {
   const _WorkbenchFrame({
-    required this.state,
+    required this.selectedTab,
     required this.themeMode,
     required this.child,
     this.compact = false,
   });
 
-  final ClientState state;
+  final ClientTab selectedTab;
   final AppThemeMode themeMode;
   final Widget child;
   final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final destination = _destinationFor(state.selectedTab);
+    final isBusy = ref.watch(
+      clientControllerProvider.select((state) => state.isBusy),
+    );
+    final destination = _destinationFor(selectedTab);
     final controller = ref.read(clientControllerProvider.notifier);
     final colorScheme = Theme.of(context).colorScheme;
     return DecoratedBox(
@@ -513,11 +524,10 @@ class _WorkbenchFrame extends ConsumerWidget {
         children: [
           _WorkbenchTopBar(
             destination: destination,
-            state: state,
             compact: compact,
             themeMode: themeMode,
-            onRefresh: state.isBusy ? null : controller.refreshCourses,
-            onLogout: state.isBusy ? null : controller.logout,
+            onRefresh: isBusy ? null : controller.refreshCourses,
+            onLogout: isBusy ? null : controller.logout,
           ),
           Expanded(child: child),
         ],
@@ -529,7 +539,6 @@ class _WorkbenchFrame extends ConsumerWidget {
 class _WorkbenchTopBar extends StatelessWidget {
   const _WorkbenchTopBar({
     required this.destination,
-    required this.state,
     required this.compact,
     required this.themeMode,
     required this.onRefresh,
@@ -537,7 +546,6 @@ class _WorkbenchTopBar extends StatelessWidget {
   });
 
   final _ClientDestination destination;
-  final ClientState state;
   final bool compact;
   final AppThemeMode themeMode;
   final VoidCallback? onRefresh;
@@ -647,9 +655,7 @@ void _selectClientTab(ClientTab tab, WidgetRef ref) {
 }
 
 class _LoginPane extends ConsumerStatefulWidget {
-  const _LoginPane({required this.state});
-
-  final ClientState state;
+  const _LoginPane();
 
   @override
   ConsumerState<_LoginPane> createState() => _LoginPaneState();
@@ -663,11 +669,12 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
   @override
   void initState() {
     super.initState();
+    final initialState = ref.read(clientControllerProvider);
     _usernameController = TextEditingController(
-      text: widget.state.pendingUsername ?? '',
+      text: initialState.pendingUsername ?? '',
     );
     _passwordController = TextEditingController(
-      text: widget.state.pendingPassword ?? '',
+      text: initialState.pendingPassword ?? '',
     );
     _captchaController = TextEditingController();
   }
@@ -682,7 +689,15 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.state;
+    final state = ref.watch(
+      clientControllerProvider.select(
+        (state) => (
+          phase: state.phase,
+          captchaImage: state.captchaImage,
+          errorMessage: state.errorMessage,
+        ),
+      ),
+    );
     final controller = ref.read(clientControllerProvider.notifier);
     final awaitingCaptcha = state.phase == ClientPhase.awaitingCaptcha;
     return Center(
@@ -791,12 +806,11 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
 }
 
 class _DashboardPane extends ConsumerWidget {
-  const _DashboardPane({required this.state});
-
-  final ClientState state;
+  const _DashboardPane();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(clientControllerProvider);
     if (state.phase == ClientPhase.authenticated &&
         state.pendingAssignmentsErrorMessage == null &&
         !state.undoneAssignmentsLoaded &&
@@ -1242,12 +1256,11 @@ class _NextActionCard extends ConsumerWidget {
 }
 
 class _AccountPane extends ConsumerWidget {
-  const _AccountPane({required this.state});
-
-  final ClientState state;
+  const _AccountPane();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(clientControllerProvider);
     final controller = ref.read(clientControllerProvider.notifier);
     final session = state.session;
     return ListView(
@@ -1423,12 +1436,11 @@ void _openAttendanceQrDialog(BuildContext context, WidgetRef ref) {
 }
 
 class _CoursePane extends ConsumerWidget {
-  const _CoursePane({required this.state});
-
-  final ClientState state;
+  const _CoursePane();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(clientControllerProvider);
     final session = state.session;
     final controller = ref.read(clientControllerProvider.notifier);
     return ListView(
@@ -1677,7 +1689,15 @@ class _AttendanceQrPayloadDialogState
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(clientControllerProvider);
+    final state = ref.watch(
+      clientControllerProvider.select(
+        (state) => (
+          parsedAttendanceQrPayload: state.parsedAttendanceQrPayload,
+          attendanceQrInputError: state.attendanceQrInputError,
+          courses: state.courses,
+        ),
+      ),
+    );
     final parsed = state.parsedAttendanceQrPayload;
     final matchedCourse = parsed == null
         ? null
@@ -1763,12 +1783,11 @@ class _QrPayloadField extends StatelessWidget {
 }
 
 class _AssignmentsPane extends ConsumerWidget {
-  const _AssignmentsPane({required this.state});
-
-  final ClientState state;
+  const _AssignmentsPane();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(clientControllerProvider);
     final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1804,7 +1823,7 @@ class _AssignmentsPane extends ConsumerWidget {
           }
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            children: _listChildren(context, ref),
+            children: _listChildren(context, ref, state),
           );
         }
         return Row(
@@ -1814,7 +1833,7 @@ class _AssignmentsPane extends ConsumerWidget {
               width: constraints.maxWidth >= 1120 ? 440 : 380,
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: _listChildren(context, ref),
+                children: _listChildren(context, ref, state),
               ),
             ),
             const VerticalDivider(width: 1),
@@ -1848,7 +1867,11 @@ class _AssignmentsPane extends ConsumerWidget {
     );
   }
 
-  List<Widget> _listChildren(BuildContext context, WidgetRef ref) {
+  List<Widget> _listChildren(
+    BuildContext context,
+    WidgetRef ref,
+    ClientState state,
+  ) {
     final controller = ref.read(clientControllerProvider.notifier);
     return [
       if (state.errorMessage != null) ...[
@@ -2438,12 +2461,11 @@ String _formatBytes(BigInt bytes) {
 }
 
 class _ResourcesPane extends ConsumerWidget {
-  const _ResourcesPane({required this.state});
-
-  final ClientState state;
+  const _ResourcesPane();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(clientControllerProvider);
     final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2481,7 +2503,7 @@ class _ResourcesPane extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
-              ..._listChildren(context, ref),
+              ..._listChildren(context, ref, state),
               if (state.downloadedPaths.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _DownloadSummary(paths: state.downloadedPaths),
@@ -2496,7 +2518,7 @@ class _ResourcesPane extends ConsumerWidget {
               width: constraints.maxWidth >= 1120 ? 440 : 380,
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: _listChildren(context, ref),
+                children: _listChildren(context, ref, state),
               ),
             ),
             const VerticalDivider(width: 1),
@@ -2534,7 +2556,11 @@ class _ResourcesPane extends ConsumerWidget {
     );
   }
 
-  List<Widget> _listChildren(BuildContext context, WidgetRef ref) {
+  List<Widget> _listChildren(
+    BuildContext context,
+    WidgetRef ref,
+    ClientState state,
+  ) {
     final controller = ref.read(clientControllerProvider.notifier);
     return [
       _FeedbackBanners(
