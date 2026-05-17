@@ -16,7 +16,7 @@ Current workspace:
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
 - `crates/cli`: `open-cloud` command-line harness.
 - `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication, course, assignment, and resource DTOs.
-- `apps/client`: Linux-first Flutter client shell with Android and Windows platform runners for login, secure session storage, course listing, assignments, and resources.
+- `apps/client`: Linux-first Flutter client shell with Linux, Android, Windows, and macOS platform runners for login, secure session storage, course listing, assignments, and resources.
 
 The first CLI login is intentionally interactive and persists its session through the system credential store:
 
@@ -55,7 +55,9 @@ The Flutter-facing FFI facade returns opaque session payloads for Dart secure st
 flutter_rust_bridge_codegen generate
 ```
 
-The Flutter client currently targets Linux desktop first. For local development, build the Rust library and run the client:
+The Flutter client remains Linux-first and has platform runners for Linux,
+Android, Windows, and macOS. For Linux local development, build the Rust library
+and run the client:
 
 ```bash
 cargo build -p open-cloud-ffi
@@ -79,6 +81,24 @@ For release builds:
 cargo build --release -p open-cloud-ffi
 cd apps/client
 flutter build windows --release
+```
+
+macOS desktop builds must run on a macOS host with Flutter's macOS desktop
+toolchain installed. Build the Rust FFI dylib first, then build the Flutter
+bundle:
+
+```bash
+cargo build -p open-cloud-ffi
+cd apps/client
+flutter build macos --debug
+```
+
+For release/profile packaging, use the release Rust dylib:
+
+```bash
+cargo build --release -p open-cloud-ffi
+cd apps/client
+flutter build macos --release
 ```
 
 Android builds package the Rust FFI library through the Flutter Gradle build.

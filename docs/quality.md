@@ -44,6 +44,29 @@ cd apps/client
 flutter build windows --release
 ```
 
+macOS desktop client builds must run on a macOS host. Verify that the Rust FFI
+dylib is built before Flutter and copied into the app bundle:
+
+```bash
+cargo build -p open-cloud-ffi
+cd apps/client
+flutter build macos --debug
+```
+
+The debug app bundle should contain:
+
+```text
+build/macos/Build/Products/Debug/open_cloud_client.app/Contents/Frameworks/libopen_cloud_ffi.dylib
+```
+
+Release builds use the release Rust dylib:
+
+```bash
+cargo build --release -p open-cloud-ffi
+cd apps/client
+flutter build macos --release
+```
+
 Android client changes should also verify the Rust FFI library is packaged:
 
 ```bash

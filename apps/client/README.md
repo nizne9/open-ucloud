@@ -1,19 +1,37 @@
 # open_cloud_client
 
-Open UCloud Flutter client. The current Linux desktop client supports login,
+Open UCloud Flutter client. The Linux-first desktop client supports login,
 secure session restoration, course listing, assignment list/detail/upload/submit,
 course resource list/detail/single or batch downloads, and a persisted
-light/dark/system theme preference.
+light/dark/system theme preference. Platform runners are present for Linux,
+Android, Windows, and macOS.
 
 ## Local Development
 
-The first supported target is Linux desktop. Build the Rust FFI library before
-running the Flutter shell:
+Build the Rust FFI library before running the Linux Flutter shell:
 
 ```bash
 cargo build -p open-cloud-ffi
 cd apps/client
 flutter run -d linux
+```
+
+macOS builds must run on a macOS host. The Xcode runner builds
+`open-cloud-ffi` with the matching Cargo profile and copies
+`libopen_cloud_ffi.dylib` into the app bundle:
+
+```bash
+cargo build -p open-cloud-ffi
+cd apps/client
+flutter build macos --debug
+```
+
+Release/profile packaging uses the release Rust dylib:
+
+```bash
+cargo build --release -p open-cloud-ffi
+cd apps/client
+flutter build macos --release
 ```
 
 The app stores only the opaque `sessionPayload` returned by Rust in platform
