@@ -29,15 +29,15 @@ cargo run -p open-cloud-cli -- courses --json
 cargo run -p open-cloud-cli -- courses --with-going --json
 cargo run -p open-cloud-cli -- course <site-id> --json
 cargo run -p open-cloud-cli -- attendance --site <site-id> --json
-cargo run -p open-cloud-cli -- assignments list --site <site-id> --json
+cargo run -p open-cloud-cli -- assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
 cargo run -p open-cloud-cli -- assignments undone --json
 cargo run -p open-cloud-cli -- assignments detail <assignment-id> --json
 cargo run -p open-cloud-cli -- assignments upload <assignment-id> --file <path> --yes --json
-cargo run -p open-cloud-cli -- assignments submit <assignment-id> --content <text> --yes --json
-cargo run -p open-cloud-cli -- resources list --site <site-id> --json
-cargo run -p open-cloud-cli -- resources detail <resource-id> --site <site-id> --json
-cargo run -p open-cloud-cli -- resources download <resource-id> --site <site-id> --out-dir <dir> --json
-cargo run -p open-cloud-cli -- resources download-course --site <site-id> --out-dir <dir> --yes --json
+cargo run -p open-cloud-cli -- assignments submit <assignment-id> [--content <text>|--content-file <path>] [--attachment <resource-id>] --yes --json
+cargo run -p open-cloud-cli -- resources list --site <site-id> [--site-name <name>] --json
+cargo run -p open-cloud-cli -- resources detail <resource-id> --site <site-id> [--site-name <name>] --json
+cargo run -p open-cloud-cli -- resources download <resource-id> --site <site-id> [--site-name <name>] --out-dir <dir> --json
+cargo run -p open-cloud-cli -- resources download-course --site <site-id> [--site-name <name>] --out-dir <dir> --yes --json
 cargo run -p open-cloud-cli -- logout --yes
 ```
 
@@ -79,7 +79,7 @@ non-overwriting file allocation rules as the CLI are preserved.
 
 `course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns attendance status derived from the current course activity state. Rust core and FFI also expose parsing for `checkwork|...` QR payload text.
 
-`assignments` supports course assignment lists, unfinished assignments, assignment detail, assignment-scoped attachment upload, and explicit assignment submission. Upload validates the target assignment before creating an attachment resource. Upload and submit are live write operations and require `--yes`.
+`assignments` supports course assignment lists, unfinished assignments, assignment detail, assignment-scoped attachment upload, and explicit assignment submission. Assignment lists accept an optional course name and keyword filter. Submission accepts inline content or `--content-file`, plus zero or more uploaded attachment resource IDs. Upload validates the target assignment before creating an attachment resource. Upload and submit are live write operations and require `--yes`.
 
 `resources` supports course resource lists, resource detail, single-resource download, and explicit full-course batch download. Downloads require `--out-dir`, create the directory if needed, never overwrite existing files, and print or return the actual written paths.
 

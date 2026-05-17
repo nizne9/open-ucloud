@@ -16,15 +16,15 @@ open-cloud courses --json
 open-cloud courses --with-going --json
 open-cloud course <site-id> --json
 open-cloud attendance --site <site-id> --json
-open-cloud assignments list --site <site-id> --json
+open-cloud assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
 open-cloud assignments undone --json
 open-cloud assignments detail <assignment-id> --json
 open-cloud assignments upload <assignment-id> --file <path> --yes --json
-open-cloud assignments submit <assignment-id> --content <text> --yes --json
-open-cloud resources list --site <site-id> --json
-open-cloud resources detail <resource-id> --site <site-id> --json
-open-cloud resources download <resource-id> --site <site-id> --out-dir <dir> --json
-open-cloud resources download-course --site <site-id> --out-dir <dir> --yes --json
+open-cloud assignments submit <assignment-id> [--content <text>|--content-file <path>] [--attachment <resource-id>] --yes --json
+open-cloud resources list --site <site-id> [--site-name <name>] --json
+open-cloud resources detail <resource-id> --site <site-id> [--site-name <name>] --json
+open-cloud resources download <resource-id> --site <site-id> [--site-name <name>] --out-dir <dir> --json
+open-cloud resources download-course --site <site-id> [--site-name <name>] --out-dir <dir> --yes --json
 open-cloud logout --yes
 ```
 
@@ -115,6 +115,8 @@ Core and FFI also expose parsing for `checkwork|...` QR payload text.
 }
 ```
 
+`assignments list` may also receive `--site-name` when the caller already has a display name from course discovery, and `--keyword` to pass a course-assignment search filter upstream.
+
 `assignments undone --json` returns the same shape with `source: "undone"`. `assignments detail <assignment-id> --json` returns assignment content, status, score, teacher resources, submitted content, and submitted attachments without tokens.
 
 `assignments upload <assignment-id> --file <path> --yes --json` loads the assignment detail first, rejects missing or expired assignments before uploading, uploads one attachment resource, and prints:
@@ -130,7 +132,7 @@ Core and FFI also expose parsing for `checkwork|...` QR payload text.
 }
 ```
 
-`assignments submit <assignment-id> --content <text> --attachment <resource-id> --yes --json` submits live assignment content and returns `{ "ok": true }`. Upload and submit commands are mutating and must require `--yes`.
+`assignments submit <assignment-id> --content <text> --attachment <resource-id> --yes --json` submits live assignment content and returns `{ "ok": true }`. `--content-file <path>` may be used instead of `--content`; `--attachment` may be repeated. Upload and submit commands are mutating and must require `--yes`.
 
 Assignment uploads use RFC 7578-style `multipart/form-data` with a single UTF-8 `filename` parameter. The client must not send `filename*` in multipart part headers. File names containing CR or LF are rejected before any request is sent because they cannot be represented safely in part headers.
 
@@ -152,7 +154,7 @@ Assignment uploads use RFC 7578-style `multipart/form-data` with a single UTF-8 
 }
 ```
 
-`resources detail <resource-id> --site <site-id> --json` wraps the detail as `{ "detail": { ... } }` and includes `downloadUrl` when upstream provides one. `resources download` and `resources download-course` require `--out-dir`; they create the directory if needed, do not overwrite existing files, and return `writtenPaths` with the actual saved paths.
+`resources list`, `resources detail`, `resources download`, and `resources download-course` may receive `--site-name` when the caller already has a display name from course discovery. `resources detail <resource-id> --site <site-id> --json` wraps the detail as `{ "detail": { ... } }` and includes `downloadUrl` when upstream provides one. `resources download` and `resources download-course` require `--out-dir`; they create the directory if needed, do not overwrite existing files, and return `writtenPaths` with the actual saved paths.
 
 ## Agent-Friendly Rules
 
@@ -173,4 +175,4 @@ Assignment uploads use RFC 7578-style `multipart/form-data` with a single UTF-8 
 
 ## Write Safety
 
-Mutating commands require explicit confirmation or `--yes`. This includes check-in submission, assignment upload, assignment submission, full-course batch downloads, logout, credential clearing, and destructive cache changes. Agents may run read-only commands freely; live writes require user approval.
+Mutating commands require explicit confirmation or `--yes`. This includes assignment upload, assignment submission, full-course batch downloads, logout, credential clearing, destructive cache changes, and any future live write command. Agents may run read-only commands freely; live writes require user approval.

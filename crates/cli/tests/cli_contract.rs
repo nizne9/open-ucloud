@@ -50,6 +50,8 @@ fn exposes_documented_commands() {
             "site-1",
             "--site-name",
             "软件测试",
+            "--keyword",
+            "实验",
             "--json",
         ])
         .expect("assignment list parses");
@@ -88,10 +90,28 @@ fn exposes_documented_commands() {
     command
         .try_get_matches_from_mut([
             "open-cloud",
+            "assignments",
+            "submit",
+            "work-1",
+            "--content-file",
+            "answer.md",
+            "--attachment",
+            "resource-1",
+            "--attachment",
+            "resource-2",
+            "--yes",
+            "--json",
+        ])
+        .expect("assignment submit content file parses");
+    command
+        .try_get_matches_from_mut([
+            "open-cloud",
             "resources",
             "list",
             "--site",
             "site-1",
+            "--site-name",
+            "软件测试",
             "--json",
         ])
         .expect("resource list parses");
@@ -103,6 +123,8 @@ fn exposes_documented_commands() {
             "resource-1",
             "--site",
             "site-1",
+            "--site-name",
+            "软件测试",
             "--json",
         ])
         .expect("resource detail parses");
@@ -114,6 +136,8 @@ fn exposes_documented_commands() {
             "resource-1",
             "--site",
             "site-1",
+            "--site-name",
+            "软件测试",
             "--out-dir",
             ".",
             "--json",
@@ -126,6 +150,8 @@ fn exposes_documented_commands() {
             "download-course",
             "--site",
             "site-1",
+            "--site-name",
+            "软件测试",
             "--out-dir",
             ".",
             "--yes",

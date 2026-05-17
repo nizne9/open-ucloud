@@ -37,7 +37,7 @@ Use short directory names and full package names. Example: `crates/core` publish
 
 Rust follows `rustfmt`; Flutter/Dart follows `dart format`. CLI commands should be verb-first, for example `open-cloud courses --json`.
 
-No Git history exists yet, so commit conventions cannot be inferred. Use concise conventional-style messages such as `feat: add login facade`.
+Use the existing concise conventional-style commit messages, for example `feat: add login facade`.
 
 ## Security
 

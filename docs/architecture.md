@@ -6,7 +6,7 @@ Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Fl
 
 - `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, read-only attendance state, user-supplied attendance QR payload parsing, public capability defaults, assignments, and resources.
 - `crates/api/`: stable DTOs, command/response shapes, and error codes shared by CLI, FFI, and future adapters.
-- `crates/store/`: storage abstractions and implementations for secure storage, SQLite, local cache, and downloaded files.
+- `crates/store/`: storage abstractions and implementations for in-memory session storage, system credential-store persistence, and credential backend diagnostics.
 - `crates/cli/`: agent-friendly command-line client. It is the first integration surface and smoke-test harness for core.
 - `crates/ffi/`: Dart-facing facade for Flutter. It must hide Rust lifetimes, traits, generics, and internal session types.
 - `apps/client/`: Flutter UI, navigation, local presentation state, permissions, and platform UX.

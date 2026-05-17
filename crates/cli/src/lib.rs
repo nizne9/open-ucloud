@@ -43,7 +43,7 @@ pub enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Print the current in-process session.
+    /// Print the current persisted session summary.
     Session {
         #[arg(long)]
         json: bool,
@@ -83,7 +83,7 @@ pub enum Commands {
         #[command(subcommand)]
         command: ResourceCommands,
     },
-    /// Clear the current in-process session.
+    /// Clear the current persisted session.
     Logout {
         #[arg(long)]
         yes: bool,
