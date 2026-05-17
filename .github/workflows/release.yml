@@ -54,7 +54,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.release_ref }}
 
@@ -67,7 +67,7 @@ jobs:
         run: rustup default stable
 
       - name: Cache Cargo data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -88,7 +88,7 @@ jobs:
           sha256sum ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
 
       - name: Upload release asset artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.artifact }}
           path: |
@@ -103,7 +103,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.release_ref }}
 
@@ -111,7 +111,7 @@ jobs:
         run: rustup default stable
 
       - name: Cache Cargo data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -134,7 +134,7 @@ jobs:
           "$hash  open-cloud-cli-windows-x64.zip" | Out-File -Encoding ascii open-cloud-cli-windows-x64.zip.sha256
 
       - name: Upload release asset artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-open-cloud-cli-windows-x64
           path: |
@@ -149,7 +149,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.release_ref }}
 
@@ -159,7 +159,7 @@ jobs:
           rustup target add x86_64-apple-darwin aarch64-apple-darwin
 
       - name: Cache Cargo data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -183,7 +183,7 @@ jobs:
           shasum -a 256 open-cloud-cli-macos-universal.tar.gz > open-cloud-cli-macos-universal.tar.gz.sha256
 
       - name: Upload release asset artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-open-cloud-cli-macos-universal
           path: |
@@ -198,7 +198,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.release_ref }}
 
@@ -211,7 +211,7 @@ jobs:
         run: rustup default stable
 
       - name: Cache Cargo data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -245,7 +245,7 @@ jobs:
           sha256sum open-ucloud-client-linux-x64-unsigned.tar.gz > open-ucloud-client-linux-x64-unsigned.tar.gz.sha256
 
       - name: Upload release asset artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-open-ucloud-client-linux-x64-unsigned
           path: |
@@ -260,7 +260,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.release_ref }}
 
@@ -268,7 +268,7 @@ jobs:
         run: rustup default stable
 
       - name: Cache Cargo data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -306,7 +306,7 @@ jobs:
           "$hash  open-ucloud-client-windows-x64-unsigned.zip" | Out-File -Encoding ascii open-ucloud-client-windows-x64-unsigned.zip.sha256
 
       - name: Upload release asset artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-open-ucloud-client-windows-x64-unsigned
           path: |
@@ -321,7 +321,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ needs.prepare.outputs.release_ref }}
 
@@ -331,7 +331,7 @@ jobs:
           rustup target add x86_64-apple-darwin aarch64-apple-darwin
 
       - name: Cache Cargo data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -363,7 +363,7 @@ jobs:
           shasum -a 256 open-ucloud-client-macos-universal-unsigned.zip > open-ucloud-client-macos-universal-unsigned.zip.sha256
 
       - name: Upload release asset artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-open-ucloud-client-macos-universal-unsigned
           path: |
@@ -390,7 +390,7 @@ jobs:
 
     steps:
       - name: Download release assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: release-*
           merge-multiple: true

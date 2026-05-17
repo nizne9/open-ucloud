@@ -111,7 +111,7 @@ Release assets include CLI packages for Linux keyutils, Linux Secret Service, Wi
 
 Android release signing is intentionally out of scope until keystore secrets and Gradle release signing are configured. The Android artifact produced by the build workflow is a `debug-signed` APK for development testing only and must not be treated as a formal release asset.
 
-The workflows use maintained major-version action tags such as `actions/checkout@v4`, `actions/cache@v4`, and `subosito/flutter-action@v2` instead of commit SHAs to keep this early CI readable and maintainable. If the project later requires high-assurance release provenance, pin those actions to audited commit SHAs in a dedicated hardening pass.
+The workflows use maintained major-version action tags such as `actions/checkout@v6`, `actions/cache@v5`, and `subosito/flutter-action@v2` instead of commit SHAs to keep this early CI readable and maintainable. If the project later requires high-assurance release provenance, pin those actions to audited commit SHAs in a dedicated hardening pass.
 
 ## Structural Expectations
 
