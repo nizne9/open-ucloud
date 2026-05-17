@@ -134,6 +134,16 @@ The Secret Service artifact requires a DBus session and a provider such as GNOME
 
 Use `open-cloud doctor` to confirm the actual `credential backend`, `credential persistence`, and runtime `credential status` of the binary being run. The runtime probe uses a temporary `doctor-probe` credential entry, not the stored login session.
 
+## CI and Release Artifacts
+
+GitHub Actions has three package levels:
+
+- `CI` runs Rust formatting, Clippy, Rust tests, CLI smoke checks, Dart analysis, and Flutter tests for pull requests and pushes to `main`.
+- `Build Artifacts` runs on `main` and manual dispatches. It uploads short-lived Actions artifacts for development testing, including CLI packages, desktop client bundles, and an Android `debug-signed` APK.
+- `Release` runs for `v*` tags and manual dispatches pointed at an existing `v*` tag. It uploads CLI and unsigned desktop client packages to GitHub Releases and publishes a `.sha256` file for each asset.
+
+Android release signing is not configured yet, so Android APKs are not uploaded as formal GitHub Release assets. macOS notarization and Windows Authenticode signing are also not configured; current desktop client release assets are named as unsigned packages.
+
 See:
 
 - [AGENTS.md](AGENTS.md) for contributor and agent entry instructions.
