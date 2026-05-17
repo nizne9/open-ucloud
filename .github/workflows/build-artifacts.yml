@@ -1,0 +1,372 @@
+name: Build Artifacts
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cli-linux:
+    name: CLI Linux ${{ matrix.backend }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: keyutils
+            artifact: open-cloud-cli-linux-x64-keyutils
+            cargo_features: ""
+          - backend: secret-service
+            artifact: open-cloud-cli-linux-x64-secret-service
+            cargo_features: "--features linux-secret-service"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - name: Set up Rust
+        run: rustup default stable
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-${{ matrix.backend }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-${{ matrix.backend }}-
+
+      - name: Build CLI
+        run: cargo build --release -p open-cloud-cli ${{ matrix.cargo_features }}
+
+      - name: Archive CLI
+        run: |
+          mkdir -p dist/${{ matrix.artifact }}
+          cp target/release/open-cloud dist/${{ matrix.artifact }}/open-cloud
+          tar -C dist -czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.tar.gz
+          retention-days: 14
+
+  cli-windows:
+    name: CLI Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        run: rustup default stable
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-cli-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-cli-
+
+      - name: Build CLI
+        run: cargo build --release -p open-cloud-cli
+
+      - name: Archive CLI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/open-cloud-cli-windows-x64 | Out-Null
+          Copy-Item target/release/open-cloud.exe dist/open-cloud-cli-windows-x64/open-cloud.exe
+          Compress-Archive -Path dist/open-cloud-cli-windows-x64/* -DestinationPath open-cloud-cli-windows-x64.zip -Force
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-cloud-cli-windows-x64
+          path: open-cloud-cli-windows-x64.zip
+          retention-days: 14
+
+  cli-macos:
+    name: CLI macOS universal
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        run: |
+          rustup default stable
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-cli-universal-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-cli-universal-
+
+      - name: Build universal CLI
+        run: |
+          cargo build --release --target x86_64-apple-darwin -p open-cloud-cli
+          cargo build --release --target aarch64-apple-darwin -p open-cloud-cli
+          mkdir -p dist/open-cloud-cli-macos-universal
+          lipo -create \
+            target/x86_64-apple-darwin/release/open-cloud \
+            target/aarch64-apple-darwin/release/open-cloud \
+            -output dist/open-cloud-cli-macos-universal/open-cloud
+          chmod +x dist/open-cloud-cli-macos-universal/open-cloud
+          tar -C dist -czf open-cloud-cli-macos-universal.tar.gz open-cloud-cli-macos-universal
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-cloud-cli-macos-universal
+          path: open-cloud-cli-macos-universal.tar.gz
+          retention-days: 14
+
+  client-linux:
+    name: Flutter Linux client
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake libgtk-3-dev ninja-build pkg-config
+
+      - name: Set up Rust
+        run: rustup default stable
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-client-linux-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-client-linux-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Rust FFI library
+        run: cargo build --release -p open-cloud-ffi
+
+      - name: Build Linux client
+        working-directory: apps/client
+        run: |
+          flutter config --enable-linux-desktop
+          flutter pub get
+          flutter build linux --release
+
+      - name: Verify Linux bundle
+        run: test -f apps/client/build/linux/x64/release/bundle/lib/libopen_cloud_ffi.so
+
+      - name: Archive Linux client
+        run: |
+          tar -C apps/client/build/linux/x64/release \
+            -czf open-ucloud-client-linux-x64.tar.gz bundle
+
+      - name: Upload Linux client artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-ucloud-client-linux-x64
+          path: open-ucloud-client-linux-x64.tar.gz
+          retention-days: 14
+
+  client-windows:
+    name: Flutter Windows client
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        run: rustup default stable
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-client-windows-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-client-windows-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Rust FFI library
+        run: cargo build --release -p open-cloud-ffi
+
+      - name: Build Windows client
+        working-directory: apps/client
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+          flutter build windows --release
+
+      - name: Archive Windows client
+        shell: pwsh
+        run: |
+          $bundle = "apps/client/build/windows/x64/runner/Release"
+          if (!(Test-Path "$bundle/open_cloud_ffi.dll")) {
+            throw "Missing $bundle/open_cloud_ffi.dll"
+          }
+          Compress-Archive -Path "$bundle/*" -DestinationPath open-ucloud-client-windows-x64.zip -Force
+
+      - name: Upload Windows client artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-ucloud-client-windows-x64
+          path: open-ucloud-client-windows-x64.zip
+          retention-days: 14
+
+  client-macos:
+    name: Flutter macOS client
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Rust
+        run: |
+          rustup default stable
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-client-macos-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-client-macos-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build macOS client
+        working-directory: apps/client
+        run: |
+          flutter config --enable-macos-desktop
+          flutter pub get
+          flutter build macos --release
+
+      - name: Verify macOS bundle
+        run: test -f apps/client/build/macos/Build/Products/Release/open_cloud_client.app/Contents/Frameworks/libopen_cloud_ffi.dylib
+
+      - name: Archive macOS client
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            apps/client/build/macos/Build/Products/Release/open_cloud_client.app \
+            open-ucloud-client-macos-universal.zip
+
+      - name: Upload macOS client artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-ucloud-client-macos-universal
+          path: open-ucloud-client-macos-universal.zip
+          retention-days: 14
+
+  client-android:
+    name: Flutter Android debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Rust
+        run: |
+          rustup default stable
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-client-android-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-client-android-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Android debug APK
+        working-directory: apps/client
+        run: |
+          flutter pub get
+          flutter build apk --debug
+
+      - name: Verify Android FFI libraries
+        run: |
+          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/arm64-v8a/libopen_cloud_ffi.so'
+          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/armeabi-v7a/libopen_cloud_ffi.so'
+          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/x86_64/libopen_cloud_ffi.so'
+
+      - name: Rename debug APK
+        run: cp apps/client/build/app/outputs/flutter-apk/app-debug.apk open-ucloud-client-android-debug-signed.apk
+
+      - name: Upload Android debug artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-ucloud-client-android-debug-signed
+          path: open-ucloud-client-android-debug-signed.apk
+          retention-days: 14

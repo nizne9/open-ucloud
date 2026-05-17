@@ -99,6 +99,20 @@ Linux release artifacts must make credential persistence explicit:
 
 Run `cargo run -p open-cloud-cli -- doctor` for the default Linux package. Verify the Secret Service build on a native Linux desktop with a DBus session, a Secret Service provider such as GNOME Keyring, KWallet, or KeePassXC, and an unlocked collection. Build hosts may need `libdbus-1-dev` and `pkg-config`; use `linux-secret-service-vendored` only for a release environment that intentionally vendors native dependencies.
 
+## CI/CD Artifact Boundary
+
+GitHub Actions separates verification, temporary packages, and formal releases:
+
+- `.github/workflows/ci.yml` runs baseline Rust and Flutter verification for pull requests and pushes to `main`.
+- `.github/workflows/build-artifacts.yml` builds temporary Actions artifacts for `main` and manual test runs. These artifacts are retained for 14 days and are development test packages, not official release packages.
+- `.github/workflows/release.yml` publishes only from existing `v*` tags. The upload job is the only job with `contents: write`; all build jobs remain `contents: read`.
+
+Release assets include CLI packages for Linux keyutils, Linux Secret Service, Windows, and macOS, plus unsigned Flutter desktop client packages for Linux, Windows, and macOS. Each asset must have a matching `.sha256` file.
+
+Android release signing is intentionally out of scope until keystore secrets and Gradle release signing are configured. The Android artifact produced by the build workflow is a `debug-signed` APK for development testing only and must not be treated as a formal release asset.
+
+The workflows use maintained major-version action tags such as `actions/checkout@v6`, `actions/cache@v5`, and `subosito/flutter-action@v2` instead of commit SHAs to keep this early CI readable and maintainable. If the project later requires high-assurance release provenance, pin those actions to audited commit SHAs in a dedicated hardening pass.
+
 ## Structural Expectations
 
 - `core` must not depend on CLI, FFI, Flutter, Web, or UI state.
