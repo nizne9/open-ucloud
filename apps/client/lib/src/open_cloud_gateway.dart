@@ -316,10 +316,15 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
 }
 
 String? _findDebugLibraryPath() {
+  final libraryName = _debugLibraryName();
+  if (libraryName == null) {
+    return null;
+  }
+
   var directory = Directory.current.absolute;
   for (var depth = 0; depth < 8; depth += 1) {
     final candidate = File(
-      p.join(directory.path, 'target', 'debug', 'libopen_cloud_ffi.so'),
+      p.join(directory.path, 'target', 'debug', libraryName),
     );
     if (candidate.existsSync()) {
       return candidate.path;
@@ -329,6 +334,16 @@ String? _findDebugLibraryPath() {
       return null;
     }
     directory = parent;
+  }
+  return null;
+}
+
+String? _debugLibraryName() {
+  if (Platform.isLinux) {
+    return 'libopen_cloud_ffi.so';
+  }
+  if (Platform.isMacOS) {
+    return 'libopen_cloud_ffi.dylib';
   }
   return null;
 }
