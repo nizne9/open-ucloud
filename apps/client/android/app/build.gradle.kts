@@ -8,6 +8,43 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseSigningProperties =
+    Properties().apply {
+        val propertiesFile = rootProject.file("key.properties")
+        if (propertiesFile.isFile) {
+            propertiesFile.inputStream().use { load(it) }
+        }
+    }
+
+fun releaseSigningValue(
+    propertyName: String,
+    environmentName: String,
+): String? =
+    releaseSigningProperties.getProperty(propertyName)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(environmentName)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFilePath =
+    releaseSigningValue("storeFile", "ANDROID_RELEASE_STORE_FILE")
+val releaseStoreType =
+    releaseSigningValue("storeType", "ANDROID_RELEASE_STORE_TYPE") ?: "pkcs12"
+val releaseStorePassword =
+    releaseSigningValue("storePassword", "ANDROID_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias =
+    releaseSigningValue("keyAlias", "ANDROID_RELEASE_KEY_ALIAS")
+val releaseKeyPassword =
+    releaseSigningValue("keyPassword", "ANDROID_RELEASE_KEY_PASSWORD")
+val releaseSigningConfigured =
+    listOf(
+        releaseStoreFilePath,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword,
+    ).all { !it.isNullOrBlank() }
+val releaseSigningRequested =
+    gradle.startParameter.taskNames.any { taskName ->
+        taskName.lowercase(Locale.ROOT).contains("release")
+    }
+
 android {
     namespace = "io.github.nizne9.open_ucloud"
     compileSdk = flutter.compileSdkVersion
@@ -32,6 +69,23 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = file(releaseStoreFilePath!!)
+                storeType = releaseStoreType
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            } else if (releaseSigningRequested) {
+                error(
+                    "Android release signing is not configured. Set apps/client/android/key.properties " +
+                        "or ANDROID_RELEASE_* environment variables before building release APKs."
+                )
+            }
+        }
+    }
+
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
@@ -41,9 +95,14 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            } else if (releaseSigningRequested) {
+                error(
+                    "Android release signing is not configured. Set apps/client/android/key.properties " +
+                        "or ANDROID_RELEASE_* environment variables before building release APKs."
+                )
+            }
         }
     }
 

@@ -79,6 +79,12 @@ flutter build apk --debug
 unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libopen_cloud_ffi.so
 ```
 
+Android release APKs must use the project release signing keystore. Local
+release builds read `apps/client/android/key.properties`; GitHub Releases read
+the equivalent values from the `android-release` Environment secrets. Release
+builds must fail when signing configuration is absent instead of falling back to
+the debug keystore.
+
 Widget tests should cover current user-visible behavior and active regressions.
 When a UI element is removed, delete tests that only assert the old label or
 card is absent unless the absence is the product behavior being protected.
@@ -108,11 +114,11 @@ GitHub Actions separates verification, temporary packages, and formal releases:
 
 - `.github/workflows/ci.yml` runs baseline Rust and Flutter verification for pull requests and pushes to `main`.
 - `.github/workflows/build-artifacts.yml` builds temporary Actions artifacts for `main` and manual test runs. These artifacts are retained for 14 days and are development test packages, not official release packages.
-- `.github/workflows/release.yml` publishes only from existing `v*` tags. The upload job is the only job with `contents: write`; all build jobs remain `contents: read`.
+- `.github/workflows/release.yml` publishes only from existing `v*` tags. The upload job is the only job with `contents: write`; all build jobs remain `contents: read`. The Android release job uses the protected `android-release` Environment before accessing signing secrets.
 
-Release assets include CLI packages for Linux keyutils, Linux Secret Service, Windows, and macOS, plus unsigned Flutter desktop client packages for Linux, Windows, and macOS. Each asset must have a matching `.sha256` file.
+Release assets include CLI packages for Linux keyutils, Linux Secret Service, Windows, and macOS, unsigned Flutter desktop client packages for Linux, Windows, and macOS, and release-signed Android APKs split by ABI. Each asset must have a matching `.sha256` file.
 
-Android release signing is intentionally out of scope until keystore secrets and Gradle release signing are configured. The Android artifact produced by the build workflow is a `debug-signed` APK for development testing only and must not be treated as a formal release asset.
+The Android artifact produced by the build workflow is a `debug-signed` APK for development testing only and must not be treated as a formal release asset.
 
 The workflows use maintained major-version action tags such as `actions/checkout@v6`, `actions/cache@v5`, and `subosito/flutter-action@v2` instead of commit SHAs to keep this early CI readable and maintainable. If the project later requires high-assurance release provenance, pin those actions to audited commit SHAs in a dedicated hardening pass.
 
