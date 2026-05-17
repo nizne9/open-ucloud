@@ -111,6 +111,12 @@ cd apps/client
 flutter build apk --debug
 ```
 
+Android release builds require a release signing keystore. Copy
+`apps/client/android/key.properties.example` to
+`apps/client/android/key.properties`, point `storeFile` at the local PKCS12
+keystore, and keep that file out of Git. CI releases read the same signing
+fields from the `android-release` GitHub Environment secrets.
+
 The Flutter client uses `file_selector` for Linux desktop file picking and save
 locations. Assignment attachment upload reads the user-selected file path through
 the Rust FFI boundary. Resource downloads write through Rust so the same
@@ -141,9 +147,9 @@ GitHub Actions has three package levels:
 
 - `CI` runs Rust formatting, Clippy, Rust tests, CLI smoke checks, Dart analysis, and Flutter tests for pull requests and pushes to `main`.
 - `Build Artifacts` runs on `main` and manual dispatches. It uploads short-lived Actions artifacts for development testing, including CLI packages, desktop client bundles, and an Android `debug-signed` APK.
-- `Release` runs for `v*` tags and manual dispatches pointed at an existing `v*` tag. It uploads CLI and unsigned desktop client packages to GitHub Releases and publishes a `.sha256` file for each asset.
+- `Release` runs for `v*` tags and manual dispatches pointed at an existing `v*` tag. It uploads CLI packages, unsigned desktop client packages, release-signed Android APKs, and a `.sha256` file for each asset.
 
-Android release signing is not configured yet, so Android APKs are not uploaded as formal GitHub Release assets. macOS notarization and Windows Authenticode signing are also not configured; current desktop client release assets are named as unsigned packages.
+macOS notarization and Windows Authenticode signing are not configured; current desktop client release assets are named as unsigned packages. Android APKs in GitHub Releases are signed with the project release keystore, while Android APKs from `Build Artifacts` remain debug-signed development packages.
 
 See:
 

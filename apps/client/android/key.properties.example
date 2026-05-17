@@ -1,0 +1,5 @@
+storeFile=/absolute/path/to/open-ucloud-release.p12
+storeType=pkcs12
+storePassword=replace-with-keystore-password
+keyAlias=open-ucloud-release
+keyPassword=replace-with-key-password

@@ -371,6 +371,96 @@ jobs:
             open-ucloud-client-macos-universal-unsigned.zip.sha256
           retention-days: 14
 
+  client-android:
+    name: Release Flutter Android APKs
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: android-release
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.prepare.outputs.release_ref }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Rust
+        run: |
+          rustup default stable
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Cache Cargo data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ github.workflow }}-client-android-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ github.workflow }}-client-android-
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Decode Android release keystore
+        env:
+          ANDROID_RELEASE_KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
+        run: |
+          test -n "$ANDROID_RELEASE_KEYSTORE_B64"
+          printf '%s' "$ANDROID_RELEASE_KEYSTORE_B64" > open-ucloud-release.p12.b64
+          base64 -d open-ucloud-release.p12.b64 > apps/client/android/app/open-ucloud-release.p12
+          rm -f open-ucloud-release.p12.b64
+
+      - name: Build Android release APKs
+        working-directory: apps/client
+        env:
+          ANDROID_RELEASE_STORE_FILE: ${{ github.workspace }}/apps/client/android/app/open-ucloud-release.p12
+          ANDROID_RELEASE_STORE_TYPE: pkcs12
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          flutter pub get
+          flutter build apk --release --split-per-abi
+
+      - name: Verify Android APKs
+        run: |
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$apksigner"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            apk="apps/client/build/app/outputs/flutter-apk/app-${abi}-release.apk"
+            test -f "$apk"
+            unzip -l "$apk" | grep "lib/${abi}/libopen_cloud_ffi.so"
+            "$apksigner" verify --verbose --print-certs "$apk"
+          done
+
+      - name: Package Android APKs
+        run: |
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            src="apps/client/build/app/outputs/flutter-apk/app-${abi}-release.apk"
+            dest="open-ucloud-client-android-${abi}.apk"
+            cp "$src" "$dest"
+            sha256sum "$dest" > "$dest.sha256"
+          done
+
+      - name: Upload Android release asset artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-open-ucloud-client-android
+          path: |
+            open-ucloud-client-android-*.apk
+            open-ucloud-client-android-*.apk.sha256
+          retention-days: 14
+
   upload-release:
     name: Upload GitHub Release
     runs-on: ubuntu-latest
@@ -382,6 +472,7 @@ jobs:
       - client-linux
       - client-windows
       - client-macos
+      - client-android
     permissions:
       contents: write
     env:
@@ -405,7 +496,7 @@ jobs:
 
       - name: Create or update release
         run: |
-          notes="Unsigned desktop client builds are provided for testing. Android release artifacts are intentionally omitted until release signing is configured."
+          notes="Android APKs are release-signed. Desktop client packages are unsigned until platform signing and notarization are configured."
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
           else
