@@ -112,7 +112,7 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
       return;
     }
 
-    final libraryPath = _findDebugLibraryPath();
+    final libraryPath = _findBundledLibraryPath() ?? _findDebugLibraryPath();
     if (libraryPath == null) {
       await open_cloud_ffi.RustLib.init();
     } else {
@@ -336,6 +336,24 @@ String? _findDebugLibraryPath() {
     directory = parent;
   }
   return null;
+}
+
+String? _findBundledLibraryPath() {
+  if (!Platform.isMacOS) {
+    return null;
+  }
+  final candidate = File(
+    bundledMacOsLibraryPathForExecutable(Platform.resolvedExecutable),
+  );
+  if (candidate.existsSync()) {
+    return candidate.path;
+  }
+  return null;
+}
+
+String bundledMacOsLibraryPathForExecutable(String executablePath) {
+  final contentsDir = p.dirname(p.dirname(executablePath));
+  return p.join(contentsDir, 'Frameworks', 'libopen_cloud_ffi.dylib');
 }
 
 String? _debugLibraryName() {

@@ -19,18 +19,42 @@ fi
 
 case "${CONFIGURATION:-Debug}" in
   Debug)
-    CARGO_PROFILE="debug"
     echo "Building open-cloud-ffi with Cargo debug profile..."
     (cd "$REPO_ROOT" && cargo build -p open-cloud-ffi)
+    OPEN_CLOUD_FFI_DYLIB="$REPO_ROOT/target/debug/libopen_cloud_ffi.dylib"
     ;;
   *)
-    CARGO_PROFILE="release"
-    echo "Building open-cloud-ffi with Cargo release profile..."
-    (cd "$REPO_ROOT" && cargo build --release -p open-cloud-ffi)
+    if ! command -v lipo >/dev/null 2>&1; then
+      echo "error: lipo not found. Build release/profile macOS bundles on macOS with Xcode command line tools installed." >&2
+      exit 1
+    fi
+
+    X86_64_DARWIN_TARGET="x86_64-apple-darwin"
+    ARM64_DARWIN_TARGET="aarch64-apple-darwin"
+    X86_64_DYLIB="$REPO_ROOT/target/$X86_64_DARWIN_TARGET/release/libopen_cloud_ffi.dylib"
+    ARM64_DYLIB="$REPO_ROOT/target/$ARM64_DARWIN_TARGET/release/libopen_cloud_ffi.dylib"
+    UNIVERSAL_DYLIB_DIR="$REPO_ROOT/target/universal-apple-darwin/release"
+    OPEN_CLOUD_FFI_DYLIB="$UNIVERSAL_DYLIB_DIR/libopen_cloud_ffi.dylib"
+
+    echo "Building open-cloud-ffi release dylib for $X86_64_DARWIN_TARGET..."
+    (cd "$REPO_ROOT" && cargo build --release --target "$X86_64_DARWIN_TARGET" -p open-cloud-ffi)
+    echo "Building open-cloud-ffi release dylib for $ARM64_DARWIN_TARGET..."
+    (cd "$REPO_ROOT" && cargo build --release --target "$ARM64_DARWIN_TARGET" -p open-cloud-ffi)
+
+    if [ ! -f "$X86_64_DYLIB" ]; then
+      echo "error: missing $X86_64_DYLIB after Cargo build." >&2
+      exit 1
+    fi
+    if [ ! -f "$ARM64_DYLIB" ]; then
+      echo "error: missing $ARM64_DYLIB after Cargo build." >&2
+      exit 1
+    fi
+
+    mkdir -p "$UNIVERSAL_DYLIB_DIR"
+    lipo -create "$X86_64_DYLIB" "$ARM64_DYLIB" -output "$OPEN_CLOUD_FFI_DYLIB"
     ;;
 esac
 
-OPEN_CLOUD_FFI_DYLIB="$REPO_ROOT/target/$CARGO_PROFILE/libopen_cloud_ffi.dylib"
 if [ ! -f "$OPEN_CLOUD_FFI_DYLIB" ]; then
   echo "error: missing $OPEN_CLOUD_FFI_DYLIB after Cargo build." >&2
   exit 1
