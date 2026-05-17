@@ -16,7 +16,7 @@ Current workspace:
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
 - `crates/cli`: `open-cloud` command-line harness.
 - `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication, course, assignment, and resource DTOs.
-- `apps/client`: Linux-focused Flutter client shell for login, secure session storage, course listing, assignments, and resources.
+- `apps/client`: Linux-first Flutter client shell with Android and Windows platform runners for login, secure session storage, course listing, assignments, and resources.
 
 The first CLI login is intentionally interactive and persists its session through the system credential store:
 
@@ -61,6 +61,24 @@ The Flutter client currently targets Linux desktop first. For local development,
 cargo build -p open-cloud-ffi
 cd apps/client
 flutter run -d linux
+```
+
+Windows desktop builds must run on a Windows host with Flutter's Windows
+desktop toolchain installed. Build the Rust FFI DLL first so the Flutter
+Windows bundle can copy it next to `open_cloud_client.exe`:
+
+```bash
+cargo build -p open-cloud-ffi
+cd apps/client
+flutter build windows --debug
+```
+
+For release builds:
+
+```bash
+cargo build --release -p open-cloud-ffi
+cd apps/client
+flutter build windows --release
 ```
 
 Android builds package the Rust FFI library through the Flutter Gradle build.

@@ -25,6 +25,25 @@ dart analyze
 flutter test
 ```
 
+Windows desktop client builds must run on a Windows host. Verify that the Rust
+FFI DLL is built before Flutter and copied into the executable directory:
+
+```bash
+cargo build -p open-cloud-ffi
+cd apps/client
+flutter build windows --debug
+```
+
+The debug output directory should contain `open_cloud_client.exe`,
+`flutter_windows.dll`, `open_cloud_ffi.dll`, and `data/`. Release builds use the
+release Rust DLL:
+
+```bash
+cargo build --release -p open-cloud-ffi
+cd apps/client
+flutter build windows --release
+```
+
 Android client changes should also verify the Rust FFI library is packaged:
 
 ```bash
