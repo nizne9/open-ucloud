@@ -477,6 +477,7 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
       RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
 
     steps:
