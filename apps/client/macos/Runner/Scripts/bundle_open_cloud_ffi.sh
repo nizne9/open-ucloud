@@ -67,5 +67,14 @@ fi
 
 FRAMEWORKS_DIR="$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH"
 mkdir -p "$FRAMEWORKS_DIR"
-cp -f "$OPEN_CLOUD_FFI_DYLIB" "$FRAMEWORKS_DIR/libopen_cloud_ffi.dylib"
+DESTINATION_DYLIB="$FRAMEWORKS_DIR/libopen_cloud_ffi.dylib"
+cp -f "$OPEN_CLOUD_FFI_DYLIB" "$DESTINATION_DYLIB"
+
+if command -v codesign >/dev/null 2>&1; then
+  SIGN_IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:-${CODE_SIGN_IDENTITY:--}}"
+  if [ -z "$SIGN_IDENTITY" ]; then
+    SIGN_IDENTITY="-"
+  fi
+  codesign --force --sign "$SIGN_IDENTITY" --timestamp=none "$DESTINATION_DYLIB"
+fi
 echo "Bundled libopen_cloud_ffi.dylib into $FRAMEWORKS_DIR."

@@ -159,7 +159,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake libgtk-3-dev ninja-build pkg-config
+          sudo apt-get install -y clang cmake libgtk-3-dev libsecret-1-dev ninja-build pkg-config
 
       - name: Set up Rust
         run: rustup default stable
