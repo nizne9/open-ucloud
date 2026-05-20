@@ -1166,6 +1166,10 @@ void main() {
       rebuildLogs.where((line) => line.contains('_AssignmentsPane')),
       isEmpty,
     );
+    expect(
+      rebuildLogs.where((line) => line.contains('_AssignmentDetailCard')),
+      isEmpty,
+    );
   });
 
   testWidgets('narrow assignment detail has a back path to the list', (
@@ -2185,6 +2189,200 @@ void main() {
     expect(find.text('已下载 1 个文件'), findsOneWidget);
     expect(find.text('/tmp/课件.pdf'), findsOneWidget);
     expect(tester.getTopLeft(find.text('/tmp/课件.pdf')).dx, lessThan(500));
+  });
+
+  testWidgets('resource download progress does not rebuild the resource pane', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final firstStatus = Completer<FfiDownloadTaskStatus>();
+    final secondStatus = Completer<FfiDownloadTaskStatus>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+        writtenPaths: ['/tmp/课件.pdf'],
+      ),
+      downloadTaskStatusFutures: [firstStatus.future, secondStatus.future],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+
+    final task = container
+        .read(clientControllerProvider.notifier)
+        .downloadCourseResources('/tmp');
+    await tester.pump();
+    firstStatus.complete(
+      FfiDownloadTaskStatus(
+        taskId: 'task',
+        state: FfiDownloadTaskState.running,
+        current: 0,
+        total: 1,
+        bytesDownloaded: BigInt.from(1024),
+        currentFileName: '课件.pdf',
+        writtenPaths: const [],
+        records: const [],
+      ),
+    );
+    await task;
+    await tester.pump();
+    expect(find.textContaining('正在下载'), findsOneWidget);
+
+    final previousDebugPrint = debugPrint;
+    final previousRebuildDebug = debugPrintRebuildDirtyWidgets;
+    final rebuildLogs = <String>[];
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null) {
+        rebuildLogs.add(message);
+      }
+    };
+    debugPrintRebuildDirtyWidgets = true;
+    try {
+      secondStatus.complete(
+        FfiDownloadTaskStatus(
+          taskId: 'task',
+          state: FfiDownloadTaskState.running,
+          current: 0,
+          total: 1,
+          bytesDownloaded: BigInt.from(2048),
+          currentFileName: '课件.pdf',
+          writtenPaths: const [],
+          records: const [],
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(find.textContaining('2.0 KB'), findsOneWidget);
+    } finally {
+      debugPrint = previousDebugPrint;
+      debugPrintRebuildDirtyWidgets = previousRebuildDebug;
+    }
+    await container
+        .read(clientControllerProvider.notifier)
+        .cancelActiveResourceDownload(context: OperationContext.resourceList);
+    await tester.pump();
+
+    expect(
+      rebuildLogs.where((line) => line.contains('_ResourcesPane')),
+      isEmpty,
+    );
+  });
+
+  testWidgets('large download summaries defer path rendering until expanded', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final paths = List.generate(50, (index) => '/tmp/资料 ${index + 1}.pdf');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+      resourceDownloadResponse: FfiCourseResourceDownloadResponse(
+        records: [
+          for (var index = 0; index < 50; index += 1)
+            FfiCourseResourceDetail(
+              name: '资料 ${index + 1}.pdf',
+              resourceId: 'resource-${index + 1}',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '2026-05-02 10:00:00',
+            ),
+        ],
+        writtenPaths: paths,
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await container
+        .read(clientControllerProvider.notifier)
+        .downloadCourseResources('/tmp');
+    await tester.pumpAndSettle();
+
+    expect(find.text('已下载 50 个文件'), findsOneWidget);
+    expect(find.text('/tmp/资料 1.pdf'), findsNothing);
+    expect(find.text('/tmp/资料 50.pdf'), findsNothing);
+    expect(find.widgetWithText(TextButton, '显示文件路径'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '显示文件路径'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('/tmp/资料 1.pdf'), findsOneWidget);
   });
 
   testWidgets('resource list lazily scrolls to later files', (tester) async {
