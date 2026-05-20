@@ -119,6 +119,64 @@ class _ClientDestination {
   final String subtitle;
 }
 
+typedef _AssignmentsPaneState = ({
+  bool assignmentDetailLoading,
+  bool assignmentSubmitting,
+  bool assignmentUploading,
+  AssignmentView assignmentView,
+  List<FfiAssignmentSummary> assignments,
+  bool assignmentsLoading,
+  List<CourseItem> courses,
+  String? errorMessage,
+  OperationContext? operationContext,
+  String? operationMessage,
+  FfiAssignmentDetailResponse? assignmentDetail,
+  String? selectedAssignmentCourseId,
+  String? selectedAssignmentId,
+});
+
+typedef _AssignmentDetailState = ({
+  bool assignmentDetailLoading,
+  bool assignmentSubmitting,
+  bool assignmentUploading,
+  List<AssignmentAttachmentState> assignmentAttachments,
+  FfiAssignmentDetailResponse? assignmentDetail,
+  String assignmentDraft,
+  List<FfiAssignmentSummary> assignments,
+  List<CourseItem> courses,
+});
+
+_AssignmentsPaneState _selectAssignmentsPaneState(ClientState state) {
+  return (
+    assignmentDetailLoading: state.assignmentDetailLoading,
+    assignmentSubmitting: state.assignmentSubmitting,
+    assignmentUploading: state.assignmentUploading,
+    assignmentView: state.assignmentView,
+    assignments: state.assignments,
+    assignmentsLoading: state.assignmentsLoading,
+    courses: state.courses,
+    errorMessage: state.errorMessage,
+    operationContext: state.operationContext,
+    operationMessage: state.operationMessage,
+    assignmentDetail: state.assignmentDetail,
+    selectedAssignmentCourseId: state.selectedAssignmentCourseId,
+    selectedAssignmentId: state.selectedAssignmentId,
+  );
+}
+
+_AssignmentDetailState _selectAssignmentDetailState(ClientState state) {
+  return (
+    assignmentDetailLoading: state.assignmentDetailLoading,
+    assignmentSubmitting: state.assignmentSubmitting,
+    assignmentUploading: state.assignmentUploading,
+    assignmentAttachments: state.assignmentAttachments,
+    assignmentDetail: state.assignmentDetail,
+    assignmentDraft: state.assignmentDraft,
+    assignments: state.assignments,
+    courses: state.courses,
+  );
+}
+
 const _clientDestinations = [
   _ClientDestination(
     tab: ClientTab.dashboard,
@@ -1730,7 +1788,9 @@ class _AssignmentsPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(clientControllerProvider);
+    final state = ref.watch(
+      clientControllerProvider.select(_selectAssignmentsPaneState),
+    );
     final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1744,8 +1804,10 @@ class _AssignmentsPane extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                _FeedbackBanners(
-                  state: state,
+                _FeedbackBanners.values(
+                  errorMessage: state.errorMessage,
+                  operationMessage: state.operationMessage,
+                  activeOperationContext: state.operationContext,
                   operationContext: OperationContext.assignmentDetail,
                 ),
                 Align(
@@ -1768,7 +1830,7 @@ class _AssignmentsPane extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _AssignmentDetailCard(state: state),
+                const _AssignmentDetailCard(),
               ],
             );
           }
@@ -1794,14 +1856,16 @@ class _AssignmentsPane extends ConsumerWidget {
                       subtitle: '作业要求、附件和提交入口会显示在这里。',
                     )
                   else ...[
-                    _FeedbackBanners(
-                      state: state,
+                    _FeedbackBanners.values(
+                      errorMessage: state.errorMessage,
+                      operationMessage: state.operationMessage,
+                      activeOperationContext: state.operationContext,
                       operationContext: OperationContext.assignmentDetail,
                     ),
                     if (state.errorMessage != null ||
                         state.operationMessage != null)
                       const SizedBox(height: 12),
-                    _AssignmentDetailCard(state: state),
+                    const _AssignmentDetailCard(),
                   ],
                 ],
               ),
@@ -1812,14 +1876,18 @@ class _AssignmentsPane extends ConsumerWidget {
     );
   }
 
-  Widget _listView(BuildContext context, WidgetRef ref, ClientState state) {
+  Widget _listView(
+    BuildContext context,
+    WidgetRef ref,
+    _AssignmentsPaneState state,
+  ) {
     return CustomScrollView(slivers: _listSlivers(context, ref, state));
   }
 
   List<Widget> _listSlivers(
     BuildContext context,
     WidgetRef ref,
-    ClientState state,
+    _AssignmentsPaneState state,
   ) {
     final headerChildren = _listHeaderChildren(context, ref, state);
     return [
@@ -1863,7 +1931,7 @@ class _AssignmentsPane extends ConsumerWidget {
   List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
-    ClientState state,
+    _AssignmentsPaneState state,
   ) {
     final selectedCourseId =
         state.selectedAssignmentCourseId ??
@@ -2011,7 +2079,7 @@ class _AssignmentsPane extends ConsumerWidget {
   Widget _assignmentListItem(
     BuildContext context,
     WidgetRef ref,
-    ClientState state,
+    _AssignmentsPaneState state,
     FfiAssignmentSummary assignment,
   ) {
     return Card(
@@ -2052,9 +2120,7 @@ String _assignmentStatusText(FfiAssignmentStatus status) {
 }
 
 class _AssignmentDetailCard extends ConsumerStatefulWidget {
-  const _AssignmentDetailCard({required this.state});
-
-  final ClientState state;
+  const _AssignmentDetailCard();
 
   @override
   ConsumerState<_AssignmentDetailCard> createState() =>
@@ -2071,13 +2137,6 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
   void initState() {
     super.initState();
     _draftController = TextEditingController();
-    _syncDraftController();
-  }
-
-  @override
-  void didUpdateWidget(covariant _AssignmentDetailCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _syncDraftController();
   }
 
   @override
@@ -2086,10 +2145,12 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
     super.dispose();
   }
 
-  void _syncDraftController() {
-    final detail = widget.state.assignmentDetail;
+  void _syncDraftController(
+    FfiAssignmentDetailResponse? detail,
+    String draftText,
+  ) {
     final nextAssignmentId = detail?.id;
-    final nextText = widget.state.assignmentDraft;
+    final nextText = draftText;
     final assignmentChanged = _editingAssignmentId != nextAssignmentId;
     final draftChanged = _syncedDraftText != nextText;
     if (!assignmentChanged && (!draftChanged || _draftDirty)) {
@@ -2106,7 +2167,10 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.state;
+    final state = ref.watch(
+      clientControllerProvider.select(_selectAssignmentDetailState),
+    );
+    _syncDraftController(state.assignmentDetail, state.assignmentDraft);
     final detail = state.assignmentDetail;
     final controller = ref.read(clientControllerProvider.notifier);
     if (state.assignmentDetailLoading) {
@@ -2119,7 +2183,11 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
     final readOnly = expired;
     final resubmitting = detail.status == FfiAssignmentStatus.submitted;
     final submitLabel = resubmitting ? '重新提交' : '提交';
-    final courseName = _assignmentCourseName(state, detail);
+    final courseName = _assignmentCourseName(
+      courses: state.courses,
+      assignments: state.assignments,
+      detail: detail,
+    );
     final submittedAttachments = detail.submittedAttachments;
     return Card(
       child: Padding(
@@ -2465,28 +2533,29 @@ class _LinkValue extends StatelessWidget {
   }
 }
 
-String _assignmentCourseName(
-  ClientState state,
-  FfiAssignmentDetailResponse detail,
-) {
+String _assignmentCourseName({
+  required List<CourseItem> courses,
+  required List<FfiAssignmentSummary> assignments,
+  required FfiAssignmentDetailResponse detail,
+}) {
   final detailName = detail.siteName.trim();
   if (detailName.isNotEmpty) {
     return detailName;
   }
   final detailSiteId = detail.siteId.trim();
   if (detailSiteId.isNotEmpty) {
-    for (final course in state.courses) {
+    for (final course in courses) {
       if (course.id == detailSiteId && course.name.trim().isNotEmpty) {
         return course.name;
       }
     }
   }
-  for (final assignment in state.assignments) {
+  for (final assignment in assignments) {
     if (assignment.id == detail.id && assignment.siteName.trim().isNotEmpty) {
       return assignment.siteName;
     }
     if (assignment.id == detail.id && assignment.siteId.trim().isNotEmpty) {
-      for (final course in state.courses) {
+      for (final course in courses) {
         if (course.id == assignment.siteId && course.name.trim().isNotEmpty) {
           return course.name;
         }
@@ -3101,28 +3170,40 @@ class _DownloadSummary extends StatelessWidget {
 }
 
 class _FeedbackBanners extends StatelessWidget {
-  const _FeedbackBanners({required this.state, this.operationContext});
+  _FeedbackBanners({required ClientState state, this.operationContext})
+    : errorMessage = state.errorMessage,
+      operationMessage = state.operationMessage,
+      activeOperationContext = state.operationContext;
 
-  final ClientState state;
+  const _FeedbackBanners.values({
+    required this.errorMessage,
+    required this.operationMessage,
+    required this.activeOperationContext,
+    this.operationContext,
+  });
+
+  final String? errorMessage;
+  final String? operationMessage;
+  final OperationContext? activeOperationContext;
   final OperationContext? operationContext;
 
   @override
   Widget build(BuildContext context) {
-    final operationMessage = state.operationContext == operationContext
-        ? state.operationMessage
+    final visibleOperationMessage = activeOperationContext == operationContext
+        ? operationMessage
         : null;
-    if (state.errorMessage == null && operationMessage == null) {
+    if (errorMessage == null && visibleOperationMessage == null) {
       return const SizedBox.shrink();
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (state.errorMessage != null) ...[
-          _ErrorBanner(message: state.errorMessage!),
+        if (errorMessage != null) ...[
+          _ErrorBanner(message: errorMessage!),
           const SizedBox(height: 12),
         ],
-        if (operationMessage != null) ...[
-          _InfoBanner(message: operationMessage),
+        if (visibleOperationMessage != null) ...[
+          _InfoBanner(message: visibleOperationMessage),
           const SizedBox(height: 12),
         ],
       ],

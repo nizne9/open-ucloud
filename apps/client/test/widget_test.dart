@@ -908,6 +908,10 @@ void main() {
     await tester.tap(find.text('作业'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Transformer 作业'));
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
     await tester.pumpAndSettle();
 
     expect(find.textContaining('<h3>'), findsNothing);
@@ -990,6 +994,10 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     await tester.tap(find.text('作业 60'));
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
     await tester.pumpAndSettle();
 
     expect(find.text('返回作业列表'), findsOneWidget);
@@ -1080,6 +1088,84 @@ void main() {
       ),
     );
     await uploadTask;
+  });
+
+  testWidgets('assignment draft edits do not rebuild the assignment pane', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                records: [
+                  FfiAssignmentSummary(
+                    endTime: '2026-05-03 23:59:59',
+                    id: 'work-1',
+                    siteId: 'site-1',
+                    siteName: '机器学习',
+                    source: 'undone',
+                    startTime: '',
+                    status: FfiAssignmentStatus.pending,
+                    title: '草稿作业',
+                  ),
+                ],
+              ),
+              assignmentDetailResponse: const FfiAssignmentDetailResponse(
+                className: '',
+                comment: '',
+                content: '',
+                endTime: '2026-05-03 23:59:59',
+                id: 'work-1',
+                isOvertimeCommit: false,
+                siteId: 'site-1',
+                siteName: '机器学习',
+                startTime: '',
+                status: FfiAssignmentStatus.pending,
+                submittedAt: '',
+                submittedAttachments: [],
+                submittedContent: '',
+                teacherResources: [],
+                title: '草稿作业',
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('草稿作业'));
+    await tester.pumpAndSettle();
+
+    final previousDebugPrint = debugPrint;
+    final previousRebuildDebug = debugPrintRebuildDirtyWidgets;
+    final rebuildLogs = <String>[];
+    debugPrint = (message, {wrapWidth}) {
+      if (message != null) {
+        rebuildLogs.add(message);
+      }
+    };
+    debugPrintRebuildDirtyWidgets = true;
+    try {
+      await tester.enterText(find.byType(TextField).last, '草稿内容');
+      await tester.pump();
+    } finally {
+      debugPrint = previousDebugPrint;
+      debugPrintRebuildDirtyWidgets = previousRebuildDebug;
+    }
+
+    expect(
+      rebuildLogs.where((line) => line.contains('_AssignmentsPane')),
+      isEmpty,
+    );
   });
 
   testWidgets('narrow assignment detail has a back path to the list', (
