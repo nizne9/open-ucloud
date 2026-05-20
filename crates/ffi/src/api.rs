@@ -9,7 +9,7 @@ use open_cloud_core::{
 };
 use open_cloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -887,12 +887,11 @@ where
         .and_then(|name| name.to_str())
         .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "invalid upload file name"))?;
     validate_upload_file_metadata(&path, file_name)?;
-    let bytes = fs::read(&path).map_err(fs_error)?;
     let upload = client
-        .upload_assignment_file(
+        .upload_assignment_file_path(
             &detail,
             file_name,
-            &bytes,
+            &path,
             &session.user.user_id,
             &session.access_token,
         )
@@ -1040,30 +1039,26 @@ where
         .await
         .map_err(to_ffi_error)?;
     fs::create_dir_all(&output_dir).map_err(fs_error)?;
-    let mut records = Vec::new();
-    let mut written_paths = Vec::new();
-    for resource in list.records {
-        let detail = client
-            .get_resource_detail(
-                &resource.resource_id,
-                &site_id,
-                &site_name,
-                &session.access_token,
-            )
-            .await
-            .map_err(to_ffi_error)?;
-        let target = Path::new(&output_dir).join(sanitize_file_name(&detail.name));
-        let written_path = download_resource_to_path(
-            client,
-            &detail,
-            &target,
-            DownloadProgress::default(),
-            DownloadCancelFlag::default(),
-        )
-        .await?;
-        records.push(detail.into());
-        written_paths.push(written_path.display().to_string());
-    }
+    let details = fetch_course_resource_details(
+        client,
+        list.records,
+        &site_id,
+        &site_name,
+        &session.access_token,
+        DownloadCancelFlag::default(),
+    )
+    .await?;
+    let targets = course_download_targets(Path::new(&output_dir), details)?;
+    let downloads =
+        download_course_targets(client, targets, DownloadCancelFlag::default(), None).await?;
+    let records = downloads
+        .iter()
+        .map(|(detail, _)| detail.clone().into())
+        .collect();
+    let written_paths = downloads
+        .into_iter()
+        .map(|(_, path)| path.display().to_string())
+        .collect();
     Ok(FfiCourseResourceDownloadResponse {
         records,
         written_paths,
@@ -1156,31 +1151,8 @@ async fn resource_download_course_task(
     )
     .await?;
 
-    for detail in details {
-        if task.cancel.is_cancelled() {
-            return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
-        }
-        update_download_status(&task, |status| {
-            status.current_file_name = Some(detail.name.clone());
-            status.records.push(detail.clone().into());
-        });
-        let progress_task = task.clone();
-        let progress = DownloadProgress::new(move |bytes| {
-            update_download_status(&progress_task, |status| {
-                status.bytes_downloaded = status.bytes_downloaded.saturating_add(bytes);
-            });
-        });
-        let target = Path::new(&output_dir).join(sanitize_file_name(&detail.name));
-        let written_path =
-            download_resource_to_path(&client, &detail, &target, progress, task.cancel.clone())
-                .await?;
-        update_download_status(&task, |status| {
-            status.current = status.current.saturating_add(1);
-            status
-                .written_paths
-                .push(written_path.display().to_string());
-        });
-    }
+    let targets = course_download_targets(Path::new(&output_dir), details)?;
+    download_course_targets(&client, targets, task.cancel.clone(), Some(task.clone())).await?;
     update_download_status(&task, |status| {
         status.current_file_name = None;
     });
@@ -1221,6 +1193,106 @@ where
                     return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
                 }
                 Ok(detail)
+            }
+        })
+        .buffered(COURSE_DOWNLOAD_CONCURRENCY)
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect()
+}
+
+fn course_download_targets(
+    output_dir: &Path,
+    details: Vec<CourseResourceDetail>,
+) -> Result<Vec<(CourseResourceDetail, PathBuf)>, FfiAuthError> {
+    let mut reserved = HashSet::new();
+    details
+        .into_iter()
+        .map(|detail| {
+            let requested = output_dir.join(sanitize_file_name(&detail.name));
+            let target = next_download_path_reserved(&requested, &mut reserved)?;
+            Ok((detail, target))
+        })
+        .collect()
+}
+
+fn next_download_path_reserved(
+    requested_path: &Path,
+    reserved: &mut HashSet<PathBuf>,
+) -> Result<PathBuf, FfiAuthError> {
+    if !requested_path.exists() && reserved.insert(requested_path.to_path_buf()) {
+        return Ok(requested_path.to_path_buf());
+    }
+    let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = requested_path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("download");
+    let extension = requested_path.extension().and_then(|value| value.to_str());
+    for index in 1..10_000 {
+        let file_name = match extension {
+            Some(extension) if !extension.is_empty() => format!("{stem} ({index}).{extension}"),
+            _ => format!("{stem} ({index})"),
+        };
+        let candidate = parent.join(file_name);
+        if !candidate.exists() && reserved.insert(candidate.clone()) {
+            return Ok(candidate);
+        }
+    }
+    Err(error(
+        AuthErrorCode::UnknownAuthError,
+        "could not allocate a non-overwriting download path.",
+    ))
+}
+
+async fn download_course_targets<C>(
+    client: &OpenCloudClient<C>,
+    targets: Vec<(CourseResourceDetail, PathBuf)>,
+    cancel: DownloadCancelFlag,
+    task: Option<Arc<DownloadTask>>,
+) -> Result<Vec<(CourseResourceDetail, PathBuf)>, FfiAuthError>
+where
+    C: open_cloud_core::HttpClient,
+{
+    stream::iter(targets)
+        .map(|(detail, target)| {
+            let client = client.clone();
+            let cancel = cancel.clone();
+            let task = task.clone();
+            async move {
+                if cancel.is_cancelled() {
+                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                }
+                if let Some(task) = &task {
+                    update_download_status(task, |status| {
+                        status.current_file_name = Some(detail.name.clone());
+                        status.records.push(detail.clone().into());
+                    });
+                }
+                let progress = if let Some(task) = &task {
+                    let progress_task = task.clone();
+                    DownloadProgress::new(move |bytes| {
+                        update_download_status(&progress_task, |status| {
+                            status.bytes_downloaded = status.bytes_downloaded.saturating_add(bytes);
+                        });
+                    })
+                } else {
+                    DownloadProgress::default()
+                };
+                let written_path =
+                    download_resource_to_path(&client, &detail, &target, progress, cancel.clone())
+                        .await?;
+                if let Some(task) = &task {
+                    update_download_status(task, |status| {
+                        status.current = status.current.saturating_add(1);
+                        status
+                            .written_paths
+                            .push(written_path.display().to_string());
+                    });
+                }
+                Ok((detail, written_path))
             }
         })
         .buffered(COURSE_DOWNLOAD_CONCURRENCY)
@@ -1669,9 +1741,12 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use open_cloud_api::{RoleName, SessionUser};
-    use open_cloud_core::{AuthError, HttpRequest, HttpResponse};
+    use open_cloud_core::{AuthError, HttpRequest, HttpResponse, HttpResponseHead};
     use std::collections::VecDeque;
+    use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     #[derive(Clone, Default)]
     struct MockHttp {
@@ -1701,6 +1776,82 @@ mod tests {
                 .expect("responses lock")
                 .pop_front()
                 .ok_or_else(|| AuthError::upstream("missing mock response"))
+        }
+    }
+
+    #[derive(Clone)]
+    struct SlowDownloadHttp {
+        responses: Arc<Mutex<VecDeque<HttpResponse>>>,
+        requests: Arc<Mutex<Vec<HttpRequest>>>,
+        active_downloads: Arc<AtomicUsize>,
+        max_active_downloads: Arc<AtomicUsize>,
+    }
+
+    impl SlowDownloadHttp {
+        fn with(responses: Vec<HttpResponse>) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(VecDeque::from(responses))),
+                requests: Arc::new(Mutex::new(Vec::new())),
+                active_downloads: Arc::new(AtomicUsize::new(0)),
+                max_active_downloads: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
+        fn max_active_downloads(&self) -> usize {
+            self.max_active_downloads.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl open_cloud_core::HttpClient for SlowDownloadHttp {
+        async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
+            self.requests.lock().expect("requests lock").push(request);
+            self.responses
+                .lock()
+                .expect("responses lock")
+                .pop_front()
+                .ok_or_else(|| AuthError::upstream("missing mock response"))
+        }
+
+        async fn download_to_path(
+            &self,
+            request: HttpRequest,
+            path: &Path,
+            progress: DownloadProgress,
+            cancel: DownloadCancelFlag,
+        ) -> Result<HttpResponseHead, AuthError> {
+            self.requests.lock().expect("requests lock").push(request);
+            if cancel.is_cancelled() {
+                return Err(AuthError::upstream("cancelled"));
+            }
+            let active = self.active_downloads.fetch_add(1, Ordering::SeqCst) + 1;
+            let mut observed = self.max_active_downloads.load(Ordering::SeqCst);
+            while active > observed {
+                match self.max_active_downloads.compare_exchange(
+                    observed,
+                    active,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                ) {
+                    Ok(_) => break,
+                    Err(next) => observed = next,
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+            if let Some(parent) = path.parent() {
+                tokio::fs::create_dir_all(parent)
+                    .await
+                    .map_err(|error| AuthError::upstream(error.to_string()))?;
+            }
+            tokio::fs::write(path, b"downloaded")
+                .await
+                .map_err(|error| AuthError::upstream(error.to_string()))?;
+            progress.add(10);
+            self.active_downloads.fetch_sub(1, Ordering::SeqCst);
+            Ok(HttpResponseHead {
+                status: 200,
+                headers: Vec::new(),
+            })
         }
     }
 
@@ -2133,6 +2284,59 @@ mod tests {
         assert_eq!(
             std::fs::read(&result.written_paths[0]).expect("sanitized file"),
             b"new bytes"
+        );
+    }
+
+    #[tokio::test]
+    async fn resource_download_course_downloads_files_concurrently() {
+        let base = std::env::temp_dir().join(format!("open-cloud-ffi-parallel-{}", now_ms()));
+        let http = SlowDownloadHttp::with(vec![
+            response(
+                200,
+                &[],
+                r#"{"success":true,"data":[{"resource":{"id":"resource-1","name":"one.pdf"}},{"resource":{"id":"resource-2","name":"two.pdf"}}]}"#,
+            ),
+            response(
+                200,
+                &[],
+                r#"{"success":true,"data":[{"id":"resource-1","name":"one.pdf","ext":"pdf","updateTime":"2026-05-02 10:00:00"}]}"#,
+            ),
+            response(
+                200,
+                &[],
+                r#"{"success":true,"data":{"previewUrl":"https://files.example/resource-1"}}"#,
+            ),
+            response(
+                200,
+                &[],
+                r#"{"success":true,"data":[{"id":"resource-2","name":"two.pdf","ext":"pdf","updateTime":"2026-05-02 10:00:00"}]}"#,
+            ),
+            response(
+                200,
+                &[],
+                r#"{"success":true,"data":{"previewUrl":"https://files.example/resource-2"}}"#,
+            ),
+        ]);
+        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
+            .expect("session encodes");
+
+        let result = resource_download_course_with_client(
+            &client,
+            payload,
+            "site-1".to_string(),
+            "软件测试".to_string(),
+            base.display().to_string(),
+            100_500,
+        )
+        .await
+        .expect("course resources download");
+
+        assert_eq!(result.written_paths.len(), 2);
+        assert!(
+            http.max_active_downloads() >= 2,
+            "expected overlapping downloads, max active was {}",
+            http.max_active_downloads()
         );
     }
 

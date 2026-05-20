@@ -39,6 +39,77 @@ impl HttpClient for MockHttp {
     }
 }
 
+#[derive(Clone, Default)]
+struct PathUploadHttp {
+    responses: Arc<Mutex<VecDeque<HttpResponse>>>,
+    requests: Arc<Mutex<Vec<HttpRequest>>>,
+    uploaded_paths: Arc<Mutex<Vec<PathBuf>>>,
+    uploaded_fields: Arc<Mutex<MultipartFieldsLog>>,
+}
+
+type MultipartFieldsLog = Vec<Vec<(String, String)>>;
+
+impl PathUploadHttp {
+    fn with(responses: Vec<HttpResponse>) -> Self {
+        Self {
+            responses: Arc::new(Mutex::new(VecDeque::from(responses))),
+            requests: Arc::new(Mutex::new(Vec::new())),
+            uploaded_paths: Arc::new(Mutex::new(Vec::new())),
+            uploaded_fields: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    fn uploaded_paths(&self) -> Vec<PathBuf> {
+        self.uploaded_paths
+            .lock()
+            .expect("uploaded paths lock")
+            .clone()
+    }
+
+    fn uploaded_fields(&self) -> Vec<Vec<(String, String)>> {
+        self.uploaded_fields
+            .lock()
+            .expect("uploaded fields lock")
+            .clone()
+    }
+}
+
+#[async_trait]
+impl HttpClient for PathUploadHttp {
+    async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
+        self.requests.lock().expect("requests lock").push(request);
+        self.responses
+            .lock()
+            .expect("responses lock")
+            .pop_front()
+            .ok_or_else(|| AuthError::upstream("missing mock response"))
+    }
+
+    async fn send_multipart_file(
+        &self,
+        request: HttpRequest,
+        fields: Vec<(String, String)>,
+        _file_field_name: String,
+        _file_name: String,
+        path: PathBuf,
+    ) -> Result<HttpResponse, AuthError> {
+        self.requests.lock().expect("requests lock").push(request);
+        self.uploaded_paths
+            .lock()
+            .expect("uploaded paths lock")
+            .push(path);
+        self.uploaded_fields
+            .lock()
+            .expect("uploaded fields lock")
+            .push(fields);
+        self.responses
+            .lock()
+            .expect("responses lock")
+            .pop_front()
+            .ok_or_else(|| AuthError::upstream("missing mock response"))
+    }
+}
+
 fn response(status: u16, body: &str) -> HttpResponse {
     HttpResponse {
         status,
@@ -376,6 +447,41 @@ async fn upload_assignment_file_sends_multipart_and_preview_url() {
     assert!(body.contains(r#"name="file"; filename="report.pdf""#));
     let preview_request = http.requests().get(1).expect("preview request").clone();
     assert!(has_header(&preview_request, "Blade-Auth", "access-token"));
+}
+
+#[tokio::test]
+async fn upload_assignment_file_path_uses_transport_file_upload() {
+    let path = std::env::temp_dir().join(format!("open-cloud-upload-{}.pdf", std::process::id()));
+    std::fs::write(&path, b"pdf-bytes").expect("upload fixture");
+    let http = PathUploadHttp::with(vec![
+        response(200, r#"{"success":true,"data":"resource-1"}"#),
+        response(
+            200,
+            r#"{"success":true,"data":{"previewUrl":"https://files.example/report"}}"#,
+        ),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let result = client
+        .upload_assignment_file_path(
+            &assignment_detail(AssignmentStatus::Pending),
+            "report.pdf",
+            &path,
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect("upload succeeds");
+
+    assert_eq!(result.resource_id, "resource-1");
+    assert_eq!(http.uploaded_paths(), vec![path]);
+    assert_eq!(
+        http.uploaded_fields(),
+        vec![vec![
+            ("userId".to_string(), "u-1".to_string()),
+            ("bizType".to_string(), "3".to_string()),
+        ]]
+    );
 }
 
 #[tokio::test]
