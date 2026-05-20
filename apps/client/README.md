@@ -11,6 +11,7 @@ Android, Windows, and macOS.
 Build the Rust FFI library before running the Linux Flutter shell:
 
 ```bash
+sudo apt-get install clang cmake libgtk-3-dev libsecret-1-dev ninja-build pkg-config
 cargo build -p open-cloud-ffi
 cd apps/client
 flutter run -d linux

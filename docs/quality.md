@@ -25,8 +25,10 @@ dart analyze
 flutter test
 ```
 
-Linux desktop client builds also need GTK and libsecret development headers on
-the build host, for example `libgtk-3-dev` and `libsecret-1-dev` on Ubuntu.
+Linux desktop client builds also need the standard Flutter Linux desktop
+toolchain and GTK/libsecret development headers on the build host, for example
+`clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, and
+`libsecret-1-dev` on Ubuntu.
 
 Windows desktop client builds must run on a Windows host. Verify that the Rust
 FFI DLL is built before Flutter and copied into the executable directory:
