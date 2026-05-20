@@ -60,7 +60,7 @@ Android, Windows, and macOS. For Linux local development, build the Rust library
 and run the client:
 
 ```bash
-sudo apt-get install libgtk-3-dev libsecret-1-dev
+sudo apt-get install clang cmake libgtk-3-dev libsecret-1-dev ninja-build pkg-config
 cargo build -p open-cloud-ffi
 cd apps/client
 flutter run -d linux

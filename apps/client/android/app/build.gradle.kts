@@ -40,10 +40,27 @@ val releaseSigningConfigured =
         releaseKeyAlias,
         releaseKeyPassword,
     ).all { !it.isNullOrBlank() }
+
+fun requestedTaskName(taskName: String): String = taskName.substringAfterLast(':')
+
+val androidReleaseSigningTasks =
+    setOf(
+        "assembleRelease",
+        "bundleRelease",
+        "installRelease",
+        "packageRelease",
+        "packageReleaseBundle",
+        "packageReleaseUniversalApk",
+        "signReleaseBundle",
+    )
+
+fun requiresAndroidReleaseSigning(taskName: String): Boolean {
+    val requestedTask = requestedTaskName(taskName)
+    return requestedTask in androidReleaseSigningTasks
+}
+
 val releaseSigningRequested =
-    gradle.startParameter.taskNames.any { taskName ->
-        taskName.lowercase(Locale.ROOT).contains("release")
-    }
+    gradle.startParameter.taskNames.any(::requiresAndroidReleaseSigning)
 
 android {
     namespace = "io.github.nizne9.open_ucloud"
@@ -80,7 +97,7 @@ android {
             } else if (releaseSigningRequested) {
                 error(
                     "Android release signing is not configured. Set apps/client/android/key.properties " +
-                        "or ANDROID_RELEASE_* environment variables before building release APKs."
+                        "or ANDROID_RELEASE_* environment variables before building release APKs or app bundles."
                 )
             }
         }
@@ -100,7 +117,7 @@ android {
             } else if (releaseSigningRequested) {
                 error(
                     "Android release signing is not configured. Set apps/client/android/key.properties " +
-                        "or ANDROID_RELEASE_* environment variables before building release APKs."
+                        "or ANDROID_RELEASE_* environment variables before building release APKs or app bundles."
                 )
             }
         }
