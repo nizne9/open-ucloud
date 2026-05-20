@@ -141,7 +141,6 @@ typedef _AssignmentDetailState = ({
   bool assignmentUploading,
   List<AssignmentAttachmentState> assignmentAttachments,
   FfiAssignmentDetailResponse? assignmentDetail,
-  String assignmentDraft,
   List<FfiAssignmentSummary> assignments,
   List<CourseItem> courses,
 });
@@ -171,7 +170,6 @@ _AssignmentDetailState _selectAssignmentDetailState(ClientState state) {
     assignmentUploading: state.assignmentUploading,
     assignmentAttachments: state.assignmentAttachments,
     assignmentDetail: state.assignmentDetail,
-    assignmentDraft: state.assignmentDraft,
     assignments: state.assignments,
     courses: state.courses,
   );
@@ -185,15 +183,18 @@ typedef _ResourcesPaneState = ({
   String? operationMessage,
   FfiCourseResourceDetail? resourceDetail,
   bool resourceDetailLoading,
-  String? resourceDownloadCurrentFileName,
-  int resourceDownloadBytes,
   bool resourceDownloading,
-  int resourceDownloadProgressCurrent,
-  int resourceDownloadProgressTotal,
   List<FfiCourseResourceSummary> resources,
   bool resourcesLoading,
   String? selectedResourceCourseId,
   String? selectedResourceId,
+});
+
+typedef _ResourceDownloadProgressState = ({
+  String? currentFileName,
+  int bytes,
+  int current,
+  int total,
 });
 
 _ResourcesPaneState _selectResourcesPaneState(ClientState state) {
@@ -205,15 +206,22 @@ _ResourcesPaneState _selectResourcesPaneState(ClientState state) {
     operationMessage: state.operationMessage,
     resourceDetail: state.resourceDetail,
     resourceDetailLoading: state.resourceDetailLoading,
-    resourceDownloadCurrentFileName: state.resourceDownloadCurrentFileName,
-    resourceDownloadBytes: state.resourceDownloadBytes,
     resourceDownloading: state.resourceDownloading,
-    resourceDownloadProgressCurrent: state.resourceDownloadProgressCurrent,
-    resourceDownloadProgressTotal: state.resourceDownloadProgressTotal,
     resources: state.resources,
     resourcesLoading: state.resourcesLoading,
     selectedResourceCourseId: state.selectedResourceCourseId,
     selectedResourceId: state.selectedResourceId,
+  );
+}
+
+_ResourceDownloadProgressState _selectResourceDownloadProgressState(
+  ClientState state,
+) {
+  return (
+    currentFileName: state.resourceDownloadCurrentFileName,
+    bytes: state.resourceDownloadBytes,
+    current: state.resourceDownloadProgressCurrent,
+    total: state.resourceDownloadProgressTotal,
   );
 }
 
@@ -2218,7 +2226,10 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
     final state = ref.watch(
       clientControllerProvider.select(_selectAssignmentDetailState),
     );
-    _syncDraftController(state.assignmentDetail, state.assignmentDraft);
+    _syncDraftController(
+      state.assignmentDetail,
+      ref.read(clientControllerProvider).assignmentDraft,
+    );
     final detail = state.assignmentDetail;
     final controller = ref.read(clientControllerProvider.notifier);
     if (state.assignmentDetailLoading) {
@@ -2647,14 +2658,14 @@ Key _courseDropdownKey(
   return ValueKey<String>('$scope:$selectedCourseId:$courseIds');
 }
 
-String _resourceDownloadStatusText(_ResourcesPaneState state) {
-  final progress = state.resourceDownloadProgressTotal == 0
+String _resourceDownloadStatusText(_ResourceDownloadProgressState state) {
+  final progress = state.total == 0
       ? '正在准备下载'
-      : '正在下载 ${state.resourceDownloadProgressCurrent} / ${state.resourceDownloadProgressTotal} 个文件';
-  final fileName = state.resourceDownloadCurrentFileName;
-  final bytes = state.resourceDownloadBytes <= 0
+      : '正在下载 ${state.current} / ${state.total} 个文件';
+  final fileName = state.currentFileName;
+  final bytes = state.bytes <= 0
       ? null
-      : _formatBytes(BigInt.from(state.resourceDownloadBytes));
+      : _formatBytes(BigInt.from(state.bytes));
   final fileNameText = fileName?.trim();
   final details = [
     ?(fileNameText == null || fileNameText.isEmpty ? null : fileNameText),
@@ -2938,7 +2949,6 @@ class _ResourcesPane extends ConsumerWidget {
           state.operationContext == OperationContext.resourceList) ...[
         const SizedBox(height: 12),
         _ResourceDownloadProgress(
-          state: state,
           onCancel: () => controller.cancelActiveResourceDownload(
             context: OperationContext.resourceList,
           ),
@@ -3009,17 +3019,16 @@ class _ResourcesPane extends ConsumerWidget {
   }
 }
 
-class _ResourceDownloadProgress extends StatelessWidget {
-  const _ResourceDownloadProgress({
-    required this.state,
-    required this.onCancel,
-  });
+class _ResourceDownloadProgress extends ConsumerWidget {
+  const _ResourceDownloadProgress({required this.onCancel});
 
-  final _ResourcesPaneState state;
   final VoidCallback onCancel;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(
+      clientControllerProvider.select(_selectResourceDownloadProgressState),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -3040,10 +3049,7 @@ class _ResourceDownloadProgress extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         LinearProgressIndicator(
-          value: state.resourceDownloadProgressTotal == 0
-              ? null
-              : state.resourceDownloadProgressCurrent /
-                    state.resourceDownloadProgressTotal,
+          value: state.total == 0 ? null : state.current / state.total,
         ),
       ],
     );
@@ -3113,7 +3119,6 @@ class _ResourceDetailCard extends ConsumerWidget {
                 state.resourceDownloading) ...[
               const SizedBox(height: 12),
               _ResourceDownloadProgress(
-                state: state,
                 onCancel: () => controller.cancelActiveResourceDownload(
                   context: OperationContext.resourceDetail,
                 ),
@@ -3186,13 +3191,24 @@ class _DetailPlaceholder extends StatelessWidget {
   }
 }
 
-class _DownloadSummary extends StatelessWidget {
+const _downloadSummaryInlinePathLimit = 5;
+
+class _DownloadSummary extends StatefulWidget {
   const _DownloadSummary({required this.paths});
 
   final List<String> paths;
 
   @override
+  State<_DownloadSummary> createState() => _DownloadSummaryState();
+}
+
+class _DownloadSummaryState extends State<_DownloadSummary> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final paths = widget.paths;
+    final longList = paths.length > _downloadSummaryInlinePathLimit;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -3212,12 +3228,41 @@ class _DownloadSummary extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            for (final path in paths)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: SelectableText(path),
+            if (longList) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _expanded = !_expanded;
+                    });
+                  },
+                  icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+                  label: Text(_expanded ? '隐藏文件路径' : '显示文件路径'),
+                ),
               ),
+            ],
+            if (!longList) ...[
+              const SizedBox(height: 12),
+              for (final path in paths)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: SelectableText(path),
+                ),
+            ] else if (_expanded) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 220,
+                child: ListView.separated(
+                  primary: false,
+                  itemCount: paths.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 6),
+                  itemBuilder: (context, index) => SelectableText(paths[index]),
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -8,6 +8,7 @@ use open_cloud_api::{
 };
 use serde::Deserialize;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::path::Path;
 
 const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
 const MAX_ASSIGNMENT_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
@@ -235,6 +236,53 @@ where
                 ],
                 body: Some(HttpBody::bytes(body)),
             })
+            .await?;
+        let resource_id: String = parse_ucloud_envelope(response, "附件上传失败，请稍后重试。")?;
+        let preview_url = self
+            .get_resource_download_url(&resource_id, access_token)
+            .await?;
+        Ok(AssignmentUploadResponse {
+            assignment_id: assignment.id.clone(),
+            file_name: file_name.to_string(),
+            preview_url,
+            resource_id,
+            site_id: assignment.site_id.clone(),
+            site_name: assignment.site_name.clone(),
+        })
+    }
+
+    pub async fn upload_assignment_file_path(
+        &self,
+        assignment: &AssignmentDetailResponse,
+        file_name: &str,
+        path: &Path,
+        user_id: &str,
+        access_token: &str,
+    ) -> Result<AssignmentUploadResponse, AuthError> {
+        let metadata = tokio::fs::metadata(path)
+            .await
+            .map_err(|error| AuthError::upstream(error.to_string()))?;
+        validate_assignment_upload_metadata(file_name, metadata.len() as usize)?;
+        let response = self
+            .http
+            .send_multipart_file(
+                HttpRequest {
+                    method: HttpMethod::Post,
+                    url: self.endpoints.assignment_upload_url.clone(),
+                    headers: vec![
+                        ("authorization".to_string(), PORTAL_BASIC_AUTH.to_string()),
+                        ("Blade-Auth".to_string(), access_token.to_string()),
+                    ],
+                    body: None,
+                },
+                vec![
+                    ("userId".to_string(), user_id.to_string()),
+                    ("bizType".to_string(), "3".to_string()),
+                ],
+                "file".to_string(),
+                file_name.to_string(),
+                path.to_path_buf(),
+            )
             .await?;
         let resource_id: String = parse_ucloud_envelope(response, "附件上传失败，请稍后重试。")?;
         let preview_url = self
@@ -496,19 +544,23 @@ fn resolve_assignment_status(record: &RawAssignmentSummary) -> AssignmentStatus 
 }
 
 fn validate_assignment_upload(file_name: &str, bytes: &[u8]) -> Result<(), AuthError> {
+    validate_assignment_upload_metadata(file_name, bytes.len())
+}
+
+fn validate_assignment_upload_metadata(file_name: &str, size: usize) -> Result<(), AuthError> {
     if file_name.contains(['\r', '\n']) {
         return Err(AuthError::new(
             AuthErrorCode::InvalidFileName,
             "上传文件名不能包含换行符。",
         ));
     }
-    if bytes.is_empty() {
+    if size == 0 {
         return Err(AuthError::new(
             AuthErrorCode::EmptyUpload,
             "上传文件不能为空。",
         ));
     }
-    if bytes.len() > MAX_ASSIGNMENT_UPLOAD_BYTES {
+    if size > MAX_ASSIGNMENT_UPLOAD_BYTES {
         return Err(AuthError::new(
             AuthErrorCode::FileTooLarge,
             "单个附件不能超过 25 MB。",
