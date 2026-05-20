@@ -177,6 +177,52 @@ _AssignmentDetailState _selectAssignmentDetailState(ClientState state) {
   );
 }
 
+typedef _ResourcesPaneState = ({
+  List<CourseItem> courses,
+  List<String> downloadedPaths,
+  OperationContext? operationContext,
+  String? errorMessage,
+  String? operationMessage,
+  FfiCourseResourceDetail? resourceDetail,
+  bool resourceDetailLoading,
+  String? resourceDownloadCurrentFileName,
+  int resourceDownloadBytes,
+  bool resourceDownloading,
+  int resourceDownloadProgressCurrent,
+  int resourceDownloadProgressTotal,
+  List<FfiCourseResourceSummary> resources,
+  bool resourcesLoading,
+  String? selectedResourceCourseId,
+  String? selectedResourceId,
+});
+
+_ResourcesPaneState _selectResourcesPaneState(ClientState state) {
+  return (
+    courses: state.courses,
+    downloadedPaths: state.downloadedPaths,
+    operationContext: state.operationContext,
+    errorMessage: state.errorMessage,
+    operationMessage: state.operationMessage,
+    resourceDetail: state.resourceDetail,
+    resourceDetailLoading: state.resourceDetailLoading,
+    resourceDownloadCurrentFileName: state.resourceDownloadCurrentFileName,
+    resourceDownloadBytes: state.resourceDownloadBytes,
+    resourceDownloading: state.resourceDownloading,
+    resourceDownloadProgressCurrent: state.resourceDownloadProgressCurrent,
+    resourceDownloadProgressTotal: state.resourceDownloadProgressTotal,
+    resources: state.resources,
+    resourcesLoading: state.resourcesLoading,
+    selectedResourceCourseId: state.selectedResourceCourseId,
+    selectedResourceId: state.selectedResourceId,
+  );
+}
+
+typedef _AccountPaneState = ({FfiAuthSessionResponse? session, bool isBusy});
+
+_AccountPaneState _selectAccountPaneState(ClientState state) {
+  return (session: state.session, isBusy: state.isBusy);
+}
+
 const _clientDestinations = [
   _ClientDestination(
     tab: ClientTab.dashboard,
@@ -1485,7 +1531,9 @@ class _AccountPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(clientControllerProvider);
+    final state = ref.watch(
+      clientControllerProvider.select(_selectAccountPaneState),
+    );
     final controller = ref.read(clientControllerProvider.notifier);
     final session = state.session;
     return ListView(
@@ -2575,7 +2623,7 @@ String _resourceSummaryText(FfiCourseResourceSummary resource) {
   return parts.isEmpty ? '暂无文件信息' : parts.join(' · ');
 }
 
-String _selectedResourceCourseName(ClientState state) {
+String _selectedResourceCourseName(_ResourcesPaneState state) {
   final selected = state.selectedResourceCourseId;
   if (selected != null) {
     for (final course in state.courses) {
@@ -2599,7 +2647,7 @@ Key _courseDropdownKey(
   return ValueKey<String>('$scope:$selectedCourseId:$courseIds');
 }
 
-String _resourceDownloadStatusText(ClientState state) {
+String _resourceDownloadStatusText(_ResourcesPaneState state) {
   final progress = state.resourceDownloadProgressTotal == 0
       ? '正在准备下载'
       : '正在下载 ${state.resourceDownloadProgressCurrent} / ${state.resourceDownloadProgressTotal} 个文件';
@@ -2635,7 +2683,9 @@ class _ResourcesPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(clientControllerProvider);
+    final state = ref.watch(
+      clientControllerProvider.select(_selectResourcesPaneState),
+    );
     final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2649,8 +2699,10 @@ class _ResourcesPane extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                _FeedbackBanners(
-                  state: state,
+                _FeedbackBanners.values(
+                  errorMessage: state.errorMessage,
+                  operationMessage: state.operationMessage,
+                  activeOperationContext: state.operationContext,
                   operationContext: OperationContext.resourceDetail,
                 ),
                 Align(
@@ -2706,8 +2758,10 @@ class _ResourcesPane extends ConsumerWidget {
                       subtitle: '资料说明和单文件下载入口会显示在这里。',
                     )
                   else ...[
-                    _FeedbackBanners(
-                      state: state,
+                    _FeedbackBanners.values(
+                      errorMessage: state.errorMessage,
+                      operationMessage: state.operationMessage,
+                      activeOperationContext: state.operationContext,
                       operationContext: OperationContext.resourceDetail,
                     ),
                     if (state.errorMessage != null ||
@@ -2733,7 +2787,7 @@ class _ResourcesPane extends ConsumerWidget {
   Widget _listView(
     BuildContext context,
     WidgetRef ref,
-    ClientState state, {
+    _ResourcesPaneState state, {
     bool includeDownloadSummary = false,
   }) {
     return CustomScrollView(
@@ -2749,7 +2803,7 @@ class _ResourcesPane extends ConsumerWidget {
   List<Widget> _listSlivers(
     BuildContext context,
     WidgetRef ref,
-    ClientState state, {
+    _ResourcesPaneState state, {
     required bool includeDownloadSummary,
   }) {
     final headerChildren = _listHeaderChildren(context, ref, state);
@@ -2797,15 +2851,17 @@ class _ResourcesPane extends ConsumerWidget {
   List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
-    ClientState state,
+    _ResourcesPaneState state,
   ) {
     final controller = ref.read(clientControllerProvider.notifier);
     final selectedCourseId =
         state.selectedResourceCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
-      _FeedbackBanners(
-        state: state,
+      _FeedbackBanners.values(
+        errorMessage: state.errorMessage,
+        operationMessage: state.operationMessage,
+        activeOperationContext: state.operationContext,
         operationContext: OperationContext.resourceList,
       ),
       Row(
@@ -2894,7 +2950,7 @@ class _ResourcesPane extends ConsumerWidget {
   Widget _resourceListItem(
     BuildContext context,
     WidgetRef ref,
-    ClientState state,
+    _ResourcesPaneState state,
     FfiCourseResourceSummary resource,
   ) {
     return Card(
@@ -2959,7 +3015,7 @@ class _ResourceDownloadProgress extends StatelessWidget {
     required this.onCancel,
   });
 
-  final ClientState state;
+  final _ResourcesPaneState state;
   final VoidCallback onCancel;
 
   @override
@@ -2997,7 +3053,7 @@ class _ResourceDownloadProgress extends StatelessWidget {
 class _ResourceDetailCard extends ConsumerWidget {
   const _ResourceDetailCard({required this.state});
 
-  final ClientState state;
+  final _ResourcesPaneState state;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -3170,11 +3226,6 @@ class _DownloadSummary extends StatelessWidget {
 }
 
 class _FeedbackBanners extends StatelessWidget {
-  _FeedbackBanners({required ClientState state, this.operationContext})
-    : errorMessage = state.errorMessage,
-      operationMessage = state.operationMessage,
-      activeOperationContext = state.operationContext;
-
   const _FeedbackBanners.values({
     required this.errorMessage,
     required this.operationMessage,
