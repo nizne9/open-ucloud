@@ -310,6 +310,7 @@ final clientControllerProvider =
 
 class ClientController extends Notifier<ClientState> {
   int _assignmentListGeneration = 0;
+  int _resourceListGeneration = 0;
   int _resourceDownloadGeneration = 0;
   bool _resourceDownloadPollInFlight = false;
   Timer? _resourceDownloadPollTimer;
@@ -536,6 +537,7 @@ class ClientController extends Notifier<ClientState> {
 
   Future<void> logout() async {
     _assignmentListGeneration += 1;
+    _resourceListGeneration += 1;
     await _cancelActiveResourceDownloadSilently();
     final gateway = ref.read(openCloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
@@ -1005,6 +1007,7 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> loadResourcesForCourse(String siteId) async {
+    final generation = ++_resourceListGeneration;
     unawaited(_cancelActiveResourceDownloadSilently());
     final course = _courseById(siteId);
     state = state.copyWith(
@@ -1026,7 +1029,9 @@ class ClientController extends Notifier<ClientState> {
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
-      state = state.copyWith(resourcesLoading: false);
+      if (_isCurrentResourceListGeneration(generation)) {
+        state = state.copyWith(resourcesLoading: false);
+      }
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -1036,18 +1041,30 @@ class ClientController extends Notifier<ClientState> {
         siteId: siteId,
         siteName: course?.name ?? '',
       );
+      if (!_isCurrentResourceListGeneration(generation)) {
+        return;
+      }
       await _persistUpdatedPayload(response.updatedSessionPayload);
+      if (!_isCurrentResourceListGeneration(generation)) {
+        return;
+      }
       state = state.copyWith(
         resources: response.records,
         resourcesLoading: false,
       );
     } on FfiAuthError catch (error) {
+      if (!_isCurrentResourceListGeneration(generation)) {
+        return;
+      }
       await _handleSessionError(
         error,
         fallbackPhase: ClientPhase.authenticated,
       );
       state = state.copyWith(resourcesLoading: false);
     } catch (error) {
+      if (!_isCurrentResourceListGeneration(generation)) {
+        return;
+      }
       state = state.copyWith(
         resourcesLoading: false,
         errorMessage: '课程资料加载失败：$error',
@@ -1592,6 +1609,7 @@ class ClientController extends Notifier<ClientState> {
           ? null
           : courses.first.id;
       if (!keepResourceCourse) {
+        _resourceListGeneration += 1;
         unawaited(_cancelActiveResourceDownloadSilently());
       }
 
@@ -1737,5 +1755,9 @@ class ClientController extends Notifier<ClientState> {
 
   bool _isCurrentAssignmentListGeneration(int generation) {
     return generation == _assignmentListGeneration;
+  }
+
+  bool _isCurrentResourceListGeneration(int generation) {
+    return generation == _resourceListGeneration;
   }
 }

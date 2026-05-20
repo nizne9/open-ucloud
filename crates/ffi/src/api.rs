@@ -420,8 +420,38 @@ fn read_download_status(task_id: &str) -> Result<FfiDownloadTaskStatus, FfiAuthE
         .get(task_id)
         .cloned()
         .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
-    let status = task.status.lock().expect("download task poisoned").clone();
-    Ok(status)
+    let status = task.status.lock().expect("download task poisoned");
+    let terminal = is_terminal_download_state(&status.state);
+    Ok(FfiDownloadTaskStatus {
+        task_id: status.task_id.clone(),
+        state: status.state.clone(),
+        current: status.current,
+        total: status.total,
+        bytes_downloaded: status.bytes_downloaded,
+        current_file_name: status.current_file_name.clone(),
+        written_paths: if terminal {
+            status.written_paths.clone()
+        } else {
+            Vec::new()
+        },
+        records: if terminal {
+            status.records.clone()
+        } else {
+            Vec::new()
+        },
+        error_message: status.error_message.clone(),
+        updated_session_payload: status.updated_session_payload.clone(),
+    })
+}
+
+fn is_terminal_download_state(state: &FfiDownloadTaskState) -> bool {
+    matches!(
+        state,
+        FfiDownloadTaskState::Succeeded
+            | FfiDownloadTaskState::Failed
+            | FfiDownloadTaskState::Cancelled
+            | FfiDownloadTaskState::Disposed
+    )
 }
 
 fn update_download_status(task: &DownloadTask, f: impl FnOnce(&mut FfiDownloadTaskStatus)) {
@@ -2104,6 +2134,38 @@ mod tests {
             std::fs::read(&result.written_paths[0]).expect("sanitized file"),
             b"new bytes"
         );
+    }
+
+    #[test]
+    fn running_download_status_omits_accumulated_result_payloads() {
+        let (task_id, task, _) = create_download_task(2);
+        update_download_status(&task, |status| {
+            status.state = FfiDownloadTaskState::Running;
+            status.current = 1;
+            status.written_paths.push("/tmp/课件.pdf".to_string());
+            status.records.push(FfiCourseResourceDetail {
+                description: None,
+                download_url: None,
+                ext: Some("pdf".to_string()),
+                name: "课件.pdf".to_string(),
+                resource_id: "resource-1".to_string(),
+                site_id: "site-1".to_string(),
+                site_name: "软件测试".to_string(),
+                size_bytes: None,
+                updated_at: String::new(),
+            });
+        });
+
+        let status = read_download_status(&task_id).expect("status exists");
+
+        assert_eq!(status.state, FfiDownloadTaskState::Running);
+        assert_eq!(status.current, 1);
+        assert!(status.written_paths.is_empty());
+        assert!(status.records.is_empty());
+        download_tasks()
+            .lock()
+            .expect("download task map")
+            .remove(&task_id);
     }
 
     #[tokio::test]

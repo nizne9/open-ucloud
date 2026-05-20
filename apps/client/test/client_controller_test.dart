@@ -888,6 +888,61 @@ void main() {
     expect(container.read(clientControllerProvider).operationMessage, isNull);
   });
 
+  test('resource list ignores stale course loads', () async {
+    final storage = MemorySessionStorage('payload');
+    final firstLoad = Completer<FfiCourseResourcesResponse>();
+    final secondLoad = Completer<FfiCourseResourcesResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourcesFutures: [firstLoad.future, secondLoad.future],
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    addTearDown(container.dispose);
+    final controller = container.read(clientControllerProvider.notifier);
+
+    final firstTask = controller.loadResourcesForCourse('site-old');
+    await Future<void>.delayed(Duration.zero);
+    final secondTask = controller.loadResourcesForCourse('site-new');
+    await Future<void>.delayed(Duration.zero);
+
+    secondLoad.complete(
+      const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '新课件.pdf',
+            resourceId: 'resource-new',
+            siteId: 'site-new',
+            siteName: '新课程',
+            updatedAt: '',
+          ),
+        ],
+        updatedSessionPayload: 'new-resource-payload',
+      ),
+    );
+    await secondTask;
+
+    firstLoad.complete(
+      const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '旧课件.pdf',
+            resourceId: 'resource-old',
+            siteId: 'site-old',
+            siteName: '旧课程',
+            updatedAt: '',
+          ),
+        ],
+        updatedSessionPayload: 'old-resource-payload',
+      ),
+    );
+    await firstTask;
+
+    final state = container.read(clientControllerProvider);
+    expect(state.selectedResourceCourseId, 'site-new');
+    expect(state.resources.single.resourceId, 'resource-new');
+    expect(storage.payload, 'new-resource-payload');
+  });
+
   test('does not overlap slow download status polls', () async {
     final storage = MemorySessionStorage('payload');
     final firstStatus = Completer<FfiDownloadTaskStatus>();

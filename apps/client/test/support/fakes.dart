@@ -95,6 +95,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     resourceDownloadCourseFutures,
     List<Future<FfiDownloadTaskStatus>>? downloadTaskStatusFutures,
     List<FfiDownloadTaskStatus>? downloadTaskStatuses,
+    List<Future<FfiCourseResourcesResponse>>? resourcesFutures,
     List<FfiCourseResourcesResponse>? resourcesResponses,
     this.capabilitiesResponse = const FfiClientCapabilities(
       selfAttendance: false,
@@ -113,6 +114,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
        ),
        downloadTaskStatusFutures = List.of(downloadTaskStatusFutures ?? []),
        downloadTaskStatuses = List.of(downloadTaskStatuses ?? []),
+       resourcesFutures = List.of(resourcesFutures ?? []),
        resourcesResponses = List.of(resourcesResponses ?? []);
 
   final FfiAuthSessionResponse? session;
@@ -144,6 +146,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   resourceDownloadCourseFutures;
   final List<Future<FfiDownloadTaskStatus>> downloadTaskStatusFutures;
   final List<FfiDownloadTaskStatus> downloadTaskStatuses;
+  final List<Future<FfiCourseResourcesResponse>> resourcesFutures;
   final List<FfiCourseResourcesResponse> resourcesResponses;
   final FfiClientCapabilities capabilitiesResponse;
   final Object? capabilitiesError;
@@ -367,6 +370,9 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
   }) async {
     lastResourcesSiteId = siteId;
+    if (resourcesFutures.isNotEmpty) {
+      return resourcesFutures.removeAt(0);
+    }
     if (resourcesResponses.isNotEmpty) {
       return resourcesResponses.removeAt(0);
     }
