@@ -10,12 +10,18 @@ class _DashboardPane extends ConsumerWidget {
         !state.undoneAssignmentsLoaded &&
         !state.assignmentsLoading) {
       Future.microtask(
-        () => ref
-            .read(clientControllerProvider.notifier)
-            .loadUndoneAssignments(
-              selectedTab: ClientTab.dashboard,
-              clearGlobalError: false,
-            ),
+        () {
+          if (ref.read(clientControllerProvider).selectedTab !=
+              ClientTab.dashboard) {
+            return;
+          }
+          ref
+              .read(clientControllerProvider.notifier)
+              .loadUndoneAssignments(
+                selectedTab: ClientTab.dashboard,
+                clearGlobalError: false,
+              );
+        },
       );
     }
     return LayoutBuilder(

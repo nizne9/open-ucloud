@@ -1076,7 +1076,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               TextField(
                 controller: _captchaController,
                 textInputAction: TextInputAction.done,
-                onSubmitted: (_) => controller.finishLogin(captcha: _captchaController.text),
+                onSubmitted: (_) => _submitPrimary(controller, awaitingCaptcha),
                 decoration: InputDecoration(
                   border: const OutlineInputBorder(),
                   labelText: '验证码',
@@ -1099,10 +1099,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
                 label: const Text('修改账号密码'),
               ),
               TextButton.icon(
-                onPressed: () => controller.startLogin(
-                  username: _usernameController.text,
-                  password: _passwordController.text,
-                ),
+                onPressed: () => _submitPrimary(controller, false),
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('重新获取验证码'),
               ),
