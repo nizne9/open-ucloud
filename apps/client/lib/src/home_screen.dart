@@ -756,6 +756,9 @@ class _WorkbenchTopBar extends StatelessWidget {
                           content: '退出后将清除本地会话，需要重新登录。',
                           confirmLabel: '退出',
                         );
+                        if (!context.mounted) {
+                          return;
+                        }
                         if (ok) {
                           onLogout!();
                         }
@@ -1062,8 +1065,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               TextField(
                 controller: _captchaController,
                 textInputAction: TextInputAction.done,
-                onSubmitted: (_) =>
-                    controller.finishLogin(captcha: _captchaController.text),
+                onSubmitted: (_) => _submitPrimary(controller, awaitingCaptcha),
                 decoration: InputDecoration(
                   border: const OutlineInputBorder(),
                   labelText: '验证码',

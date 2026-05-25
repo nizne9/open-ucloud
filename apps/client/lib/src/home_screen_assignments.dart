@@ -328,14 +328,6 @@ class _AssignmentsPane extends ConsumerWidget {
     );
   }
 
-  IconData _assignmentIcon(FfiAssignmentStatus status) {
-    return switch (status) {
-      FfiAssignmentStatus.pending => Icons.edit_note_outlined,
-      FfiAssignmentStatus.submitted => Icons.task_alt,
-      FfiAssignmentStatus.expired => Icons.event_busy_outlined,
-    };
-  }
-
   String _assignmentStatusLabel(FfiAssignmentStatus status) {
     return _assignmentStatusText(status);
   }

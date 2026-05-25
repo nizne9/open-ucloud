@@ -533,6 +533,9 @@ class _AccountPane extends ConsumerWidget {
                               content: '退出后将清除本地会话，需要重新登录。',
                               confirmLabel: '退出',
                             );
+                            if (!context.mounted) {
+                              return;
+                            }
                             if (ok) {
                               controller.logout();
                             }
