@@ -527,12 +527,7 @@ class _AccountPane extends ConsumerWidget {
                     onPressed: state.isBusy
                         ? null
                         : () async {
-                            final ok = await _confirm(
-                              context,
-                              title: '退出登录',
-                              content: '退出后将清除本地会话，需要重新登录。',
-                              confirmLabel: '退出',
-                            );
+                            final ok = await _confirmLogout(context);
                             if (!context.mounted) {
                               return;
                             }

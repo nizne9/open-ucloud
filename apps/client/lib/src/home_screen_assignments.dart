@@ -578,6 +578,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                                       '附件：${state.assignmentAttachments.length} 个',
                             confirmLabel: submitLabel,
                           );
+                          if (!mounted) {
+                            return;
+                          }
                           if (ok) {
                             await controller.submitAssignmentDraft(
                               _draftController.text,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data' as typed_data;
+import 'dart:ui' show SemanticsRole;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -291,25 +292,28 @@ class _ClientNavigationBar extends ConsumerWidget {
       clientControllerProvider.select((state) => state.selectedTab),
     );
     final colorScheme = Theme.of(context).colorScheme;
-    return BottomNavigationBar(
-      currentIndex: _destinationIndex(selectedTab),
-      onTap: (index) {
-        unawaited(
-          _selectClientTab(_clientDestinations[index].tab, ref, context),
-        );
-      },
-      type: BottomNavigationBarType.fixed,
-      showUnselectedLabels: true,
-      selectedItemColor: colorScheme.primary,
-      unselectedItemColor: colorScheme.onSurfaceVariant,
-      backgroundColor: colorScheme.surface,
-      items: [
-        for (final destination in _clientDestinations)
-          BottomNavigationBarItem(
-            icon: Icon(destination.icon),
-            label: destination.label,
-          ),
-      ],
+    return Semantics(
+      role: SemanticsRole.tabBar,
+      child: BottomNavigationBar(
+        currentIndex: _destinationIndex(selectedTab),
+        onTap: (index) {
+          unawaited(
+            _selectClientTab(_clientDestinations[index].tab, ref, context),
+          );
+        },
+        type: BottomNavigationBarType.fixed,
+        showUnselectedLabels: true,
+        selectedItemColor: colorScheme.primary,
+        unselectedItemColor: colorScheme.onSurfaceVariant,
+        backgroundColor: colorScheme.surface,
+        items: [
+          for (final destination in _clientDestinations)
+            BottomNavigationBarItem(
+              icon: Icon(destination.icon),
+              label: destination.label,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -750,12 +754,7 @@ class _WorkbenchTopBar extends StatelessWidget {
                 onPressed: onLogout == null
                     ? null
                     : () async {
-                        final ok = await _confirm(
-                          context,
-                          title: '退出登录',
-                          content: '退出后将清除本地会话，需要重新登录。',
-                          confirmLabel: '退出',
-                        );
+                        final ok = await _confirmLogout(context);
                         if (!context.mounted) {
                           return;
                         }
@@ -894,6 +893,15 @@ Future<bool> _confirmDiscardAssignmentChanges(BuildContext context) {
   );
 }
 
+Future<bool> _confirmLogout(BuildContext context) {
+  return _confirm(
+    context,
+    title: '退出登录',
+    content: '退出后将清除本地会话，需要重新登录。',
+    confirmLabel: '退出',
+  );
+}
+
 Future<bool> _confirmCancelResourceDownload(
   BuildContext context,
   WidgetRef ref,
@@ -928,6 +936,9 @@ Future<bool> _prepareForAssignmentContextChange(
     return true;
   }
   final discard = await _confirmDiscardAssignmentChanges(context);
+  if (!context.mounted) {
+    return false;
+  }
   if (!discard) {
     return false;
   }
@@ -1065,7 +1076,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               TextField(
                 controller: _captchaController,
                 textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submitPrimary(controller, awaitingCaptcha),
+                onSubmitted: (_) => controller.finishLogin(captcha: _captchaController.text),
                 decoration: InputDecoration(
                   border: const OutlineInputBorder(),
                   labelText: '验证码',
