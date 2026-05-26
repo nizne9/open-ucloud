@@ -44,6 +44,7 @@ void main() {
     expect(find.text('登录状态'), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(BottomNavigationBar), findsNothing);
   });
 
   testWidgets('uses rail navigation on medium desktop width', (tester) async {
@@ -77,6 +78,7 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(BottomNavigationBar), findsNothing);
     expect(find.text('总览'), findsWidgets);
   });
 
