@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data' as typed_data;
-import 'dart:ui' show SemanticsRole;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -292,28 +291,25 @@ class _ClientNavigationBar extends ConsumerWidget {
       clientControllerProvider.select((state) => state.selectedTab),
     );
     final colorScheme = Theme.of(context).colorScheme;
-    return Semantics(
-      role: SemanticsRole.tabBar,
-      child: BottomNavigationBar(
-        currentIndex: _destinationIndex(selectedTab),
-        onTap: (index) {
-          unawaited(
-            _selectClientTab(_clientDestinations[index].tab, ref, context),
-          );
-        },
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurfaceVariant,
-        backgroundColor: colorScheme.surface,
-        items: [
-          for (final destination in _clientDestinations)
-            BottomNavigationBarItem(
-              icon: Icon(destination.icon),
-              label: destination.label,
-            ),
-        ],
-      ),
+    return BottomNavigationBar(
+      currentIndex: _destinationIndex(selectedTab),
+      onTap: (index) {
+        unawaited(
+          _selectClientTab(_clientDestinations[index].tab, ref, context),
+        );
+      },
+      type: BottomNavigationBarType.fixed,
+      showUnselectedLabels: true,
+      selectedItemColor: colorScheme.primary,
+      unselectedItemColor: colorScheme.onSurfaceVariant,
+      backgroundColor: colorScheme.surface,
+      items: [
+        for (final destination in _clientDestinations)
+          BottomNavigationBarItem(
+            icon: Icon(destination.icon),
+            label: destination.label,
+          ),
+      ],
     );
   }
 }
