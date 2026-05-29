@@ -1125,6 +1125,8 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
       return;
     }
     final username = _usernameController.text.trim();
+    // Password is intentionally NOT trimmed: whitespace may be part of
+    // the actual password, unlike username which is an identifier.
     final password = _passwordController.text;
     String? usernameError;
     String? passwordError;
