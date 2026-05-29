@@ -549,6 +549,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                       ? null
                       : () async {
                           final files = await openFiles();
+                          if (!mounted) {
+                            return;
+                          }
                           for (final file in files) {
                             await controller.uploadAssignmentAttachment(
                               file.path,

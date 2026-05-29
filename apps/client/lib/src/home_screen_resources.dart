@@ -327,11 +327,11 @@ class _ResourcesPane extends ConsumerWidget {
                           '文件：${state.resources.length} 个\n'
                           '选择目录后将下载当前列表中的全部资料。',
                     );
-                    if (!ok) {
+                    if (!ok || !context.mounted) {
                       return;
                     }
                     final directory = await getDirectoryPath();
-                    if (directory != null) {
+                    if (directory != null && context.mounted) {
                       await controller.downloadCourseResources(directory);
                     }
                   },
@@ -528,7 +528,7 @@ class _ResourceDetailCard extends ConsumerWidget {
                         final location = await getSaveLocation(
                           suggestedName: detail.name,
                         );
-                        if (location != null) {
+                        if (location != null && context.mounted) {
                           await controller.downloadResource(location.path);
                         }
                       },

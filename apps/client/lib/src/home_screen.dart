@@ -908,7 +908,7 @@ Future<bool> _confirmCancelResourceDownload(
     content: '当前资料下载还在进行。继续前需要先取消这个下载任务。',
     confirmLabel: '取消下载',
   );
-  if (!ok) {
+  if (!ok || !context.mounted) {
     return false;
   }
   final contextHint =

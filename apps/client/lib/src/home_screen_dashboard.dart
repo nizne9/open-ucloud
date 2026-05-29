@@ -413,7 +413,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
                             ref,
                             context,
                           );
-                          if (!selected) {
+                          if (!selected || !context.mounted) {
                             return;
                           }
                           await controller.selectAssignment(assignment);
@@ -476,7 +476,7 @@ class _NextActionCard extends ConsumerWidget {
                       ref,
                       context,
                     );
-                    if (!selected) {
+                    if (!selected || !context.mounted) {
                       return;
                     }
                     await controller.selectAssignment(next);
