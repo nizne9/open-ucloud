@@ -979,26 +979,28 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
       text: initialState.pendingPassword ?? '',
     );
     _captchaController = TextEditingController();
-    _usernameController.addListener(_clearFieldErrors);
-    _passwordController.addListener(_clearFieldErrors);
-    _captchaController.addListener(_clearFieldErrors);
-  }
-
-  void _clearFieldErrors() {
-    if (_usernameError != null || _passwordError != null || _captchaError != null) {
-      setState(() {
-        _usernameError = null;
-        _passwordError = null;
-        _captchaError = null;
-      });
-    }
+    _usernameController.addListener(() {
+      if (_usernameError != null) {
+        setState(() { _usernameError = null; });
+      }
+    });
+    _passwordController.addListener(() {
+      if (_passwordError != null) {
+        setState(() { _passwordError = null; });
+      }
+    });
+    _captchaController.addListener(() {
+      if (_captchaError != null) {
+        setState(() { _captchaError = null; });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _usernameController.removeListener(_clearFieldErrors);
-    _passwordController.removeListener(_clearFieldErrors);
-    _captchaController.removeListener(_clearFieldErrors);
+    // Per-field listeners are anonymous closures that cannot be removed
+    // individually, but TextEditingController.dispose() implicitly removes
+    // all listeners, making explicit removeListener calls unnecessary.
     _usernameController.dispose();
     _passwordController.dispose();
     _captchaController.dispose();
