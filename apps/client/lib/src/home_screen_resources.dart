@@ -207,7 +207,7 @@ class _ResourcesPane extends ConsumerWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 48, 16, 24),
           sliver: SliverToBoxAdapter(
-            child: _EmptyText(
+            child: _EmptyState(
               icon: Icons.folder_off_outlined,
               label: '当前课程暂无资料',
               action: state.courses.length > 1

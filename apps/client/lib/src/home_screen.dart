@@ -751,9 +751,6 @@ class _WorkbenchTopBar extends StatelessWidget {
                     ? null
                     : () async {
                         final ok = await _confirmLogout(context);
-                        if (!context.mounted) {
-                          return;
-                        }
                         if (ok) {
                           onLogout!();
                         }
@@ -979,19 +976,19 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
       text: initialState.pendingPassword ?? '',
     );
     _captchaController = TextEditingController();
-    _usernameController.addListener(() {
-      if (_usernameError != null) {
-        setState(() { _usernameError = null; });
-      }
-    });
-    _passwordController.addListener(() {
-      if (_passwordError != null) {
-        setState(() { _passwordError = null; });
-      }
-    });
-    _captchaController.addListener(() {
-      if (_captchaError != null) {
-        setState(() { _captchaError = null; });
+    _clearFieldOnError(_usernameController, () => _usernameError, () { _usernameError = null; });
+    _clearFieldOnError(_passwordController, () => _passwordError, () { _passwordError = null; });
+    _clearFieldOnError(_captchaController, () => _captchaError, () { _captchaError = null; });
+  }
+
+  void _clearFieldOnError(
+    TextEditingController controller,
+    String? Function() getter,
+    void Function() setter,
+  ) {
+    controller.addListener(() {
+      if (getter() != null) {
+        setState(setter);
       }
     });
   }
@@ -1235,35 +1232,6 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _EmptyInline extends StatelessWidget {
-  const _EmptyInline({
-    required this.icon,
-    required this.label,
-    this.action,
-  });
-
-  final IconData icon;
-  final String label;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Column(
-        children: [
-          Icon(icon, size: 36, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 8),
-          Text(label, textAlign: TextAlign.center),
-          if (action != null) ...[
-            const SizedBox(height: 12),
-            action!,
-          ],
-        ],
-      ),
-    );
-  }
-}
 
 IconData _assignmentIcon(FfiAssignmentStatus status) {
   return switch (status) {

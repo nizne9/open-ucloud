@@ -157,34 +157,43 @@ class _FeedbackBanners extends StatelessWidget {
   }
 }
 
-class _EmptyText extends StatelessWidget {
-  const _EmptyText({
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
     required this.icon,
     required this.label,
     this.action,
+    this.compact = false,
   });
 
   final IconData icon;
   final String label;
   final Widget? action;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final iconSize = compact ? 36.0 : 48.0;
+    final spacing = compact ? 8.0 : 12.0;
+    final textStyle = compact ? null : Theme.of(context).textTheme.titleMedium;
+    final actionSpacing = compact ? 12.0 : 16.0;
+    final child = Column(
       children: [
-        Icon(icon, size: 48, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(height: 12),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Icon(icon, size: iconSize, color: Theme.of(context).colorScheme.outline),
+        SizedBox(height: spacing),
+        Text(label, textAlign: TextAlign.center, style: textStyle),
         if (action != null) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: actionSpacing),
           action!,
         ],
       ],
     );
+    if (compact) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: child,
+      );
+    }
+    return child;
   }
 }
 

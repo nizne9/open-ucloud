@@ -223,7 +223,8 @@ class _CourseContextCard extends ConsumerWidget {
       title: '课程上下文',
       subtitle: '选择课程后查看作业或资料。',
       child: state.courses.isEmpty
-          ? _EmptyInline(
+          ? _EmptyState(
+              compact: true,
               icon: Icons.menu_book_outlined,
               label: '暂无课程',
               action: OutlinedButton.icon(
@@ -239,10 +240,10 @@ class _CourseContextCard extends ConsumerWidget {
                 for (final course in state.courses)
                   _CourseContextRow(
                     course: course,
-                    onAssignments: () =>
-                        controller.loadCourseAssignments(course.id),
-                    onResources: () =>
-                        controller.loadResourcesForCourse(course.id),
+                    onAssignments: () => unawaited(
+                        controller.loadCourseAssignments(course.id)),
+                    onResources: () => unawaited(
+                        controller.loadResourcesForCourse(course.id)),
                   ),
               ],
             ),
@@ -374,7 +375,8 @@ class _PendingAssignmentsCard extends ConsumerWidget {
               ],
             )
           : state.assignments.isEmpty
-          ? _EmptyInline(
+          ? _EmptyState(
+              compact: true,
               icon: Icons.assignment_late_outlined,
               label: '当前没有待提交作业',
               action: OutlinedButton.icon(
@@ -534,9 +536,6 @@ class _AccountPane extends ConsumerWidget {
                         ? null
                         : () async {
                             final ok = await _confirmLogout(context);
-                            if (!context.mounted) {
-                              return;
-                            }
                             if (ok) {
                               controller.logout();
                             }

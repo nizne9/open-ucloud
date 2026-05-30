@@ -120,7 +120,7 @@ class _AssignmentsPane extends ConsumerWidget {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 48, 16, 24),
           sliver: SliverToBoxAdapter(
-            child: _EmptyText(
+            child: _EmptyState(
               icon: Icons.assignment_late_outlined,
               label: state.assignmentView == AssignmentView.undone
                   ? '当前没有待提交作业'
@@ -320,7 +320,7 @@ class _AssignmentsPane extends ConsumerWidget {
         title: Text(assignment.title),
         subtitle: Text('${assignment.siteName}\n截止：${assignment.endTime}'),
         isThreeLine: true,
-        trailing: Text(_assignmentStatusLabel(assignment.status)),
+        trailing: Text(_assignmentStatusText(assignment.status)),
         onTap: () {
           unawaited(_selectAssignmentGuarded(context, ref, assignment));
         },
@@ -328,10 +328,7 @@ class _AssignmentsPane extends ConsumerWidget {
     );
   }
 
-  String _assignmentStatusLabel(FfiAssignmentStatus status) {
-    return _assignmentStatusText(status);
   }
-}
 
 String _assignmentStatusText(FfiAssignmentStatus status) {
   return switch (status) {
