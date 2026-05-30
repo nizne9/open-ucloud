@@ -50,6 +50,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final authenticated =
         phase == ClientPhase.authenticated ||
         phase == ClientPhase.loadingCourses;
+    final showBottomNav =
+        authenticated && MediaQuery.sizeOf(context).width < 700;
     return Scaffold(
       appBar: authenticated
           ? null
@@ -57,7 +59,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               title: const Text('Open UCloud'),
               actions: [_ThemeModeMenu(themeMode: themeMode)],
             ),
+      bottomNavigationBar:
+          showBottomNav ? const _ClientNavigationBar() : null,
       body: SafeArea(
+        bottom: !showBottomNav,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child: switch (phase) {
@@ -290,7 +295,6 @@ class _ClientNavigationBar extends ConsumerWidget {
     final selectedTab = ref.watch(
       clientControllerProvider.select((state) => state.selectedTab),
     );
-    final colorScheme = Theme.of(context).colorScheme;
     return BottomNavigationBar(
       currentIndex: _destinationIndex(selectedTab),
       onTap: (index) {
@@ -298,10 +302,6 @@ class _ClientNavigationBar extends ConsumerWidget {
           _selectClientTab(_clientDestinations[index].tab, ref, context),
         );
       },
-      type: BottomNavigationBarType.fixed,
-      showUnselectedLabels: true,
-      selectedItemColor: colorScheme.primary,
-      unselectedItemColor: colorScheme.onSurfaceVariant,
       items: [
         for (final destination in _clientDestinations)
           BottomNavigationBarItem(
@@ -381,18 +381,11 @@ class _AuthenticatedPane extends ConsumerWidget {
             ],
           );
         }
-        return Column(
-          children: [
-            Expanded(
-              child: _WorkbenchFrame(
-                selectedTab: selectedTab,
-                themeMode: themeMode,
-                compact: true,
-                child: content,
-              ),
-            ),
-            const _ClientNavigationBar(),
-          ],
+        return _WorkbenchFrame(
+          selectedTab: selectedTab,
+          themeMode: themeMode,
+          compact: true,
+          child: content,
         );
       },
     );
@@ -597,10 +590,7 @@ class _AccountBadge extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final initial = name.trim().isEmpty ? '?' : name.trim().substring(0, 1);
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: _outlinedBoxDecoration(colorScheme),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -1201,30 +1191,42 @@ class _WorkbenchCard extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+class _LabelValueRow extends StatelessWidget {
+  const _LabelValueRow({
+    required this.label,
+    required this.value,
+    this.labelWidth = 86,
+    this.labelStyle,
+    this.bottomPadding = 10,
+    this.selectable = false,
+  });
 
   final String label;
   final String value;
+  final double labelWidth;
+  final TextStyle? labelStyle;
+  final double bottomPadding;
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final defaultLabelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: bottomPadding),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 86,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            width: labelWidth,
+            child: Text(label, style: labelStyle ?? defaultLabelStyle),
           ),
-          Expanded(child: Text(value)),
+          Expanded(
+            child: selectable
+                ? SelectableText(value)
+                : Text(value),
+          ),
         ],
       ),
     );
