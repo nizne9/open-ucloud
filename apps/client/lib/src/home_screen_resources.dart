@@ -24,15 +24,6 @@ String _selectedResourceCourseName(_ResourcesPaneState state) {
   return '当前课程';
 }
 
-Key _courseDropdownKey(
-  String scope,
-  List<CourseItem> courses,
-  String? selectedCourseId,
-) {
-  final courseIds = courses.map((course) => course.id).join('|');
-  return ValueKey<String>('$scope:$selectedCourseId:$courseIds');
-}
-
 String _resourceDownloadStatusText(_ResourceDownloadProgressState state) {
   final progress = state.total == 0
       ? '正在准备下载'
@@ -85,7 +76,7 @@ class _ResourcesPane extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                _FeedbackBanners.values(
+                _FeedbackBanners(
                   errorMessage: state.errorMessage,
                   operationMessage: state.operationMessage,
                   activeOperationContext: state.operationContext,
@@ -144,7 +135,7 @@ class _ResourcesPane extends ConsumerWidget {
                       subtitle: '资料说明和单文件下载入口会显示在这里。',
                     )
                   else ...[
-                    _FeedbackBanners.values(
+                    _FeedbackBanners(
                       errorMessage: state.errorMessage,
                       operationMessage: state.operationMessage,
                       activeOperationContext: state.operationContext,
@@ -263,7 +254,7 @@ class _ResourcesPane extends ConsumerWidget {
         state.selectedResourceCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
-      _FeedbackBanners.values(
+      _FeedbackBanners(
         errorMessage: state.errorMessage,
         operationMessage: state.operationMessage,
         activeOperationContext: state.operationContext,

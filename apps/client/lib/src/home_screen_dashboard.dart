@@ -8,13 +8,10 @@ class _DashboardPane extends ConsumerWidget {
     if (state.phase == ClientPhase.authenticated &&
         state.pendingAssignmentsErrorMessage == null &&
         !state.undoneAssignmentsLoaded &&
-        !state.assignmentsLoading) {
+        !state.assignmentsLoading &&
+        state.selectedTab == ClientTab.dashboard) {
       Future.microtask(
         () {
-          if (ref.read(clientControllerProvider).selectedTab !=
-              ClientTab.dashboard) {
-            return;
-          }
           ref
               .read(clientControllerProvider.notifier)
               .loadUndoneAssignments(
@@ -33,7 +30,8 @@ class _DashboardPane extends ConsumerWidget {
             ? state.errorMessage
             : null;
         final primary = [
-          if (dashboardError != null) _ErrorBanner(message: dashboardError),
+          if (dashboardError != null)
+            _StatusBanner(kind: _BannerKind.error, message: dashboardError),
           _DashboardStatsCard(state: state),
           _CourseContextCard(state: state),
           _PendingAssignmentsCard(state: state),
@@ -360,7 +358,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _ErrorBanner(message: state.pendingAssignmentsErrorMessage!),
+                _StatusBanner(kind: _BannerKind.error, message: state.pendingAssignmentsErrorMessage!),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -534,12 +532,10 @@ class _AccountPane extends ConsumerWidget {
                   FilledButton.tonalIcon(
                     onPressed: state.isBusy
                         ? null
-                        : () async {
-                            final ok = await _confirmLogout(context);
-                            if (ok) {
-                              controller.logout();
-                            }
-                          },
+                        : () => _logoutWithConfirmation(
+                            context,
+                            controller.logout,
+                          ),
                     icon: const Icon(Icons.logout),
                     label: const Text('退出登录'),
                   ),

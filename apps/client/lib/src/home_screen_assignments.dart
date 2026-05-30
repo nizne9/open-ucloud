@@ -20,7 +20,7 @@ class _AssignmentsPane extends ConsumerWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                _FeedbackBanners.values(
+                _FeedbackBanners(
                   errorMessage: state.errorMessage,
                   operationMessage: state.operationMessage,
                   activeOperationContext: state.operationContext,
@@ -72,7 +72,7 @@ class _AssignmentsPane extends ConsumerWidget {
                       subtitle: '作业要求、附件和提交入口会显示在这里。',
                     )
                   else ...[
-                    _FeedbackBanners.values(
+                    _FeedbackBanners(
                       errorMessage: state.errorMessage,
                       operationMessage: state.operationMessage,
                       activeOperationContext: state.operationContext,
@@ -167,10 +167,12 @@ class _AssignmentsPane extends ConsumerWidget {
         state.selectedAssignmentCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
-      if (state.errorMessage != null) ...[
-        _ErrorBanner(message: state.errorMessage!),
-        const SizedBox(height: 12),
-      ],
+      _FeedbackBanners(
+        errorMessage: state.errorMessage,
+        operationMessage: state.operationMessage,
+        activeOperationContext: state.operationContext,
+        operationContext: OperationContext.assignmentList,
+      ),
       Row(
         children: [
           Expanded(

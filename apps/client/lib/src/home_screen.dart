@@ -748,12 +748,7 @@ class _WorkbenchTopBar extends StatelessWidget {
                 tooltip: '退出登录',
                 onPressed: onLogout == null
                     ? null
-                    : () async {
-                        final ok = await _confirmLogout(context);
-                        if (ok) {
-                          onLogout();
-                        }
-                      },
+                    : () => _logoutWithConfirmation(context, onLogout!),
                 icon: const Icon(Icons.logout),
               ),
             ],
@@ -788,19 +783,11 @@ Future<bool> _prepareForTabDeparture(
   WidgetRef ref,
   ClientState state,
 ) async {
-  if (state.selectedTab == ClientTab.assignments &&
-      !_canLeaveAssignmentDetail(state)) {
-    return false;
-  }
   if (state.selectedTab == ClientTab.assignments) {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return false;
-    }
-  } else if (state.selectedTab == ClientTab.resources &&
-      state.resourceDownloading) {
-    if (!await _confirmCancelResourceDownload(context, ref)) {
-      return false;
-    }
+    return _prepareForAssignmentContextChange(context, ref);
+  }
+  if (state.selectedTab == ClientTab.resources && state.resourceDownloading) {
+    return _confirmCancelResourceDownload(context, ref);
   }
   return true;
 }
@@ -895,6 +882,16 @@ Future<bool> _confirmLogout(BuildContext context) {
   );
 }
 
+Future<void> _logoutWithConfirmation(
+  BuildContext context,
+  VoidCallback onLogout,
+) async {
+  final ok = await _confirmLogout(context);
+  if (ok && context.mounted) {
+    onLogout();
+  }
+}
+
 Future<bool> _confirmCancelResourceDownload(
   BuildContext context,
   WidgetRef ref,
@@ -915,6 +912,17 @@ Future<bool> _confirmCancelResourceDownload(
       .read(clientControllerProvider.notifier)
       .cancelActiveResourceDownload(context: contextHint);
   return true;
+}
+
+Future<bool> _prepareForResourceContextChange(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final state = ref.read(clientControllerProvider);
+  if (!state.resourceDownloading) {
+    return true;
+  }
+  return _confirmCancelResourceDownload(context, ref);
 }
 
 Future<bool> _prepareForAssignmentContextChange(
@@ -939,16 +947,6 @@ Future<bool> _prepareForAssignmentContextChange(
   return true;
 }
 
-Future<bool> _prepareForResourceContextChange(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  final state = ref.read(clientControllerProvider);
-  if (!state.resourceDownloading) {
-    return true;
-  }
-  return _confirmCancelResourceDownload(context, ref);
-}
 
 class _LoginPane extends ConsumerStatefulWidget {
   const _LoginPane();
@@ -1102,7 +1100,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
             ],
             if (state.errorMessage != null) ...[
               const SizedBox(height: 16),
-              _ErrorBanner(message: state.errorMessage!),
+              _StatusBanner(kind: _BannerKind.error, message: state.errorMessage!),
             ],
           ],
         ),
