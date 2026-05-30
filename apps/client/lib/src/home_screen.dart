@@ -302,7 +302,6 @@ class _ClientNavigationBar extends ConsumerWidget {
       showUnselectedLabels: true,
       selectedItemColor: colorScheme.primary,
       unselectedItemColor: colorScheme.onSurfaceVariant,
-      backgroundColor: colorScheme.surface,
       items: [
         for (final destination in _clientDestinations)
           BottomNavigationBarItem(
@@ -752,7 +751,7 @@ class _WorkbenchTopBar extends StatelessWidget {
                     : () async {
                         final ok = await _confirmLogout(context);
                         if (ok) {
-                          onLogout!();
+                          onLogout();
                         }
                       },
                 icon: const Icon(Icons.logout),
@@ -784,16 +783,11 @@ class _WorkbenchTopBar extends StatelessWidget {
   }
 }
 
-Future<bool> _selectClientTab(
-  ClientTab tab,
-  WidgetRef ref,
+Future<bool> _prepareForTabDeparture(
   BuildContext context,
+  WidgetRef ref,
+  ClientState state,
 ) async {
-  final controller = ref.read(clientControllerProvider.notifier);
-  final state = ref.read(clientControllerProvider);
-  if (state.selectedTab == tab) {
-    return true;
-  }
   if (state.selectedTab == ClientTab.assignments &&
       !_canLeaveAssignmentDetail(state)) {
     return false;
@@ -807,6 +801,22 @@ Future<bool> _selectClientTab(
     if (!await _confirmCancelResourceDownload(context, ref)) {
       return false;
     }
+  }
+  return true;
+}
+
+Future<bool> _selectClientTab(
+  ClientTab tab,
+  WidgetRef ref,
+  BuildContext context,
+) async {
+  final controller = ref.read(clientControllerProvider.notifier);
+  final state = ref.read(clientControllerProvider);
+  if (state.selectedTab == tab) {
+    return true;
+  }
+  if (!await _prepareForTabDeparture(context, ref, state)) {
+    return false;
   }
   controller.selectTab(tab);
   final nextState = ref.read(clientControllerProvider);
@@ -833,18 +843,8 @@ Future<void> _refreshCoursesWithGuards(
   WidgetRef ref,
 ) async {
   final state = ref.read(clientControllerProvider);
-  if (!_canLeaveAssignmentDetail(state)) {
+  if (!await _prepareForTabDeparture(context, ref, state)) {
     return;
-  }
-  if (state.selectedTab == ClientTab.assignments) {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-  } else if (state.selectedTab == ClientTab.resources &&
-      state.resourceDownloading) {
-    if (!await _confirmCancelResourceDownload(context, ref)) {
-      return;
-    }
   }
   await ref.read(clientControllerProvider.notifier).refreshCourses();
 }
@@ -995,9 +995,10 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
 
   @override
   void dispose() {
-    // Per-field listeners are anonymous closures that cannot be removed
-    // individually, but TextEditingController.dispose() implicitly removes
-    // all listeners, making explicit removeListener calls unnecessary.
+    // Per-field listeners set by _clearFieldOnError are anonymous closures
+    // that cannot be removed individually, but TextEditingController.dispose()
+    // implicitly removes all listeners, making explicit removeListener calls
+    // unnecessary.
     _usernameController.dispose();
     _passwordController.dispose();
     _captchaController.dispose();
