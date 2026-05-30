@@ -1,46 +1,4 @@
 part of 'home_screen.dart';
-class _DetailPlaceholder extends StatelessWidget {
-  const _DetailPlaceholder({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 42, color: colorScheme.outline),
-            const SizedBox(height: 12),
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 const _downloadSummaryInlinePathLimit = 5;
 
 class _DownloadSummary extends StatefulWidget {
@@ -126,12 +84,14 @@ class _FeedbackBanners extends StatelessWidget {
     required this.operationMessage,
     required this.activeOperationContext,
     this.operationContext,
+    this.bottomSpacing = 12,
   });
 
   final String? errorMessage;
   final String? operationMessage;
   final OperationContext? activeOperationContext;
   final OperationContext? operationContext;
+  final double bottomSpacing;
 
   @override
   Widget build(BuildContext context) {
@@ -150,47 +110,74 @@ class _FeedbackBanners extends StatelessWidget {
         ],
         if (visibleOperationMessage != null) ...[
           _StatusBanner(kind: _BannerKind.info, message: visibleOperationMessage),
-          const SizedBox(height: 12),
+          SizedBox(height: bottomSpacing),
         ],
       ],
     );
   }
 }
 
+BoxDecoration _outlinedBoxDecoration(ColorScheme colorScheme) {
+  return BoxDecoration(
+    border: Border.all(color: colorScheme.outlineVariant),
+    borderRadius: BorderRadius.circular(8),
+  );
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.icon,
     required this.label,
+    this.subtitle,
     this.action,
     this.compact = false,
+    this.bordered = false,
   });
 
   final IconData icon;
   final String label;
+  final String? subtitle;
   final Widget? action;
   final bool compact;
+  final bool bordered;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final iconSize = compact ? 36.0 : (bordered ? 42.0 : 48.0);
+    final topSpacing = compact ? 8.0 : 12.0;
+    final labelStyle = compact ? null : theme.textTheme.titleMedium;
     final child = Column(
       children: [
-        Icon(
-          icon,
-          size: compact ? 36.0 : 48.0,
-          color: Theme.of(context).colorScheme.outline,
-        ),
-        SizedBox(height: compact ? 8.0 : 12.0),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: compact ? null : Theme.of(context).textTheme.titleMedium,
-        ),
+        Icon(icon, size: iconSize, color: colorScheme.outline),
+        SizedBox(height: topSpacing),
+        Text(label, textAlign: TextAlign.center, style: labelStyle),
+        if (subtitle != null) ...[
+          SizedBox(height: bordered ? 6.0 : 0.0),
+          Text(
+            subtitle!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
         if (action != null) ...[
           SizedBox(height: compact ? 12.0 : 16.0),
           action!,
         ],
       ],
     );
+    if (bordered) {
+      return DecoratedBox(
+        decoration: _outlinedBoxDecoration(colorScheme),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: child,
+        ),
+      );
+    }
     if (compact) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 24),

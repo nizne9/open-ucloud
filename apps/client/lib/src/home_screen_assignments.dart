@@ -66,10 +66,11 @@ class _AssignmentsPane extends ConsumerWidget {
                 children: [
                   if (state.assignmentDetail == null &&
                       !state.assignmentDetailLoading)
-                    const _DetailPlaceholder(
+                    const _EmptyState(
                       icon: Icons.assignment_outlined,
-                      title: '选择一个作业',
+                      label: '选择一个作业',
                       subtitle: '作业要求、附件和提交入口会显示在这里。',
+                      bordered: true,
                     )
                   else ...[
                     _FeedbackBanners(
@@ -78,9 +79,6 @@ class _AssignmentsPane extends ConsumerWidget {
                       activeOperationContext: state.operationContext,
                       operationContext: OperationContext.assignmentDetail,
                     ),
-                    if (state.errorMessage != null ||
-                        state.operationMessage != null)
-                      const SizedBox(height: 12),
                     const _AssignmentDetailCard(),
                   ],
                 ],
@@ -425,43 +423,43 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _AssignmentMetaChip(
+                _MetaChip(
                   icon: Icons.class_outlined,
                   label: courseName,
                 ),
                 if (detail.endTime.isNotEmpty)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.event_outlined,
                     label: '截止 ${detail.endTime}',
                   ),
-                _AssignmentMetaChip(
+                _MetaChip(
                   icon: expired
                       ? Icons.event_busy_outlined
                       : Icons.edit_note_outlined,
                   label: _assignmentStatusText(detail.status),
                 ),
                 if (detail.className.trim().isNotEmpty)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.groups_outlined,
                     label: detail.className.trim(),
                   ),
                 if (detail.startTime.trim().isNotEmpty)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.play_circle_outline,
                     label: '开始 ${detail.startTime.trim()}',
                   ),
                 if (detail.submittedAt.trim().isNotEmpty)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.task_alt,
                     label: '提交 ${detail.submittedAt.trim()}',
                   ),
                 if (detail.score != null)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.grade_outlined,
                     label: '成绩 ${detail.score}',
                   ),
                 if (detail.isOvertimeCommit)
-                  const _AssignmentMetaChip(
+                  const _MetaChip(
                     icon: Icons.more_time_outlined,
                     label: '允许超时提交',
                   ),
@@ -621,10 +619,7 @@ class _DraftAttachmentChip extends StatelessWidget {
       );
     }
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: _outlinedBoxDecoration(Theme.of(context).colorScheme),
       child: Padding(
         padding: const EdgeInsets.only(left: 4, right: 2),
         child: Row(
@@ -663,8 +658,8 @@ class _AssignmentSection extends StatelessWidget {
   }
 }
 
-class _AssignmentMetaChip extends StatelessWidget {
-  const _AssignmentMetaChip({required this.icon, required this.label});
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -688,10 +683,7 @@ class _AssignmentResourceList extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: _outlinedBoxDecoration(colorScheme),
       child: Column(
         children: [
           for (final resource in resources)
@@ -746,10 +738,7 @@ class _LinkValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: _outlinedBoxDecoration(Theme.of(context).colorScheme),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(

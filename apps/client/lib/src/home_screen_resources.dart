@@ -129,10 +129,11 @@ class _ResourcesPane extends ConsumerWidget {
                 children: [
                   if (state.resourceDetail == null &&
                       !state.resourceDetailLoading)
-                    const _DetailPlaceholder(
+                    const _EmptyState(
                       icon: Icons.insert_drive_file_outlined,
-                      title: '选择一个资料',
+                      label: '选择一个资料',
                       subtitle: '资料说明和单文件下载入口会显示在这里。',
+                      bordered: true,
                     )
                   else ...[
                     _FeedbackBanners(
@@ -141,9 +142,6 @@ class _ResourcesPane extends ConsumerWidget {
                       activeOperationContext: state.operationContext,
                       operationContext: OperationContext.resourceDetail,
                     ),
-                    if (state.errorMessage != null ||
-                        state.operationMessage != null)
-                      const SizedBox(height: 12),
                     _ResourceDetailCard(state: state),
                   ],
                   if (state.operationContext ==
@@ -469,22 +467,22 @@ class _ResourceDetailCard extends ConsumerWidget {
               runSpacing: 8,
               children: [
                 if (detail.siteName.trim().isNotEmpty)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.class_outlined,
                     label: detail.siteName.trim(),
                   ),
                 if (detail.ext != null && detail.ext!.trim().isNotEmpty)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.insert_drive_file_outlined,
                     label: detail.ext!.trim().toUpperCase(),
                   ),
                 if (detail.sizeBytes != null)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.data_usage_outlined,
                     label: _formatBytes(detail.sizeBytes!),
                   ),
                 if (detail.updatedAt.trim().isNotEmpty)
-                  _AssignmentMetaChip(
+                  _MetaChip(
                     icon: Icons.schedule_outlined,
                     label: detail.updatedAt.trim(),
                   ),
