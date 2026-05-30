@@ -1083,7 +1083,10 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
                 label: const Text('修改账号密码'),
               ),
               TextButton.icon(
-                onPressed: () => _submitPrimary(controller, false),
+                onPressed: () => controller.startLogin(
+                  username: _usernameController.text.trim(),
+                  password: _passwordController.text,
+                ),
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('重新获取验证码'),
               ),

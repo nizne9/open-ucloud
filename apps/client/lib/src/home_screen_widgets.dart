@@ -84,14 +84,12 @@ class _FeedbackBanners extends StatelessWidget {
     required this.operationMessage,
     required this.activeOperationContext,
     this.operationContext,
-    this.bottomSpacing = 12,
   });
 
   final String? errorMessage;
   final String? operationMessage;
   final OperationContext? activeOperationContext;
   final OperationContext? operationContext;
-  final double bottomSpacing;
 
   @override
   Widget build(BuildContext context) {
@@ -110,7 +108,7 @@ class _FeedbackBanners extends StatelessWidget {
         ],
         if (visibleOperationMessage != null) ...[
           _StatusBanner(kind: _BannerKind.info, message: visibleOperationMessage),
-          SizedBox(height: bottomSpacing),
+          const SizedBox(height: 12),
         ],
       ],
     );
@@ -154,7 +152,7 @@ class _EmptyState extends StatelessWidget {
         SizedBox(height: topSpacing),
         Text(label, textAlign: TextAlign.center, style: labelStyle),
         if (subtitle != null) ...[
-          SizedBox(height: bordered ? 6.0 : 0.0),
+          const SizedBox(height: 6),
           Text(
             subtitle!,
             textAlign: TextAlign.center,
