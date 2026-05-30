@@ -175,10 +175,7 @@ class _MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: _outlinedBoxDecoration(colorScheme),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -462,7 +459,7 @@ class _NextActionCard extends ConsumerWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _AssignmentMetaChip(
+                    _MetaChip(
                       icon: _assignmentIcon(next.status),
                       label: _assignmentStatusText(next.status),
                     ),
@@ -512,8 +509,8 @@ class _AccountPane extends ConsumerWidget {
               if (session != null) ...[
                 _AccountBadge(name: session.user.realName, subtitle: '已登录'),
                 const SizedBox(height: 12),
-                _InfoRow(label: '角色', value: _roleLabel(session.selectedRole)),
-                _InfoRow(label: '账号', value: session.user.account),
+                _LabelValueRow(label: '角色', value: _roleLabel(session.selectedRole)),
+                _LabelValueRow(label: '账号', value: session.user.account),
               ],
               const SizedBox(height: 12),
               Wrap(
