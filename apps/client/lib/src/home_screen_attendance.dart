@@ -74,14 +74,14 @@ class _AttendanceQrPayloadDialogState
               ],
               if (parsed != null) ...[
                 const SizedBox(height: 16),
-                _QrPayloadField(label: '签到 ID', value: parsed.attendanceId),
-                _QrPayloadField(label: '课程 ID', value: parsed.siteId),
-                _QrPayloadField(label: '创建时间', value: parsed.createTime),
-                _QrPayloadField(label: '课节 ID', value: parsed.classLessonId),
+                _LabelValueRow(label: '签到 ID', value: parsed.attendanceId, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
+                _LabelValueRow(label: '课程 ID', value: parsed.siteId, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
+                _LabelValueRow(label: '创建时间', value: parsed.createTime, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
+                _LabelValueRow(label: '课节 ID', value: parsed.classLessonId, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
                 if (matchedCourse != null)
-                  _QrPayloadField(label: '课程', value: matchedCourse.name),
+                  _LabelValueRow(label: '课程', value: matchedCourse.name, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
                 if (matchedCourse?.going ?? false)
-                  const _QrPayloadField(label: '状态', value: '正在进行'),
+                  _LabelValueRow(label: '状态', value: '正在进行', labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
               ],
             ],
           ),
@@ -104,27 +104,4 @@ class _AttendanceQrPayloadDialogState
   }
 }
 
-class _QrPayloadField extends StatelessWidget {
-  const _QrPayloadField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 112,
-            child: Text(label, style: Theme.of(context).textTheme.labelLarge),
-          ),
-          Expanded(child: SelectableText(value)),
-        ],
-      ),
-    );
-  }
-}
 
