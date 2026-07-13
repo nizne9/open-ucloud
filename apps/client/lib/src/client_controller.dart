@@ -1215,6 +1215,12 @@ class ClientController extends Notifier<ClientState> {
         await gateway.downloadTaskDispose(taskId: response.taskId);
         return;
       }
+      await _persistUpdatedPayload(response.status.updatedSessionPayload);
+      if (downloadGeneration != _resourceDownloadGeneration) {
+        await gateway.downloadTaskCancel(taskId: response.taskId);
+        await gateway.downloadTaskDispose(taskId: response.taskId);
+        return;
+      }
       state = state.copyWith(
         resourceDownloadTaskId: response.taskId,
         resourceDownloadProgressCurrent: response.status.current,
@@ -1293,6 +1299,12 @@ class ClientController extends Notifier<ClientState> {
         siteName: siteName,
         outputDir: outputDir,
       );
+      if (downloadGeneration != _resourceDownloadGeneration) {
+        await gateway.downloadTaskCancel(taskId: response.taskId);
+        await gateway.downloadTaskDispose(taskId: response.taskId);
+        return;
+      }
+      await _persistUpdatedPayload(response.status.updatedSessionPayload);
       if (downloadGeneration != _resourceDownloadGeneration) {
         await gateway.downloadTaskCancel(taskId: response.taskId);
         await gateway.downloadTaskDispose(taskId: response.taskId);

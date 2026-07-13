@@ -13,6 +13,12 @@ Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Fl
 
 The current implemented harness contains `api`, `core`, `store`, `cli`, `ffi`, and the first Linux-focused Flutter client shell.
 
+The FFI adapter coordinates session refreshes inside Rust. Concurrent Dart calls
+may carry the same opaque session payload, but only one refresh chain may run for
+that principal; later calls reconcile with the newest in-process session before
+performing business requests. Download tasks refresh before they are spawned so
+polling cannot overwrite secure storage with an older payload.
+
 ## Core Internal Boundaries
 
 `crates/core/src/lib.rs` is a public facade only. Keep implementation details in focused modules:
