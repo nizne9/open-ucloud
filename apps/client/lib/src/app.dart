@@ -40,14 +40,21 @@ class _OpenCloudAppState extends ConsumerState<OpenCloudApp> {
   }
 
   ThemeData _buildTheme(Brightness brightness) {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF176C72),
+      brightness: brightness,
+    );
     return ThemeData(
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF176C72),
-        brightness: brightness,
-      ),
+      colorScheme: colorScheme,
       brightness: brightness,
       useMaterial3: true,
       visualDensity: VisualDensity.standard,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        type: BottomNavigationBarType.fixed,
+        showUnselectedLabels: true,
+        selectedItemColor: colorScheme.primary,
+        unselectedItemColor: colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

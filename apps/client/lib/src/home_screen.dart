@@ -13,6 +13,12 @@ import 'assignment_content_view.dart';
 import 'client_controller.dart';
 import 'theme_mode_controller.dart';
 
+part 'home_screen_widgets.dart';
+part 'home_screen_dashboard.dart';
+part 'home_screen_assignments.dart';
+part 'home_screen_resources.dart';
+part 'home_screen_attendance.dart';
+
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -44,6 +50,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final authenticated =
         phase == ClientPhase.authenticated ||
         phase == ClientPhase.loadingCourses;
+    final showBottomNav =
+        authenticated && MediaQuery.sizeOf(context).width < 700;
     return Scaffold(
       appBar: authenticated
           ? null
@@ -51,7 +59,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               title: const Text('Open UCloud'),
               actions: [_ThemeModeMenu(themeMode: themeMode)],
             ),
+      bottomNavigationBar: showBottomNav ? const _ClientNavigationBar() : null,
       body: SafeArea(
+        bottom: !showBottomNav,
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child: switch (phase) {
@@ -284,16 +294,16 @@ class _ClientNavigationBar extends ConsumerWidget {
     final selectedTab = ref.watch(
       clientControllerProvider.select((state) => state.selectedTab),
     );
-    return NavigationBar(
-      selectedIndex: _destinationIndex(selectedTab),
-      onDestinationSelected: (index) {
+    return BottomNavigationBar(
+      currentIndex: _destinationIndex(selectedTab),
+      onTap: (index) {
         unawaited(
           _selectClientTab(_clientDestinations[index].tab, ref, context),
         );
       },
-      destinations: [
+      items: [
         for (final destination in _clientDestinations)
-          NavigationDestination(
+          BottomNavigationBarItem(
             icon: Icon(destination.icon),
             label: destination.label,
           ),
@@ -370,18 +380,11 @@ class _AuthenticatedPane extends ConsumerWidget {
             ],
           );
         }
-        return Column(
-          children: [
-            Expanded(
-              child: _WorkbenchFrame(
-                selectedTab: selectedTab,
-                themeMode: themeMode,
-                compact: true,
-                child: content,
-              ),
-            ),
-            const _ClientNavigationBar(),
-          ],
+        return _WorkbenchFrame(
+          selectedTab: selectedTab,
+          themeMode: themeMode,
+          compact: true,
+          child: content,
         );
       },
     );
@@ -586,10 +589,7 @@ class _AccountBadge extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final initial = name.trim().isEmpty ? '?' : name.trim().substring(0, 1);
     return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: _outlinedBoxDecoration(colorScheme),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -735,7 +735,9 @@ class _WorkbenchTopBar extends StatelessWidget {
               _ThemeModeMenu(themeMode: themeMode),
               IconButton(
                 tooltip: '退出登录',
-                onPressed: onLogout,
+                onPressed: onLogout == null
+                    ? null
+                    : () => _logoutWithConfirmation(context, onLogout!),
                 icon: const Icon(Icons.logout),
               ),
             ],
@@ -765,6 +767,20 @@ class _WorkbenchTopBar extends StatelessWidget {
   }
 }
 
+Future<bool> _prepareForTabDeparture(
+  BuildContext context,
+  WidgetRef ref,
+  ClientState state,
+) async {
+  if (state.selectedTab == ClientTab.assignments) {
+    return _prepareForAssignmentContextChange(context, ref);
+  }
+  if (state.selectedTab == ClientTab.resources && state.resourceDownloading) {
+    return _confirmCancelResourceDownload(context, ref);
+  }
+  return true;
+}
+
 Future<bool> _selectClientTab(
   ClientTab tab,
   WidgetRef ref,
@@ -775,19 +791,8 @@ Future<bool> _selectClientTab(
   if (state.selectedTab == tab) {
     return true;
   }
-  if (state.selectedTab == ClientTab.assignments &&
-      !_canLeaveAssignmentDetail(state)) {
+  if (!await _prepareForTabDeparture(context, ref, state)) {
     return false;
-  }
-  if (state.selectedTab == ClientTab.assignments) {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return false;
-    }
-  } else if (state.selectedTab == ClientTab.resources &&
-      state.resourceDownloading) {
-    if (!await _confirmCancelResourceDownload(context, ref)) {
-      return false;
-    }
   }
   controller.selectTab(tab);
   final nextState = ref.read(clientControllerProvider);
@@ -814,18 +819,8 @@ Future<void> _refreshCoursesWithGuards(
   WidgetRef ref,
 ) async {
   final state = ref.read(clientControllerProvider);
-  if (!_canLeaveAssignmentDetail(state)) {
+  if (!await _prepareForTabDeparture(context, ref, state)) {
     return;
-  }
-  if (state.selectedTab == ClientTab.assignments) {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-  } else if (state.selectedTab == ClientTab.resources &&
-      state.resourceDownloading) {
-    if (!await _confirmCancelResourceDownload(context, ref)) {
-      return;
-    }
   }
   await ref.read(clientControllerProvider.notifier).refreshCourses();
 }
@@ -867,6 +862,25 @@ Future<bool> _confirmDiscardAssignmentChanges(BuildContext context) {
   );
 }
 
+Future<bool> _confirmLogout(BuildContext context) {
+  return _confirm(
+    context,
+    title: '退出登录',
+    content: '退出后将清除本地会话，需要重新登录。',
+    confirmLabel: '退出',
+  );
+}
+
+Future<void> _logoutWithConfirmation(
+  BuildContext context,
+  VoidCallback onLogout,
+) async {
+  final ok = await _confirmLogout(context);
+  if (ok && context.mounted) {
+    onLogout();
+  }
+}
+
 Future<bool> _confirmCancelResourceDownload(
   BuildContext context,
   WidgetRef ref,
@@ -877,7 +891,7 @@ Future<bool> _confirmCancelResourceDownload(
     content: '当前资料下载还在进行。继续前需要先取消这个下载任务。',
     confirmLabel: '取消下载',
   );
-  if (!ok) {
+  if (!ok || !context.mounted) {
     return false;
   }
   final contextHint =
@@ -886,25 +900,6 @@ Future<bool> _confirmCancelResourceDownload(
   await ref
       .read(clientControllerProvider.notifier)
       .cancelActiveResourceDownload(context: contextHint);
-  return true;
-}
-
-Future<bool> _prepareForAssignmentContextChange(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  final state = ref.read(clientControllerProvider);
-  if (!_canLeaveAssignmentDetail(state)) {
-    return false;
-  }
-  if (!_hasUnsavedAssignmentChanges(state)) {
-    return true;
-  }
-  final discard = await _confirmDiscardAssignmentChanges(context);
-  if (!discard) {
-    return false;
-  }
-  ref.read(clientControllerProvider.notifier).clearAssignmentSelection();
   return true;
 }
 
@@ -919,6 +914,28 @@ Future<bool> _prepareForResourceContextChange(
   return _confirmCancelResourceDownload(context, ref);
 }
 
+Future<bool> _prepareForAssignmentContextChange(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final state = ref.read(clientControllerProvider);
+  if (!_canLeaveAssignmentDetail(state)) {
+    return false;
+  }
+  if (!_hasUnsavedAssignmentChanges(state)) {
+    return true;
+  }
+  final discard = await _confirmDiscardAssignmentChanges(context);
+  if (!context.mounted) {
+    return false;
+  }
+  if (!discard) {
+    return false;
+  }
+  ref.read(clientControllerProvider.notifier).clearAssignmentSelection();
+  return true;
+}
+
 class _LoginPane extends ConsumerStatefulWidget {
   const _LoginPane();
 
@@ -930,6 +947,9 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
   late final TextEditingController _usernameController;
   late final TextEditingController _passwordController;
   late final TextEditingController _captchaController;
+  String? _usernameError;
+  String? _passwordError;
+  String? _captchaError;
 
   @override
   void initState() {
@@ -942,10 +962,35 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
       text: initialState.pendingPassword ?? '',
     );
     _captchaController = TextEditingController();
+    _clearFieldOnError(_usernameController, () => _usernameError, () {
+      _usernameError = null;
+    });
+    _clearFieldOnError(_passwordController, () => _passwordError, () {
+      _passwordError = null;
+    });
+    _clearFieldOnError(_captchaController, () => _captchaError, () {
+      _captchaError = null;
+    });
+  }
+
+  void _clearFieldOnError(
+    TextEditingController controller,
+    String? Function() getter,
+    void Function() setter,
+  ) {
+    controller.addListener(() {
+      if (getter() != null) {
+        setState(setter);
+      }
+    });
   }
 
   @override
   void dispose() {
+    // Per-field listeners set by _clearFieldOnError are anonymous closures
+    // that cannot be removed individually, but TextEditingController.dispose()
+    // implicitly removes all listeners, making explicit removeListener calls
+    // unnecessary.
     _usernameController.dispose();
     _passwordController.dispose();
     _captchaController.dispose();
@@ -990,10 +1035,11 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               autofillHints: const [AutofillHints.username],
               keyboardType: TextInputType.text,
               textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
                 labelText: '用户名',
-                prefixIcon: Icon(Icons.person_outline),
+                prefixIcon: const Icon(Icons.person_outline),
+                errorText: _usernameError,
               ),
             ),
             const SizedBox(height: 12),
@@ -1004,10 +1050,11 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               autofillHints: const [AutofillHints.password],
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _submitPrimary(controller, awaitingCaptcha),
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
                 labelText: '密码',
-                prefixIcon: Icon(Icons.lock_outline),
+                prefixIcon: const Icon(Icons.lock_outline),
+                errorText: _passwordError,
               ),
             ),
             if (awaitingCaptcha) ...[
@@ -1017,12 +1064,12 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               TextField(
                 controller: _captchaController,
                 textInputAction: TextInputAction.done,
-                onSubmitted: (_) =>
-                    controller.finishLogin(captcha: _captchaController.text),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
+                onSubmitted: (_) => _submitPrimary(controller, awaitingCaptcha),
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
                   labelText: '验证码',
-                  prefixIcon: Icon(Icons.verified_outlined),
+                  prefixIcon: const Icon(Icons.verified_outlined),
+                  errorText: _captchaError,
                 ),
               ),
             ],
@@ -1041,7 +1088,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               ),
               TextButton.icon(
                 onPressed: () => controller.startLogin(
-                  username: _usernameController.text,
+                  username: _usernameController.text.trim(),
                   password: _passwordController.text,
                 ),
                 icon: const Icon(Icons.restart_alt),
@@ -1050,7 +1097,10 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
             ],
             if (state.errorMessage != null) ...[
               const SizedBox(height: 16),
-              _ErrorBanner(message: state.errorMessage!),
+              _StatusBanner(
+                kind: _BannerKind.error,
+                message: state.errorMessage!,
+              ),
             ],
           ],
         ),
@@ -1060,531 +1110,36 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
 
   void _submitPrimary(ClientController controller, bool awaitingCaptcha) {
     if (awaitingCaptcha) {
-      controller.finishLogin(captcha: _captchaController.text);
+      final captcha = _captchaController.text.trim();
+      if (captcha.isEmpty) {
+        setState(() {
+          _captchaError = '请输入验证码';
+        });
+        return;
+      }
+      controller.finishLogin(captcha: captcha);
       return;
     }
-    controller.startLogin(
-      username: _usernameController.text,
-      password: _passwordController.text,
-    );
-  }
-}
-
-class _DashboardPane extends ConsumerWidget {
-  const _DashboardPane();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(clientControllerProvider);
-    if (state.phase == ClientPhase.authenticated &&
-        state.pendingAssignmentsErrorMessage == null &&
-        !state.undoneAssignmentsLoaded &&
-        !state.assignmentsLoading) {
-      Future.microtask(
-        () => ref
-            .read(clientControllerProvider.notifier)
-            .loadUndoneAssignments(
-              selectedTab: ClientTab.dashboard,
-              clearGlobalError: false,
-            ),
-      );
+    final username = _usernameController.text.trim();
+    // Password is intentionally NOT trimmed: whitespace may be part of
+    // the actual password, unlike username which is an identifier.
+    final password = _passwordController.text;
+    String? usernameError;
+    String? passwordError;
+    if (username.isEmpty) {
+      usernameError = '请输入用户名';
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 860;
-        final dashboardError =
-            state.errorMessage != null &&
-                state.errorMessage != state.pendingAssignmentsErrorMessage
-            ? state.errorMessage
-            : null;
-        final primary = [
-          if (dashboardError != null) _ErrorBanner(message: dashboardError),
-          _DashboardStatsCard(state: state),
-          _CourseContextCard(state: state),
-          _PendingAssignmentsCard(state: state),
-        ];
-        final nextAction = _NextActionCard.maybe(state: state);
-        final secondary = [?nextAction];
-        if (wide && secondary.isNotEmpty) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                flex: 3,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 10, 24),
-                  children: primary,
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(10, 16, 20, 24),
-                  children: secondary,
-                ),
-              ),
-            ],
-          );
-        }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [...primary, ...secondary],
-        );
-      },
-    );
-  }
-}
-
-class _DashboardStatsCard extends ConsumerWidget {
-  const _DashboardStatsCard({required this.state});
-
-  final ClientState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final session = state.session;
-    final displayName = session?.user.realName.trim();
-    final accountName = displayName == null || displayName.isEmpty
-        ? session?.user.userName.trim()
-        : displayName;
-    return _WorkbenchCard(
-      title: '今天需要关注',
-      subtitle: state.phase == ClientPhase.loadingCourses
-          ? '正在同步课程'
-          : '最后同步完成 · 会话有效',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (accountName != null && accountName.isNotEmpty) ...[
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  child: Text(accountName.substring(0, 1)),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(accountName),
-                      Text(
-                        '已登录',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth < 520 ? 2 : 4;
-              return GridView.count(
-                crossAxisCount: columns,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: columns == 2 ? 1.2 : 1.75,
-                children: [
-                  _MetricTile(value: '${state.courses.length}', label: '本期课程'),
-                  _MetricTile(
-                    value: state.assignmentsLoading
-                        ? '...'
-                        : '${state.assignments.length}',
-                    label: '待提交作业',
-                  ),
-                  _MetricTile(
-                    value: state.resources.isEmpty
-                        ? '按课程'
-                        : '${state.resources.length}',
-                    label: '可下载资料',
-                  ),
-                  _MetricTile(
-                    value: state.capabilities.attendanceQrPayloadParsing
-                        ? '可解析'
-                        : '不可用',
-                    label: '二维码文本',
-                  ),
-                ],
-              );
-            },
-          ),
-          if (state.capabilities.attendanceQrPayloadParsing) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: () => _openAttendanceQrDialog(context, ref),
-                icon: const Icon(Icons.qr_code_scanner_outlined),
-                label: const Text('解析二维码'),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricTile extends StatelessWidget {
-  const _MetricTile({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CourseContextCard extends ConsumerWidget {
-  const _CourseContextCard({required this.state});
-
-  final ClientState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
-    return _WorkbenchCard(
-      title: '课程上下文',
-      subtitle: '选择课程后查看作业或资料。',
-      child: state.courses.isEmpty
-          ? const _EmptyInline(icon: Icons.menu_book_outlined, label: '暂无课程')
-          : Column(
-              children: [
-                for (final course in state.courses)
-                  _CourseContextRow(
-                    course: course,
-                    onAssignments: () =>
-                        controller.loadCourseAssignments(course.id),
-                    onResources: () =>
-                        controller.loadResourcesForCourse(course.id),
-                  ),
-              ],
-            ),
-    );
-  }
-}
-
-class _CourseContextRow extends StatelessWidget {
-  const _CourseContextRow({
-    required this.course,
-    required this.onAssignments,
-    required this.onResources,
-  });
-
-  final CourseItem course;
-  final VoidCallback onAssignments;
-  final VoidCallback onResources;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      clipBehavior: Clip.antiAlias,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final stackActions = constraints.maxWidth < 560;
-          final summary = Row(
-            children: [
-              Icon(
-                course.going
-                    ? Icons.notifications_active_outlined
-                    : Icons.menu_book_outlined,
-                color: course.going ? colorScheme.primary : colorScheme.outline,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      course.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      course.going ? '${course.id} · 活动进行中' : course.id,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-          final actions = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: stackActions ? WrapAlignment.end : WrapAlignment.start,
-            children: [
-              OutlinedButton(
-                onPressed: onAssignments,
-                child: const Text('查看作业'),
-              ),
-              FilledButton.tonal(
-                onPressed: onResources,
-                child: const Text('查看资料'),
-              ),
-            ],
-          );
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            child: stackActions
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [summary, const SizedBox(height: 10), actions],
-                  )
-                : Row(
-                    children: [
-                      Expanded(child: summary),
-                      const SizedBox(width: 12),
-                      actions,
-                    ],
-                  ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PendingAssignmentsCard extends ConsumerWidget {
-  const _PendingAssignmentsCard({required this.state});
-
-  final ClientState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
-    final loadError =
-        !state.assignmentsLoaded &&
-        state.pendingAssignmentsErrorMessage != null;
-    return _WorkbenchCard(
-      title: '待办队列',
-      subtitle: '优先处理仍可提交的作业。',
-      child: state.assignmentsLoading
-          ? const _LoadingPane(label: '正在加载待提交作业')
-          : loadError
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ErrorBanner(message: state.pendingAssignmentsErrorMessage!),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: () => controller.loadUndoneAssignments(
-                      selectedTab: ClientTab.dashboard,
-                    ),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('重试待办'),
-                  ),
-                ),
-              ],
-            )
-          : state.assignments.isEmpty
-          ? const _EmptyInline(
-              icon: Icons.assignment_late_outlined,
-              label: '当前没有待提交作业',
-            )
-          : Column(
-              children: [
-                for (final assignment in state.assignments)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: Icon(_assignmentIcon(assignment.status)),
-                      title: Text(
-                        assignment.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        '${assignment.siteName} · 截止 ${assignment.endTime}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: FilledButton.tonal(
-                        onPressed: () async {
-                          final selected = await _selectClientTab(
-                            ClientTab.assignments,
-                            ref,
-                            context,
-                          );
-                          if (!selected) {
-                            return;
-                          }
-                          await controller.selectAssignment(assignment);
-                        },
-                        child: const Text('继续提交'),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-    );
-  }
-}
-
-class _NextActionCard extends ConsumerWidget {
-  const _NextActionCard({required this.state});
-
-  static Widget? maybe({required ClientState state}) {
-    return state.assignments.isEmpty ? null : _NextActionCard(state: state);
-  }
-
-  final ClientState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(clientControllerProvider.notifier);
-    final next = state.assignments.isEmpty ? null : state.assignments.first;
-    return _WorkbenchCard(
-      title: '下一步动作',
-      subtitle: '从最近的待提交作业继续。',
-      child: next == null
-          ? const SizedBox.shrink()
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  next.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text('${next.siteName} · 截止 ${next.endTime}'),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _AssignmentMetaChip(
-                      icon: _assignmentIcon(next.status),
-                      label: _assignmentStatusText(next.status),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: () async {
-                    final selected = await _selectClientTab(
-                      ClientTab.assignments,
-                      ref,
-                      context,
-                    );
-                    if (!selected) {
-                      return;
-                    }
-                    await controller.selectAssignment(next);
-                  },
-                  icon: const Icon(Icons.arrow_forward),
-                  label: const Text('进入提交'),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-class _AccountPane extends ConsumerWidget {
-  const _AccountPane();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(
-      clientControllerProvider.select(_selectAccountPaneState),
-    );
-    final controller = ref.read(clientControllerProvider.notifier);
-    final session = state.session;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      children: [
-        _WorkbenchCard(
-          title: '账户状态',
-          subtitle: '当前登录账号。',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (session != null) ...[
-                _AccountBadge(name: session.user.realName, subtitle: '已登录'),
-                const SizedBox(height: 12),
-                _InfoRow(label: '角色', value: _roleLabel(session.selectedRole)),
-                _InfoRow(label: '账号', value: session.user.account),
-              ],
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: state.isBusy
-                        ? null
-                        : () {
-                            unawaited(_refreshCoursesWithGuards(context, ref));
-                          },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('同步课程'),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed: state.isBusy ? null : controller.logout,
-                    icon: const Icon(Icons.logout),
-                    label: const Text('退出登录'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+    if (password.isEmpty) {
+      passwordError = '请输入密码';
+    }
+    if (usernameError != null || passwordError != null) {
+      setState(() {
+        _usernameError = usernameError;
+        _passwordError = passwordError;
+      });
+      return;
+    }
+    controller.startLogin(username: username, password: password);
   }
 }
 
@@ -1643,51 +1198,38 @@ class _WorkbenchCard extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+class _LabelValueRow extends StatelessWidget {
+  const _LabelValueRow({
+    required this.label,
+    required this.value,
+    this.labelWidth = 86,
+    this.labelStyle,
+    this.bottomPadding = 10,
+    this.selectable = false,
+  });
 
   final String label;
   final String value;
+  final double labelWidth;
+  final TextStyle? labelStyle;
+  final double bottomPadding;
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final defaultLabelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    );
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: bottomPadding),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 86,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            width: labelWidth,
+            child: Text(label, style: labelStyle ?? defaultLabelStyle),
           ),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyInline extends StatelessWidget {
-  const _EmptyInline({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Column(
-        children: [
-          Icon(icon, size: 36, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 8),
-          Text(label, textAlign: TextAlign.center),
+          Expanded(child: selectable ? SelectableText(value) : Text(value)),
         ],
       ),
     );
@@ -1708,1816 +1250,4 @@ String _roleLabel(FfiRoleName role) {
     FfiRoleName.teacher => '教师',
     FfiRoleName.assistant => '助教',
   };
-}
-
-void _openAttendanceQrDialog(BuildContext context, WidgetRef ref) {
-  ref
-      .read(clientControllerProvider.notifier)
-      .clearAttendanceQrPayloadParseState();
-  showDialog<void>(
-    context: context,
-    builder: (_) => const _AttendanceQrPayloadDialog(),
-  );
-}
-
-class _AttendanceQrPayloadDialog extends ConsumerStatefulWidget {
-  const _AttendanceQrPayloadDialog();
-
-  @override
-  ConsumerState<_AttendanceQrPayloadDialog> createState() =>
-      _AttendanceQrPayloadDialogState();
-}
-
-class _AttendanceQrPayloadDialogState
-    extends ConsumerState<_AttendanceQrPayloadDialog> {
-  late final TextEditingController _payloadController;
-
-  @override
-  void initState() {
-    super.initState();
-    _payloadController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _payloadController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(
-      clientControllerProvider.select(
-        (state) => (
-          parsedAttendanceQrPayload: state.parsedAttendanceQrPayload,
-          attendanceQrInputError: state.attendanceQrInputError,
-          courses: state.courses,
-        ),
-      ),
-    );
-    final parsed = state.parsedAttendanceQrPayload;
-    final matchedCourse = parsed == null
-        ? null
-        : state.courses
-              .where((course) => course.id == parsed.siteId)
-              .firstOrNull;
-    return AlertDialog(
-      title: const Text('解析签到二维码内容'),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _payloadController,
-                minLines: 4,
-                maxLines: 8,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: '二维码文本',
-                ),
-              ),
-              if (state.attendanceQrInputError != null) ...[
-                const SizedBox(height: 12),
-                _ErrorBanner(message: state.attendanceQrInputError!),
-              ],
-              if (parsed != null) ...[
-                const SizedBox(height: 16),
-                _QrPayloadField(label: '签到 ID', value: parsed.attendanceId),
-                _QrPayloadField(label: '课程 ID', value: parsed.siteId),
-                _QrPayloadField(label: '创建时间', value: parsed.createTime),
-                _QrPayloadField(label: '课节 ID', value: parsed.classLessonId),
-                if (matchedCourse != null)
-                  _QrPayloadField(label: '课程', value: matchedCourse.name),
-                if (matchedCourse?.going ?? false)
-                  const _QrPayloadField(label: '状态', value: '正在进行'),
-              ],
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
-        ),
-        FilledButton.icon(
-          onPressed: () => ref
-              .read(clientControllerProvider.notifier)
-              .parseAttendanceQrPayloadText(_payloadController.text),
-          icon: const Icon(Icons.qr_code_scanner_outlined),
-          label: const Text('解析'),
-        ),
-      ],
-    );
-  }
-}
-
-class _QrPayloadField extends StatelessWidget {
-  const _QrPayloadField({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 112,
-            child: Text(label, style: Theme.of(context).textTheme.labelLarge),
-          ),
-          Expanded(child: SelectableText(value)),
-        ],
-      ),
-    );
-  }
-}
-
-class _AssignmentsPane extends ConsumerWidget {
-  const _AssignmentsPane();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(
-      clientControllerProvider.select(_selectAssignmentsPaneState),
-    );
-    final controller = ref.read(clientControllerProvider.notifier);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useSplit = constraints.maxWidth >= 900;
-        if (!useSplit) {
-          final showDetail =
-              state.selectedAssignmentId != null ||
-              state.assignmentDetail != null ||
-              state.assignmentDetailLoading;
-          if (showDetail) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                _FeedbackBanners.values(
-                  errorMessage: state.errorMessage,
-                  operationMessage: state.operationMessage,
-                  activeOperationContext: state.operationContext,
-                  operationContext: OperationContext.assignmentDetail,
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed:
-                        state.assignmentUploading || state.assignmentSubmitting
-                        ? null
-                        : () async {
-                            if (!await _prepareForAssignmentContextChange(
-                              context,
-                              ref,
-                            )) {
-                              return;
-                            }
-                            controller.clearAssignmentSelection();
-                          },
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('返回作业列表'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const _AssignmentDetailCard(),
-              ],
-            );
-          }
-          return _listView(context, ref, state);
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: _listView(context, ref, state),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 24, 24),
-                children: [
-                  if (state.assignmentDetail == null &&
-                      !state.assignmentDetailLoading)
-                    const _DetailPlaceholder(
-                      icon: Icons.assignment_outlined,
-                      title: '选择一个作业',
-                      subtitle: '作业要求、附件和提交入口会显示在这里。',
-                    )
-                  else ...[
-                    _FeedbackBanners.values(
-                      errorMessage: state.errorMessage,
-                      operationMessage: state.operationMessage,
-                      activeOperationContext: state.operationContext,
-                      operationContext: OperationContext.assignmentDetail,
-                    ),
-                    if (state.errorMessage != null ||
-                        state.operationMessage != null)
-                      const SizedBox(height: 12),
-                    const _AssignmentDetailCard(),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _listView(
-    BuildContext context,
-    WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
-    return CustomScrollView(slivers: _listSlivers(context, ref, state));
-  }
-
-  List<Widget> _listSlivers(
-    BuildContext context,
-    WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
-    final headerChildren = _listHeaderChildren(context, ref, state);
-    return [
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        sliver: SliverList(delegate: SliverChildListDelegate(headerChildren)),
-      ),
-      if (state.assignmentsLoading)
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
-          sliver: SliverToBoxAdapter(child: _LoadingPane(label: '正在加载作业')),
-        )
-      else if (state.assignments.isEmpty)
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 48, 16, 24),
-          sliver: SliverToBoxAdapter(
-            child: _EmptyText(
-              icon: Icons.assignment_late_outlined,
-              label: state.assignmentView == AssignmentView.undone
-                  ? '当前没有待提交作业'
-                  : '当前课程暂无作业',
-            ),
-          ),
-        )
-      else
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          sliver: SliverList.builder(
-            itemCount: state.assignments.length,
-            itemBuilder: (context, index) => _assignmentListItem(
-              context,
-              ref,
-              state,
-              state.assignments[index],
-            ),
-          ),
-        ),
-    ];
-  }
-
-  List<Widget> _listHeaderChildren(
-    BuildContext context,
-    WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
-    final selectedCourseId =
-        state.selectedAssignmentCourseId ??
-        (state.courses.isEmpty ? null : state.courses.first.id);
-    return [
-      if (state.errorMessage != null) ...[
-        _ErrorBanner(message: state.errorMessage!),
-        const SizedBox(height: 12),
-      ],
-      Row(
-        children: [
-          Expanded(
-            child: SegmentedButton<AssignmentView>(
-              segments: const [
-                ButtonSegment(
-                  value: AssignmentView.undone,
-                  icon: Icon(Icons.pending_actions_outlined),
-                  label: Text('待提交'),
-                ),
-                ButtonSegment(
-                  value: AssignmentView.course,
-                  icon: Icon(Icons.class_outlined),
-                  label: Text('按课程'),
-                ),
-              ],
-              selected: {state.assignmentView},
-              onSelectionChanged: (selection) {
-                final next = selection.single;
-                if (next == state.assignmentView) {
-                  return;
-                }
-                unawaited(_changeAssignmentView(context, ref, next));
-              },
-            ),
-          ),
-          IconButton(
-            tooltip: '刷新作业',
-            onPressed: state.assignmentsLoading
-                ? null
-                : () {
-                    unawaited(_refreshAssignments(context, ref));
-                  },
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      if (state.assignmentView == AssignmentView.course) ...[
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: _courseDropdownKey(
-            'assignment',
-            state.courses,
-            selectedCourseId,
-          ),
-          isExpanded: true,
-          initialValue: selectedCourseId,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            labelText: '课程',
-          ),
-          items: [
-            for (final course in state.courses)
-              DropdownMenuItem(
-                value: course.id,
-                child: Text(
-                  course.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
-          onChanged: (value) {
-            if (value != null && value != state.selectedAssignmentCourseId) {
-              unawaited(_loadCourseAssignmentsGuarded(context, ref, value));
-            }
-          },
-        ),
-      ],
-    ];
-  }
-
-  Future<void> _changeAssignmentView(
-    BuildContext context,
-    WidgetRef ref,
-    AssignmentView next,
-  ) async {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-    final controller = ref.read(clientControllerProvider.notifier);
-    final state = ref.read(clientControllerProvider);
-    if (next == AssignmentView.undone) {
-      controller.loadUndoneAssignments();
-    } else if (state.courses.isNotEmpty) {
-      controller.loadCourseAssignments(state.courses.first.id);
-    }
-  }
-
-  Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-    final controller = ref.read(clientControllerProvider.notifier);
-    final currentState = ref.read(clientControllerProvider);
-    if (currentState.assignmentView == AssignmentView.undone) {
-      controller.loadUndoneAssignments();
-    } else {
-      final siteId =
-          currentState.selectedAssignmentCourseId ??
-          (currentState.courses.isEmpty ? null : currentState.courses.first.id);
-      if (siteId != null) {
-        controller.loadCourseAssignments(siteId);
-      }
-    }
-  }
-
-  Future<void> _loadCourseAssignmentsGuarded(
-    BuildContext context,
-    WidgetRef ref,
-    String siteId,
-  ) async {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-    ref.read(clientControllerProvider.notifier).loadCourseAssignments(siteId);
-  }
-
-  Future<void> _selectAssignmentGuarded(
-    BuildContext context,
-    WidgetRef ref,
-    FfiAssignmentSummary assignment,
-  ) async {
-    final state = ref.read(clientControllerProvider);
-    if (state.selectedAssignmentId == assignment.id) {
-      return;
-    }
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-    await ref
-        .read(clientControllerProvider.notifier)
-        .selectAssignment(assignment);
-  }
-
-  Widget _assignmentListItem(
-    BuildContext context,
-    WidgetRef ref,
-    _AssignmentsPaneState state,
-    FfiAssignmentSummary assignment,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        selected: state.selectedAssignmentId == assignment.id,
-        leading: Icon(_assignmentIcon(assignment.status)),
-        title: Text(assignment.title),
-        subtitle: Text('${assignment.siteName}\n截止：${assignment.endTime}'),
-        isThreeLine: true,
-        trailing: Text(_assignmentStatusLabel(assignment.status)),
-        onTap: () {
-          unawaited(_selectAssignmentGuarded(context, ref, assignment));
-        },
-      ),
-    );
-  }
-
-  IconData _assignmentIcon(FfiAssignmentStatus status) {
-    return switch (status) {
-      FfiAssignmentStatus.pending => Icons.edit_note_outlined,
-      FfiAssignmentStatus.submitted => Icons.task_alt,
-      FfiAssignmentStatus.expired => Icons.event_busy_outlined,
-    };
-  }
-
-  String _assignmentStatusLabel(FfiAssignmentStatus status) {
-    return _assignmentStatusText(status);
-  }
-}
-
-String _assignmentStatusText(FfiAssignmentStatus status) {
-  return switch (status) {
-    FfiAssignmentStatus.pending => '待提交',
-    FfiAssignmentStatus.submitted => '已提交',
-    FfiAssignmentStatus.expired => '已截止',
-  };
-}
-
-class _AssignmentDetailCard extends ConsumerStatefulWidget {
-  const _AssignmentDetailCard();
-
-  @override
-  ConsumerState<_AssignmentDetailCard> createState() =>
-      _AssignmentDetailCardState();
-}
-
-class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
-  late final TextEditingController _draftController;
-  String? _editingAssignmentId;
-  String _syncedDraftText = '';
-  bool _draftDirty = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _draftController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _draftController.dispose();
-    super.dispose();
-  }
-
-  void _syncDraftController(
-    FfiAssignmentDetailResponse? detail,
-    String draftText,
-  ) {
-    final nextAssignmentId = detail?.id;
-    final nextText = draftText;
-    final assignmentChanged = _editingAssignmentId != nextAssignmentId;
-    final draftChanged = _syncedDraftText != nextText;
-    if (!assignmentChanged && (!draftChanged || _draftDirty)) {
-      return;
-    }
-    _editingAssignmentId = nextAssignmentId;
-    _syncedDraftText = nextText;
-    _draftDirty = false;
-    final oldSelection = _draftController.selection;
-    _draftController.text = nextText;
-    final offset = oldSelection.baseOffset.clamp(0, nextText.length);
-    _draftController.selection = TextSelection.collapsed(offset: offset);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = ref.watch(
-      clientControllerProvider.select(_selectAssignmentDetailState),
-    );
-    _syncDraftController(
-      state.assignmentDetail,
-      ref.read(clientControllerProvider).assignmentDraft,
-    );
-    final detail = state.assignmentDetail;
-    final controller = ref.read(clientControllerProvider.notifier);
-    if (state.assignmentDetailLoading) {
-      return const _LoadingPane(label: '正在加载作业详情');
-    }
-    if (detail == null) {
-      return const SizedBox.shrink();
-    }
-    final expired = detail.status == FfiAssignmentStatus.expired;
-    final readOnly = expired;
-    final resubmitting = detail.status == FfiAssignmentStatus.submitted;
-    final submitLabel = resubmitting ? '重新提交' : '提交';
-    final courseName = _assignmentCourseName(
-      courses: state.courses,
-      assignments: state.assignments,
-      detail: detail,
-    );
-    final submittedAttachments = detail.submittedAttachments;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(detail.title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _AssignmentMetaChip(
-                  icon: Icons.class_outlined,
-                  label: courseName,
-                ),
-                if (detail.endTime.isNotEmpty)
-                  _AssignmentMetaChip(
-                    icon: Icons.event_outlined,
-                    label: '截止 ${detail.endTime}',
-                  ),
-                _AssignmentMetaChip(
-                  icon: expired
-                      ? Icons.event_busy_outlined
-                      : Icons.edit_note_outlined,
-                  label: _assignmentStatusText(detail.status),
-                ),
-                if (detail.className.trim().isNotEmpty)
-                  _AssignmentMetaChip(
-                    icon: Icons.groups_outlined,
-                    label: detail.className.trim(),
-                  ),
-                if (detail.startTime.trim().isNotEmpty)
-                  _AssignmentMetaChip(
-                    icon: Icons.play_circle_outline,
-                    label: '开始 ${detail.startTime.trim()}',
-                  ),
-                if (detail.submittedAt.trim().isNotEmpty)
-                  _AssignmentMetaChip(
-                    icon: Icons.task_alt,
-                    label: '提交 ${detail.submittedAt.trim()}',
-                  ),
-                if (detail.score != null)
-                  _AssignmentMetaChip(
-                    icon: Icons.grade_outlined,
-                    label: '成绩 ${detail.score}',
-                  ),
-                if (detail.isOvertimeCommit)
-                  const _AssignmentMetaChip(
-                    icon: Icons.more_time_outlined,
-                    label: '允许超时提交',
-                  ),
-              ],
-            ),
-            if (detail.comment.trim().isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _AssignmentSection(
-                title: '教师批语',
-                child: SelectableText(detail.comment.trim()),
-              ),
-            ],
-            if (detail.content.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _AssignmentSection(
-                title: '作业要求',
-                child: AssignmentContentView(content: detail.content),
-              ),
-            ],
-            if (detail.teacherResources.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _AssignmentSection(
-                title: '教师附件',
-                child: _AssignmentResourceList(
-                  resources: detail.teacherResources,
-                ),
-              ),
-            ],
-            if (submittedAttachments.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _AssignmentSection(
-                title: '已提交附件',
-                child: _AssignmentResourceList(resources: submittedAttachments),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              minLines: 4,
-              maxLines: 8,
-              enabled:
-                  !readOnly &&
-                  !state.assignmentSubmitting &&
-                  !state.assignmentUploading,
-              controller: _draftController,
-              onChanged: (value) {
-                _draftDirty = true;
-                controller.updateAssignmentDraft(value);
-              },
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: readOnly ? '提交内容（只读）' : '提交内容',
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (state.assignmentUploading) ...[
-              const LinearProgressIndicator(),
-              const SizedBox(height: 8),
-              Text('正在上传附件', style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: 12),
-            ],
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final attachment in state.assignmentAttachments)
-                  _DraftAttachmentChip(
-                    attachment: attachment,
-                    onDeleted: readOnly || state.assignmentSubmitting
-                        ? null
-                        : () => controller.removeAssignmentAttachment(
-                            attachment.resourceId,
-                          ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed:
-                      readOnly ||
-                          state.assignmentUploading ||
-                          state.assignmentSubmitting
-                      ? null
-                      : () async {
-                          final files = await openFiles();
-                          for (final file in files) {
-                            await controller.uploadAssignmentAttachment(
-                              file.path,
-                            );
-                          }
-                        },
-                  icon: const Icon(Icons.attach_file),
-                  label: Text(state.assignmentUploading ? '上传中' : '添加附件'),
-                ),
-                const Spacer(),
-                FilledButton.icon(
-                  onPressed:
-                      readOnly ||
-                          state.assignmentSubmitting ||
-                          state.assignmentUploading
-                      ? null
-                      : () async {
-                          final ok = await _confirm(
-                            context,
-                            title: submitLabel,
-                            content: resubmitting
-                                ? '将覆盖/更新「${detail.title}」当前已提交的内容。\n'
-                                      '课程：$courseName\n'
-                                      '附件：${state.assignmentAttachments.length} 个'
-                                : '将提交「${detail.title}」\n'
-                                      '课程：$courseName\n'
-                                      '附件：${state.assignmentAttachments.length} 个',
-                            confirmLabel: submitLabel,
-                          );
-                          if (ok) {
-                            await controller.submitAssignmentDraft(
-                              _draftController.text,
-                            );
-                          }
-                        },
-                  icon: const Icon(Icons.send_outlined),
-                  label: Text(state.assignmentSubmitting ? '提交中' : submitLabel),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DraftAttachmentChip extends StatelessWidget {
-  const _DraftAttachmentChip({
-    required this.attachment,
-    required this.onDeleted,
-  });
-
-  final AssignmentAttachmentState attachment;
-  final VoidCallback? onDeleted;
-
-  @override
-  Widget build(BuildContext context) {
-    final previewUrl = attachment.previewUrl?.trim();
-    if (previewUrl == null || previewUrl.isEmpty) {
-      return InputChip(
-        avatar: const Icon(Icons.attach_file, size: 18),
-        label: Text(attachment.name),
-        onDeleted: onDeleted,
-      );
-    }
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.only(left: 4, right: 2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InputChip(
-              avatar: const Icon(Icons.attach_file, size: 18),
-              label: Text(attachment.name),
-              onDeleted: onDeleted,
-              side: BorderSide.none,
-            ),
-            _LinkActions(url: previewUrl),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AssignmentSection extends StatelessWidget {
-  const _AssignmentSection({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        child,
-      ],
-    );
-  }
-}
-
-class _AssignmentMetaChip extends StatelessWidget {
-  const _AssignmentMetaChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(
-      visualDensity: VisualDensity.compact,
-      avatar: Icon(icon, size: 18),
-      label: Text(label),
-    );
-  }
-}
-
-class _AssignmentResourceList extends StatelessWidget {
-  const _AssignmentResourceList({required this.resources});
-
-  final List<FfiAssignmentResource> resources;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          for (final resource in resources)
-            ListTile(
-              dense: true,
-              leading: const Icon(Icons.attach_file),
-              title: Text(resource.name),
-              subtitle: resource.previewUrl == null
-                  ? null
-                  : SelectableText(resource.previewUrl!),
-              trailing:
-                  resource.previewUrl == null || resource.previewUrl!.isEmpty
-                  ? null
-                  : _LinkActions(url: resource.previewUrl!),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LinkActions extends StatelessWidget {
-  const _LinkActions({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          tooltip: '打开链接',
-          onPressed: () => _openExternalLink(context, url),
-          icon: const Icon(Icons.open_in_new_outlined),
-        ),
-        IconButton(
-          tooltip: '复制链接',
-          onPressed: () => _copyText(context, url),
-          icon: const Icon(Icons.copy_outlined),
-        ),
-      ],
-    );
-  }
-}
-
-class _LinkValue extends StatelessWidget {
-  const _LinkValue({required this.url});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: [
-            Expanded(child: SelectableText(url)),
-            _LinkActions(url: url),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-String _assignmentCourseName({
-  required List<CourseItem> courses,
-  required List<FfiAssignmentSummary> assignments,
-  required FfiAssignmentDetailResponse detail,
-}) {
-  final detailName = detail.siteName.trim();
-  if (detailName.isNotEmpty) {
-    return detailName;
-  }
-  final detailSiteId = detail.siteId.trim();
-  if (detailSiteId.isNotEmpty) {
-    for (final course in courses) {
-      if (course.id == detailSiteId && course.name.trim().isNotEmpty) {
-        return course.name;
-      }
-    }
-  }
-  for (final assignment in assignments) {
-    if (assignment.id == detail.id && assignment.siteName.trim().isNotEmpty) {
-      return assignment.siteName;
-    }
-    if (assignment.id == detail.id && assignment.siteId.trim().isNotEmpty) {
-      for (final course in courses) {
-        if (course.id == assignment.siteId && course.name.trim().isNotEmpty) {
-          return course.name;
-        }
-      }
-    }
-  }
-  return '未知课程';
-}
-
-String _resourceSummaryText(FfiCourseResourceSummary resource) {
-  final parts = [
-    if (resource.ext != null && resource.ext!.trim().isNotEmpty)
-      resource.ext!.trim().toUpperCase(),
-    if (resource.sizeBytes != null) _formatBytes(resource.sizeBytes!),
-    if (resource.updatedAt.trim().isNotEmpty) resource.updatedAt.trim(),
-  ];
-  return parts.isEmpty ? '暂无文件信息' : parts.join(' · ');
-}
-
-String _selectedResourceCourseName(_ResourcesPaneState state) {
-  final selected = state.selectedResourceCourseId;
-  if (selected != null) {
-    for (final course in state.courses) {
-      if (course.id == selected && course.name.trim().isNotEmpty) {
-        return course.name.trim();
-      }
-    }
-  }
-  if (state.resources.isNotEmpty && state.resources.first.siteName.isNotEmpty) {
-    return state.resources.first.siteName;
-  }
-  return '当前课程';
-}
-
-Key _courseDropdownKey(
-  String scope,
-  List<CourseItem> courses,
-  String? selectedCourseId,
-) {
-  final courseIds = courses.map((course) => course.id).join('|');
-  return ValueKey<String>('$scope:$selectedCourseId:$courseIds');
-}
-
-String _resourceDownloadStatusText(_ResourceDownloadProgressState state) {
-  final progress = state.total == 0
-      ? '正在准备下载'
-      : '正在下载 ${state.current} / ${state.total} 个文件';
-  final fileName = state.currentFileName;
-  final bytes = state.bytes <= 0
-      ? null
-      : _formatBytes(BigInt.from(state.bytes));
-  final fileNameText = fileName?.trim();
-  final details = [
-    ?(fileNameText == null || fileNameText.isEmpty ? null : fileNameText),
-    ?bytes,
-  ];
-  return details.isEmpty ? progress : '$progress · ${details.join(' · ')}';
-}
-
-String _formatBytes(BigInt bytes) {
-  final value = bytes.toDouble();
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  var size = value;
-  var unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  final text = unitIndex == 0 || size >= 10
-      ? size.toStringAsFixed(0)
-      : size.toStringAsFixed(1);
-  return '$text ${units[unitIndex]}';
-}
-
-class _ResourcesPane extends ConsumerWidget {
-  const _ResourcesPane();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(
-      clientControllerProvider.select(_selectResourcesPaneState),
-    );
-    final controller = ref.read(clientControllerProvider.notifier);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final useSplit = constraints.maxWidth >= 900;
-        if (!useSplit) {
-          final showDetail =
-              state.selectedResourceId != null ||
-              state.resourceDetail != null ||
-              state.resourceDetailLoading;
-          if (showDetail) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                _FeedbackBanners.values(
-                  errorMessage: state.errorMessage,
-                  operationMessage: state.operationMessage,
-                  activeOperationContext: state.operationContext,
-                  operationContext: OperationContext.resourceDetail,
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      if (!await _prepareForResourceContextChange(
-                        context,
-                        ref,
-                      )) {
-                        return;
-                      }
-                      controller.clearResourceSelection();
-                    },
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('返回资料列表'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _ResourceDetailCard(state: state),
-                if (state.operationContext == OperationContext.resourceDetail &&
-                    state.downloadedPaths.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _DownloadSummary(paths: state.downloadedPaths),
-                ],
-              ],
-            );
-          }
-          return _listView(context, ref, state, includeDownloadSummary: true);
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: _listView(
-                context,
-                ref,
-                state,
-                includeDownloadSummary: true,
-              ),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 24, 24),
-                children: [
-                  if (state.resourceDetail == null &&
-                      !state.resourceDetailLoading)
-                    const _DetailPlaceholder(
-                      icon: Icons.insert_drive_file_outlined,
-                      title: '选择一个资料',
-                      subtitle: '资料说明和单文件下载入口会显示在这里。',
-                    )
-                  else ...[
-                    _FeedbackBanners.values(
-                      errorMessage: state.errorMessage,
-                      operationMessage: state.operationMessage,
-                      activeOperationContext: state.operationContext,
-                      operationContext: OperationContext.resourceDetail,
-                    ),
-                    if (state.errorMessage != null ||
-                        state.operationMessage != null)
-                      const SizedBox(height: 12),
-                    _ResourceDetailCard(state: state),
-                  ],
-                  if (state.operationContext ==
-                          OperationContext.resourceDetail &&
-                      state.downloadedPaths.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _DownloadSummary(paths: state.downloadedPaths),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _listView(
-    BuildContext context,
-    WidgetRef ref,
-    _ResourcesPaneState state, {
-    bool includeDownloadSummary = false,
-  }) {
-    return CustomScrollView(
-      slivers: _listSlivers(
-        context,
-        ref,
-        state,
-        includeDownloadSummary: includeDownloadSummary,
-      ),
-    );
-  }
-
-  List<Widget> _listSlivers(
-    BuildContext context,
-    WidgetRef ref,
-    _ResourcesPaneState state, {
-    required bool includeDownloadSummary,
-  }) {
-    final headerChildren = _listHeaderChildren(context, ref, state);
-    return [
-      SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        sliver: SliverList(delegate: SliverChildListDelegate(headerChildren)),
-      ),
-      if (state.resourcesLoading)
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
-          sliver: SliverToBoxAdapter(child: _LoadingPane(label: '正在加载资料')),
-        )
-      else if (state.resources.isEmpty)
-        const SliverPadding(
-          padding: EdgeInsets.fromLTRB(16, 48, 16, 24),
-          sliver: SliverToBoxAdapter(
-            child: _EmptyText(
-              icon: Icons.folder_off_outlined,
-              label: '当前课程暂无资料',
-            ),
-          ),
-        )
-      else
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          sliver: SliverList.builder(
-            itemCount: state.resources.length,
-            itemBuilder: (context, index) =>
-                _resourceListItem(context, ref, state, state.resources[index]),
-          ),
-        ),
-      if (includeDownloadSummary &&
-          state.operationContext == OperationContext.resourceList &&
-          state.downloadedPaths.isNotEmpty)
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          sliver: SliverToBoxAdapter(
-            child: _DownloadSummary(paths: state.downloadedPaths),
-          ),
-        ),
-    ];
-  }
-
-  List<Widget> _listHeaderChildren(
-    BuildContext context,
-    WidgetRef ref,
-    _ResourcesPaneState state,
-  ) {
-    final controller = ref.read(clientControllerProvider.notifier);
-    final selectedCourseId =
-        state.selectedResourceCourseId ??
-        (state.courses.isEmpty ? null : state.courses.first.id);
-    return [
-      _FeedbackBanners.values(
-        errorMessage: state.errorMessage,
-        operationMessage: state.operationMessage,
-        activeOperationContext: state.operationContext,
-        operationContext: OperationContext.resourceList,
-      ),
-      Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              key: _courseDropdownKey(
-                'resource',
-                state.courses,
-                selectedCourseId,
-              ),
-              isExpanded: true,
-              initialValue: selectedCourseId,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: '课程',
-              ),
-              items: [
-                for (final course in state.courses)
-                  DropdownMenuItem(
-                    value: course.id,
-                    child: Text(
-                      course.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-              onChanged: (value) {
-                if (value != null && value != state.selectedResourceCourseId) {
-                  unawaited(
-                    _loadResourcesForCourseGuarded(context, ref, value),
-                  );
-                }
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: '刷新资料',
-            onPressed: state.resourcesLoading || state.courses.isEmpty
-                ? null
-                : () {
-                    unawaited(_refreshResources(context, ref));
-                  },
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            tooltip: '下载全部',
-            onPressed: state.resourceDownloading || state.resources.isEmpty
-                ? null
-                : () async {
-                    final ok = await _confirm(
-                      context,
-                      title: '下载全部资料',
-                      content:
-                          '课程：${_selectedResourceCourseName(state)}\n'
-                          '文件：${state.resources.length} 个\n'
-                          '选择目录后将下载当前列表中的全部资料。',
-                    );
-                    if (!ok) {
-                      return;
-                    }
-                    final directory = await getDirectoryPath();
-                    if (directory != null) {
-                      await controller.downloadCourseResources(directory);
-                    }
-                  },
-            icon: const Icon(Icons.download_for_offline_outlined),
-          ),
-        ],
-      ),
-      if (state.resourceDownloading &&
-          state.operationContext == OperationContext.resourceList) ...[
-        const SizedBox(height: 12),
-        _ResourceDownloadProgress(
-          onCancel: () => controller.cancelActiveResourceDownload(
-            context: OperationContext.resourceList,
-          ),
-        ),
-      ],
-    ];
-  }
-
-  Widget _resourceListItem(
-    BuildContext context,
-    WidgetRef ref,
-    _ResourcesPaneState state,
-    FfiCourseResourceSummary resource,
-  ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        selected: state.selectedResourceId == resource.resourceId,
-        leading: const Icon(Icons.insert_drive_file_outlined),
-        title: Text(resource.name),
-        subtitle: Text(_resourceSummaryText(resource)),
-        onTap: () {
-          unawaited(_selectResourceGuarded(context, ref, resource));
-        },
-      ),
-    );
-  }
-
-  Future<void> _loadResourcesForCourseGuarded(
-    BuildContext context,
-    WidgetRef ref,
-    String siteId,
-  ) async {
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
-    ref.read(clientControllerProvider.notifier).loadResourcesForCourse(siteId);
-  }
-
-  Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
-    final state = ref.read(clientControllerProvider);
-    final siteId =
-        state.selectedResourceCourseId ??
-        (state.courses.isEmpty ? null : state.courses.first.id);
-    if (siteId != null) {
-      ref
-          .read(clientControllerProvider.notifier)
-          .loadResourcesForCourse(siteId);
-    }
-  }
-
-  Future<void> _selectResourceGuarded(
-    BuildContext context,
-    WidgetRef ref,
-    FfiCourseResourceSummary resource,
-  ) async {
-    final state = ref.read(clientControllerProvider);
-    if (state.selectedResourceId == resource.resourceId) {
-      return;
-    }
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
-    await ref.read(clientControllerProvider.notifier).selectResource(resource);
-  }
-}
-
-class _ResourceDownloadProgress extends ConsumerWidget {
-  const _ResourceDownloadProgress({required this.onCancel});
-
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(
-      clientControllerProvider.select(_selectResourceDownloadProgressState),
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                _resourceDownloadStatusText(state),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            TextButton.icon(
-              onPressed: onCancel,
-              icon: const Icon(Icons.close),
-              label: const Text('取消'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: state.total == 0 ? null : state.current / state.total,
-        ),
-      ],
-    );
-  }
-}
-
-class _ResourceDetailCard extends ConsumerWidget {
-  const _ResourceDetailCard({required this.state});
-
-  final _ResourcesPaneState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detail = state.resourceDetail;
-    final controller = ref.read(clientControllerProvider.notifier);
-    if (state.resourceDetailLoading) {
-      return const _LoadingPane(label: '正在加载资料详情');
-    }
-    if (detail == null) {
-      return const SizedBox.shrink();
-    }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(detail.name, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (detail.siteName.trim().isNotEmpty)
-                  _AssignmentMetaChip(
-                    icon: Icons.class_outlined,
-                    label: detail.siteName.trim(),
-                  ),
-                if (detail.ext != null && detail.ext!.trim().isNotEmpty)
-                  _AssignmentMetaChip(
-                    icon: Icons.insert_drive_file_outlined,
-                    label: detail.ext!.trim().toUpperCase(),
-                  ),
-                if (detail.sizeBytes != null)
-                  _AssignmentMetaChip(
-                    icon: Icons.data_usage_outlined,
-                    label: _formatBytes(detail.sizeBytes!),
-                  ),
-                if (detail.updatedAt.trim().isNotEmpty)
-                  _AssignmentMetaChip(
-                    icon: Icons.schedule_outlined,
-                    label: detail.updatedAt.trim(),
-                  ),
-              ],
-            ),
-            if (detail.description != null &&
-                detail.description!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SelectableText(detail.description!.trim()),
-            ],
-            if (detail.downloadUrl != null &&
-                detail.downloadUrl!.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _LinkValue(url: detail.downloadUrl!.trim()),
-            ],
-            if (state.operationContext == OperationContext.resourceDetail &&
-                state.resourceDownloading) ...[
-              const SizedBox(height: 12),
-              _ResourceDownloadProgress(
-                onCancel: () => controller.cancelActiveResourceDownload(
-                  context: OperationContext.resourceDetail,
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                onPressed: state.resourceDownloading
-                    ? null
-                    : () async {
-                        final location = await getSaveLocation(
-                          suggestedName: detail.name,
-                        );
-                        if (location != null) {
-                          await controller.downloadResource(location.path);
-                        }
-                      },
-                icon: const Icon(Icons.download_outlined),
-                label: const Text('下载'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailPlaceholder extends StatelessWidget {
-  const _DetailPlaceholder({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 42, color: colorScheme.outline),
-            const SizedBox(height: 12),
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-const _downloadSummaryInlinePathLimit = 5;
-
-class _DownloadSummary extends StatefulWidget {
-  const _DownloadSummary({required this.paths});
-
-  final List<String> paths;
-
-  @override
-  State<_DownloadSummary> createState() => _DownloadSummaryState();
-}
-
-class _DownloadSummaryState extends State<_DownloadSummary> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final paths = widget.paths;
-    final longList = paths.length > _downloadSummaryInlinePathLimit;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.check_circle_outline,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '已下载 ${paths.length} 个文件',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ],
-            ),
-            if (longList) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _expanded = !_expanded;
-                    });
-                  },
-                  icon: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-                  label: Text(_expanded ? '隐藏文件路径' : '显示文件路径'),
-                ),
-              ),
-            ],
-            if (!longList) ...[
-              const SizedBox(height: 12),
-              for (final path in paths)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: SelectableText(path),
-                ),
-            ] else if (_expanded) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 220,
-                child: ListView.separated(
-                  primary: false,
-                  itemCount: paths.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 6),
-                  itemBuilder: (context, index) => SelectableText(paths[index]),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FeedbackBanners extends StatelessWidget {
-  const _FeedbackBanners.values({
-    required this.errorMessage,
-    required this.operationMessage,
-    required this.activeOperationContext,
-    this.operationContext,
-  });
-
-  final String? errorMessage;
-  final String? operationMessage;
-  final OperationContext? activeOperationContext;
-  final OperationContext? operationContext;
-
-  @override
-  Widget build(BuildContext context) {
-    final visibleOperationMessage = activeOperationContext == operationContext
-        ? operationMessage
-        : null;
-    if (errorMessage == null && visibleOperationMessage == null) {
-      return const SizedBox.shrink();
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (errorMessage != null) ...[
-          _ErrorBanner(message: errorMessage!),
-          const SizedBox(height: 12),
-        ],
-        if (visibleOperationMessage != null) ...[
-          _InfoBanner(message: visibleOperationMessage),
-          const SizedBox(height: 12),
-        ],
-      ],
-    );
-  }
-}
-
-class _EmptyText extends StatelessWidget {
-  const _EmptyText({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, size: 48, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(height: 12),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ],
-    );
-  }
-}
-
-Future<bool> _confirm(
-  BuildContext context, {
-  required String title,
-  required String content,
-  String confirmLabel = '确认',
-}) async {
-  return await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(title),
-          content: Text(content),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(confirmLabel),
-            ),
-          ],
-        ),
-      ) ??
-      false;
-}
-
-Future<void> _openExternalLink(BuildContext context, String value) async {
-  final uri = Uri.tryParse(value.trim());
-  if (uri == null || !uri.hasScheme) {
-    _showSnackBar(context, '链接格式无效');
-    return;
-  }
-  final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-  if (!opened && context.mounted) {
-    _showSnackBar(context, '无法打开链接');
-  }
-}
-
-Future<void> _copyText(BuildContext context, String value) async {
-  await Clipboard.setData(ClipboardData(text: value));
-  if (context.mounted) {
-    _showSnackBar(context, '已复制链接');
-  }
-}
-
-void _showSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
-}
-
-class _LoadingPane extends StatelessWidget {
-  const _LoadingPane({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(label),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Theme.of(context).colorScheme.onErrorContainer,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onErrorContainer,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoBanner extends StatelessWidget {
-  const _InfoBanner({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              color: colorScheme.onPrimaryContainer,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(color: colorScheme.onPrimaryContainer),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CaptchaImage extends StatelessWidget {
-  const _CaptchaImage({required this.dataUri});
-
-  final String? dataUri;
-
-  @override
-  Widget build(BuildContext context) {
-    final bytes = _decodeDataUri(dataUri);
-    if (bytes == null) {
-      return const Text('验证码图片加载失败', textAlign: TextAlign.center);
-    }
-    return Center(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outline),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Image.memory(
-            bytes,
-            height: 72,
-            fit: BoxFit.contain,
-            semanticLabel: '验证码图片',
-          ),
-        ),
-      ),
-    );
-  }
-
-  typed_data.Uint8List? _decodeDataUri(String? dataUri) {
-    if (dataUri == null) {
-      return null;
-    }
-    final comma = dataUri.indexOf(',');
-    if (comma == -1) {
-      return null;
-    }
-    try {
-      return base64Decode(dataUri.substring(comma + 1));
-    } on FormatException {
-      return null;
-    }
-  }
 }
