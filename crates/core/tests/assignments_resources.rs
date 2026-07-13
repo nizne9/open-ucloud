@@ -210,6 +210,8 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
     let body = body_text(&request);
     assert!(body.contains(r#""siteId":"site-1""#));
     assert!(body.contains(r#""keyword":"实验""#));
+    assert!(body.contains(r#""current":1"#));
+    assert!(body.contains(r#""size":100"#));
     assert!(request.headers.iter().any(|(name, value)| {
         name.eq_ignore_ascii_case("authorization") && value == "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ="
     }));
@@ -217,6 +219,47 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
         .headers
         .iter()
         .any(|(name, value)| name == "Blade-Auth" && value == "access-token"));
+}
+
+#[tokio::test]
+async fn get_course_assignments_paginates_and_deduplicates_ids() {
+    let first_page = (0..100)
+        .map(|index| {
+            serde_json::json!({
+                "id": format!("work-{index}"),
+                "assignmentTitle": format!("作业 {index}"),
+                "assignmentEndTime": "2099-05-03"
+            })
+        })
+        .collect::<Vec<_>>();
+    let http = MockHttp::with(vec![
+        response(
+            200,
+            &serde_json::json!({"success": true, "data": {"records": first_page}}).to_string(),
+        ),
+        response(
+            200,
+            r#"{"success":true,"data":{"records":[
+              {"id":"work-99","assignmentTitle":"重复作业"},
+              {"id":"work-100","assignmentTitle":"新作业"}
+            ]}}"#,
+        ),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let result = client
+        .get_course_assignments("site-1", "软件测试", "access-token", "")
+        .await
+        .expect("assignments load");
+
+    assert_eq!(result.records.len(), 101);
+    assert_eq!(
+        result.records.last().expect("last assignment").id,
+        "work-100"
+    );
+    let requests = http.requests();
+    assert_eq!(requests.len(), 2);
+    assert!(body_text(&requests[1]).contains(r#""current":2"#));
 }
 
 #[tokio::test]

@@ -324,7 +324,7 @@ async fn get_student_courses_requests_documented_endpoint_and_filters_records() 
     );
     assert_eq!(
         url.query_pairs().find(|(key, _)| key == "size").unwrap().1,
-        "9999"
+        "100"
     );
     assert_eq!(
         url.query_pairs()
@@ -340,6 +340,48 @@ async fn get_student_courses_requests_documented_endpoint_and_filters_records() 
         .headers
         .iter()
         .any(|(name, value)| name == "Blade-Auth" && value == "access-token"));
+}
+
+#[tokio::test]
+async fn get_student_courses_paginates_and_deduplicates_ids() {
+    let first_page = (0..100)
+        .map(|index| serde_json::json!({"id": format!("site-{index}"), "siteName": format!("课程 {index}")}))
+        .collect::<Vec<_>>();
+    let http = MockHttp::with(vec![
+        response(
+            200,
+            &[],
+            &serde_json::json!({"success": true, "data": {"records": first_page}}).to_string(),
+        ),
+        response(
+            200,
+            &[],
+            r#"{"success":true,"data":{"records":[
+              {"id":"site-99","siteName":"重复课程"},
+              {"id":"site-100","siteName":"新课程"}
+            ]}}"#,
+        ),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let courses = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect("courses load");
+
+    assert_eq!(courses.len(), 101);
+    assert_eq!(courses.last().expect("last course").id, "site-100");
+    let requests = http.requests();
+    assert_eq!(requests.len(), 2);
+    let second_url = url::Url::parse(&requests[1].url).expect("second request url parses");
+    assert_eq!(
+        second_url
+            .query_pairs()
+            .find(|(key, _)| key == "current")
+            .expect("current query")
+            .1,
+        "2"
+    );
 }
 
 #[tokio::test]

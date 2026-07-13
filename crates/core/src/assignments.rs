@@ -7,11 +7,14 @@ use open_cloud_api::{
     AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse, AuthErrorCode,
 };
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 
 const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
 const MAX_ASSIGNMENT_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
+const ASSIGNMENT_PAGE_SIZE: u32 = 100;
+const MAX_ASSIGNMENT_PAGES: u32 = 100;
 const PREVIEW_URL_CONCURRENCY: usize = 4;
 const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
     "ade", "adp", "apk", "app", "bat", "bin", "cmd", "com", "cpl", "dll", "dmg", "exe", "hta",
@@ -30,30 +33,51 @@ where
         access_token: &str,
         keyword: &str,
     ) -> Result<AssignmentListResponse, AuthError> {
-        let body = serde_json::json!({
-            "current": 1,
-            "keyword": keyword,
-            "siteId": site_id,
-            "size": 9999
-        });
-        let response = self
-            .http
-            .send(HttpRequest {
-                method: HttpMethod::Post,
-                url: self.endpoints.assignment_list_url.clone(),
-                headers: json_headers(access_token),
-                body: Some(HttpBody::text(body.to_string())),
-            })
-            .await?;
-        let data: RawAssignmentRecords =
-            parse_ucloud_envelope(response, "课程作业加载失败，请稍后重试。")?;
+        let mut assignments = Vec::new();
+        let mut seen_ids = HashSet::new();
+
+        for current in 1..=MAX_ASSIGNMENT_PAGES {
+            let body = serde_json::json!({
+                "current": current,
+                "keyword": keyword,
+                "siteId": site_id,
+                "size": ASSIGNMENT_PAGE_SIZE
+            });
+            let response = self
+                .http
+                .send(HttpRequest {
+                    method: HttpMethod::Post,
+                    url: self.endpoints.assignment_list_url.clone(),
+                    headers: json_headers(access_token),
+                    body: Some(HttpBody::text(body.to_string())),
+                })
+                .await?;
+            let data: RawAssignmentRecords =
+                parse_ucloud_envelope(response, "课程作业加载失败，请稍后重试。")?;
+            let records = data.records.unwrap_or_default();
+            let record_count = records.len();
+            let previous_count = assignments.len();
+            assignments.extend(
+                records
+                    .into_iter()
+                    .filter_map(|record| {
+                        to_assignment_summary(record, "course", site_id, site_name)
+                    })
+                    .filter(|assignment| seen_ids.insert(assignment.id.clone())),
+            );
+
+            if record_count < ASSIGNMENT_PAGE_SIZE as usize || assignments.len() == previous_count {
+                break;
+            }
+            if current == MAX_ASSIGNMENT_PAGES {
+                return Err(AuthError::upstream(
+                    "作业数量超过客户端分页安全上限，请使用关键词缩小查询范围。",
+                ));
+            }
+        }
+
         Ok(AssignmentListResponse {
-            records: data
-                .records
-                .unwrap_or_default()
-                .into_iter()
-                .filter_map(|record| to_assignment_summary(record, "course", site_id, site_name))
-                .collect(),
+            records: assignments,
         })
     }
 
