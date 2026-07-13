@@ -51,7 +51,7 @@ jobs:
           cargo run -p open-cloud-cli -- capabilities --json
 
   msrv:
-    name: Rust 1.78 MSRV
+    name: Rust 1.88 MSRV
     runs-on: ubuntu-latest
 
     steps:
@@ -59,10 +59,10 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Install declared Rust toolchain
-        run: rustup toolchain install 1.78.0 --profile minimal
+        run: rustup toolchain install 1.88.0 --profile minimal
 
       - name: Check workspace against MSRV
-        run: cargo +1.78.0 check --workspace --all-targets --locked
+        run: cargo +1.88.0 check --workspace --all-targets --locked
 
   audit:
     name: Dependency audit

@@ -127,7 +127,9 @@ Release assets include CLI packages for Linux keyutils, Linux Secret Service, Wi
 
 The Android artifact produced by the build workflow is a `debug-signed` APK for development testing only and must not be treated as a formal release asset.
 
-All third-party workflow actions are pinned to reviewed full commit SHAs, with the corresponding major version retained in a line comment for readability. Dependabot checks Cargo, Pub, and GitHub Actions dependencies weekly. CI separately checks the declared Rust 1.78 MSRV and runs a fixed, locked `cargo-audit` release so stable-toolchain success cannot hide an MSRV regression or a known vulnerable Rust dependency.
+All third-party workflow actions are pinned to reviewed full commit SHAs, with the corresponding major version retained in a line comment for readability. Dependabot checks Cargo, Pub, and GitHub Actions dependencies weekly. CI separately checks the declared Rust 1.88 MSRV and runs a fixed, locked `cargo-audit` release so stable-toolchain success cannot hide an MSRV regression or a known vulnerable Rust dependency.
+
+Rust 1.88 is the security-compatible floor for the current dependency set: Flutter Rust Bridge 2.12 already requires post-1.78 FFI syntax, while patched `time` releases addressing known denial-of-service advisories require 1.88. Direct dependencies are pinned to reviewed releases, and compatible transitive selections remain in `Cargo.lock`; dependency updates must pass both the MSRV and audit jobs before merge.
 
 ## Structural Expectations
 
