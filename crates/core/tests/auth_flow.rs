@@ -73,12 +73,21 @@ async fn start_login_flow_extracts_execution_and_captcha() {
     let http = MockHttp::with(vec![
         response(
             200,
-            &[("set-cookie", "JSESSIONID=abc; Path=/")],
-            r#"<input name="execution" value="e1"><script>config.captcha = { id: 'cap-1' }</script>"#,
+            &[
+                ("set-cookie", "route=node-1; Path=/; HttpOnly"),
+                ("set-cookie", "JSESSIONID=abc; Path=/; Secure"),
+            ],
+            r#"<input type="hidden" value="e1" data-extra="ok" name="execution">
+               <script>config.captcha = { "identity": "not-the-id", "id" : "cap-1" };</script>"#,
         ),
         response(200, &[("content-type", "image/png")], "png"),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let endpoints = OpenCloudEndpoints {
+        login_url: "https://login.example.edu/cas/login?service=https://cloud.example.edu"
+            .to_string(),
+        ..OpenCloudEndpoints::default()
+    };
+    let client = OpenCloudClient::new(http.clone(), endpoints);
 
     let flow = client.start_login("2024000000").await.expect("flow starts");
 
@@ -88,7 +97,14 @@ async fn start_login_flow_extracts_execution_and_captcha() {
         flow.captcha_image.as_deref(),
         Some("data:image/png;base64,cG5n")
     );
-    assert_eq!(flow.cookie, "JSESSIONID=abc");
+    assert_eq!(flow.cookie, "route=node-1; JSESSIONID=abc");
+    let requests = http.requests();
+    assert!(requests[1].headers.iter().any(|(name, value)| {
+        name.eq_ignore_ascii_case("cookie") && value == "route=node-1; JSESSIONID=abc"
+    }));
+    assert!(requests[1]
+        .url
+        .starts_with("https://login.example.edu/authserver/captcha?"));
 }
 
 #[tokio::test]
@@ -96,7 +112,7 @@ async fn finish_login_flow_maps_invalid_captcha() {
     let http = MockHttp::with(vec![response(
         401,
         &[],
-        r#"<div class="alert alert-danger" id="errorDiv"><p>Bad captcha.</p></div>"#,
+        r#"<div id="errorDiv" class="alert alert-danger"><p><strong>Bad captcha.</strong></p></div>"#,
     )]);
     let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
     let flow = open_cloud_core::LoginFlow {
@@ -121,11 +137,7 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
     let access = jwt_with_exp(4_200);
     let refresh = jwt_with_exp(9_200);
     let http = MockHttp::with(vec![
-        response(
-            302,
-            &[("location", "https://ucloud.bupt.edu.cn?ticket=ticket-1")],
-            "",
-        ),
+        response(303, &[("location", "/callback?ticket=ticket-1")], ""),
         response(
             200,
             &[],

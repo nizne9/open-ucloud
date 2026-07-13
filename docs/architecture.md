@@ -51,6 +51,6 @@ Capability reporting keeps these surfaces explicit: `selfAttendance` describes w
 
 ## Current Auth Core
 
-The Rust core owns the real login chain: unified auth page initialization, optional captcha image loading, credential POST, ticket extraction, UCloud token exchange, role lookup, role-scoped refresh, JWT expiration parsing, and access-token refresh. CLI and future FFI adapters must call this core instead of duplicating protocol logic.
+The Rust core owns the real login chain: unified auth page initialization, optional captcha image loading, credential POST, ticket extraction, UCloud token exchange, role lookup, role-scoped refresh, JWT expiration parsing, and access-token refresh. Authentication HTML is parsed as a document rather than by tag-string matching, and all response cookies are normalized into the follow-up login request. CLI and future FFI adapters must call this core instead of duplicating protocol logic.
 
 The store crate now has two session stores: memory storage for tests and short-lived adapters, and secure session persistence through the operating system credential store for the CLI. If the platform credential backend is unavailable, adapters must surface a storage error instead of writing tokens to plaintext files.

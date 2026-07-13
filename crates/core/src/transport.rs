@@ -108,6 +108,13 @@ impl HttpResponse {
             .map(|(_, value)| value.as_str())
     }
 
+    pub fn header_values<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a str> {
+        self.headers
+            .iter()
+            .filter(move |(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_str())
+    }
+
     pub fn text(&self) -> Result<String, AuthError> {
         String::from_utf8(self.body.clone())
             .map_err(|_| AuthError::upstream("invalid upstream text"))
