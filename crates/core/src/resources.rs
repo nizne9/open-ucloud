@@ -109,16 +109,13 @@ where
         let parent = target_path.parent().unwrap_or_else(|| Path::new("."));
         tokio::fs::create_dir_all(parent)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         let partial_path = partial_download_path(target_path);
         let mut next_url = url.to_string();
         for _ in 0..=MAX_DOWNLOAD_REDIRECTS {
             if cancel.is_cancelled() {
                 cleanup_partial(&partial_path).await;
-                return Err(AuthError::new(
-                    AuthErrorCode::UnknownAuthError,
-                    "下载已取消。",
-                ));
+                return Err(AuthError::new(AuthErrorCode::Cancelled, "下载已取消。"));
             }
             let response = self
                 .http
@@ -144,10 +141,7 @@ where
             if (200..300).contains(&response.status) {
                 if cancel.is_cancelled() {
                     cleanup_partial(&partial_path).await;
-                    return Err(AuthError::new(
-                        AuthErrorCode::UnknownAuthError,
-                        "下载已取消。",
-                    ));
+                    return Err(AuthError::new(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
                 commit_partial_without_overwrite(&partial_path, target_path).await?;
                 return Ok(target_path.to_path_buf());
@@ -259,11 +253,11 @@ async fn commit_partial_without_overwrite(
             cleanup_partial(partial_path).await;
             if error.kind() == std::io::ErrorKind::AlreadyExists {
                 Err(AuthError::new(
-                    AuthErrorCode::UnknownAuthError,
+                    AuthErrorCode::FileSystem,
                     "下载目标已存在，未覆盖原文件。",
                 ))
             } else {
-                Err(AuthError::upstream(error.to_string()))
+                Err(AuthError::file_system(error.to_string()))
             }
         }
     }

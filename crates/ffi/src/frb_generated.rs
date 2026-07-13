@@ -995,6 +995,11 @@ impl SseDecode for crate::api::FfiAuthErrorCode {
             10 => crate::api::FfiAuthErrorCode::SessionExpired,
             11 => crate::api::FfiAuthErrorCode::UpstreamUnavailable,
             12 => crate::api::FfiAuthErrorCode::UnknownAuthError,
+            13 => crate::api::FfiAuthErrorCode::Cancelled,
+            14 => crate::api::FfiAuthErrorCode::InvalidInput,
+            15 => crate::api::FfiAuthErrorCode::NotFound,
+            16 => crate::api::FfiAuthErrorCode::FileSystem,
+            17 => crate::api::FfiAuthErrorCode::RateLimited,
             _ => unreachable!("Invalid variant for FfiAuthErrorCode: {}", inner),
         };
     }
@@ -1817,6 +1822,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::FfiAuthErrorCode {
             Self::SessionExpired => 10.into_dart(),
             Self::UpstreamUnavailable => 11.into_dart(),
             Self::UnknownAuthError => 12.into_dart(),
+            Self::Cancelled => 13.into_dart(),
+            Self::InvalidInput => 14.into_dart(),
+            Self::NotFound => 15.into_dart(),
+            Self::FileSystem => 16.into_dart(),
+            Self::RateLimited => 17.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -2450,6 +2460,11 @@ impl SseEncode for crate::api::FfiAuthErrorCode {
                 crate::api::FfiAuthErrorCode::SessionExpired => 10,
                 crate::api::FfiAuthErrorCode::UpstreamUnavailable => 11,
                 crate::api::FfiAuthErrorCode::UnknownAuthError => 12,
+                crate::api::FfiAuthErrorCode::Cancelled => 13,
+                crate::api::FfiAuthErrorCode::InvalidInput => 14,
+                crate::api::FfiAuthErrorCode::NotFound => 15,
+                crate::api::FfiAuthErrorCode::FileSystem => 16,
+                crate::api::FfiAuthErrorCode::RateLimited => 17,
                 _ => {
                     unimplemented!("");
                 }

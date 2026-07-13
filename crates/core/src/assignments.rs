@@ -212,7 +212,7 @@ where
             .collect::<Vec<_>>();
         if assignment_content.trim().is_empty() && attachments.is_empty() {
             return Err(AuthError::new(
-                AuthErrorCode::UnknownAuthError,
+                AuthErrorCode::InvalidInput,
                 "请先填写作业内容或上传附件。",
             ));
         }
@@ -285,7 +285,7 @@ where
     ) -> Result<AssignmentUploadResponse, AuthError> {
         let metadata = tokio::fs::metadata(path)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         validate_assignment_upload_metadata(file_name, metadata.len() as usize)?;
         let response = self
             .http

@@ -454,6 +454,11 @@ enum FfiAuthErrorCode {
   sessionExpired,
   upstreamUnavailable,
   unknownAuthError,
+  cancelled,
+  invalidInput,
+  notFound,
+  fileSystem,
+  rateLimited,
   ;
 }
 

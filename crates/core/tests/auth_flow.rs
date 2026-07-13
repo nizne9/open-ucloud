@@ -634,6 +634,6 @@ fn resolve_course_detail_reports_missing_course() {
 
     let err = resolve_course_detail(&courses, &[], "missing").expect_err("course is missing");
 
-    assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.code, AuthErrorCode::NotFound);
     assert_eq!(err.message, "未找到课程：missing。");
 }

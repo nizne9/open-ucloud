@@ -368,7 +368,7 @@ where
         } => {
             if !interactive {
                 return Err(error(
-                    AuthErrorCode::UnknownAuthError,
+                    AuthErrorCode::InvalidInput,
                     "login requires --interactive so credentials are not passed through shell history.",
                 )
                 .into());
@@ -558,7 +558,7 @@ where
         Commands::Logout { yes } => {
             if !yes {
                 return Err(error(
-                    AuthErrorCode::UnknownAuthError,
+                    AuthErrorCode::InvalidInput,
                     "logout is a mutating command; rerun with --yes.",
                 )
                 .into());
@@ -577,7 +577,7 @@ async fn login_interactive(
 ) -> Result<(), AuthErrorResponse> {
     let username = prompt("Username: ")?;
     let password = rpassword::prompt_password("Password: ")
-        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+        .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string()))?;
     let http = ReqwestHttpClient::new().map_err(to_response_error)?;
     let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
     let flow = client
@@ -636,16 +636,20 @@ fn prompt(label: &str) -> Result<String, AuthErrorResponse> {
     print!("{label}");
     std::io::stdout()
         .flush()
-        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+        .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string()))?;
     let mut value = String::new();
     std::io::stdin()
         .read_line(&mut value)
-        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+        .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string()))?;
     Ok(value.trim().to_string())
 }
 
 fn to_response_error(error_value: open_cloud_core::AuthError) -> AuthErrorResponse {
-    error(error_value.code, error_value.message)
+    AuthErrorResponse {
+        code: error_value.code,
+        message: error_value.message,
+        retry_after_seconds: error_value.retry_after_seconds,
+    }
 }
 
 pub fn load_persisted_session<B>(
@@ -700,7 +704,7 @@ where
     if assignment_requires_yes(&command) {
         return cli_error_response(
             error(
-                AuthErrorCode::UnknownAuthError,
+                AuthErrorCode::InvalidInput,
                 "assignment write commands are mutating; rerun with --yes.",
             ),
             json,
@@ -769,7 +773,7 @@ where
             if detail.status == open_cloud_api::AssignmentStatus::Expired {
                 return cli_error_response(
                     error(
-                        AuthErrorCode::UnknownAuthError,
+                        AuthErrorCode::InvalidInput,
                         "当前作业已截止，不能继续上传附件。",
                     ),
                     json,
@@ -777,13 +781,13 @@ where
             }
             let bytes = json_cli_result(
                 std::fs::read(&file)
-                    .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string())),
+                    .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string())),
                 json,
             )?;
             let file_name = file
                 .file_name()
                 .and_then(|name| name.to_str())
-                .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "invalid upload file name"));
+                .ok_or_else(|| error(AuthErrorCode::InvalidFileName, "invalid upload file name"));
             let file_name = json_cli_result(file_name, json)?;
             let response = json_cli_result(
                 client
@@ -812,7 +816,7 @@ where
                 (Some(content), None) => content,
                 (None, Some(path)) => json_cli_result(
                     std::fs::read_to_string(path)
-                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string())),
+                        .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string())),
                     json,
                 )?,
                 (None, None) => String::new(),
@@ -848,7 +852,7 @@ where
     if resource_requires_yes(&command) {
         return cli_error_response(
             error(
-                AuthErrorCode::UnknownAuthError,
+                AuthErrorCode::InvalidInput,
                 "resource batch download is mutating; rerun with --yes.",
             ),
             json,
@@ -1305,12 +1309,12 @@ where
 {
     let url = detail.download_url.as_deref().ok_or_else(|| {
         error(
-            AuthErrorCode::UpstreamUnavailable,
+            AuthErrorCode::NotFound,
             "resource does not have a downloadable URL.",
         )
     })?;
     std::fs::create_dir_all(out_dir)
-        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
+        .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string()))?;
     let path = next_download_path(out_dir, &detail.name)?;
     client
         .download_url_to_path(
@@ -1348,7 +1352,7 @@ pub fn next_download_path(out_dir: &Path, file_name: &str) -> Result<PathBuf, Au
         }
     }
     Err(error(
-        AuthErrorCode::UnknownAuthError,
+        AuthErrorCode::FileSystem,
         "could not allocate a non-overwriting download path.",
     ))
 }
@@ -1554,7 +1558,7 @@ mod tests {
             .await
             .expect_err("missing course wins before going state");
 
-        assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
+        assert_eq!(err.code, AuthErrorCode::NotFound);
         assert_eq!(err.message, "未找到课程：missing。");
         assert_eq!(http.request_count(), 1);
     }

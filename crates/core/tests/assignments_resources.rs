@@ -394,7 +394,7 @@ async fn submit_assignment_rejects_empty_submission_before_network() {
         .await
         .expect_err("empty submission fails");
 
-    assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
     assert_eq!(err.message, "请先填写作业内容或上传附件。");
     assert!(http.requests().is_empty());
 }
@@ -791,7 +791,7 @@ async fn download_url_to_path_removes_partial_when_cancelled_before_request() {
         .await
         .expect_err("download is cancelled");
 
-    assert_eq!(error.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(error.code, AuthErrorCode::Cancelled);
     assert!(!path.exists());
     assert!(partial_files_for(&path).is_empty());
     assert!(http.requests().is_empty());
@@ -821,7 +821,7 @@ async fn download_url_to_path_removes_partial_when_cancelled_before_rename() {
         .await
         .expect_err("download is cancelled before rename");
 
-    assert_eq!(error.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(error.code, AuthErrorCode::Cancelled);
     assert!(!path.exists());
     assert!(partial_files_for(&path).is_empty());
     assert_eq!(http.requests().len(), 1);
@@ -844,7 +844,7 @@ async fn download_url_to_path_never_overwrites_a_racing_target() {
         .await
         .expect_err("existing target is preserved");
 
-    assert_eq!(error.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(error.code, AuthErrorCode::FileSystem);
     assert_eq!(
         std::fs::read(&path).expect("existing target remains"),
         b"existing bytes"

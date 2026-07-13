@@ -71,10 +71,7 @@ pub fn resolve_course_detail(
         .find(|course| course.id == site_id)
         .cloned()
         .ok_or_else(|| {
-            AuthError::new(
-                AuthErrorCode::UnknownAuthError,
-                format!("未找到课程：{site_id}。"),
-            )
+            AuthError::new(AuthErrorCode::NotFound, format!("未找到课程：{site_id}。"))
         })?;
     let going_site = going_sites
         .iter()

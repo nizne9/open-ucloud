@@ -30,6 +30,8 @@ open-cloud logout --yes
 
 Use human-readable output by default. Add `--json` for machine output. JSON fields and error codes are public contracts and require tests.
 
+Machine-readable failures include a stable `code`, a user-facing `message`, and an optional `retryAfterSeconds`. Adapters must preserve core error metadata instead of replacing it with a generic error. `CANCELLED`, `INVALID_INPUT`, `NOT_FOUND`, `FILE_SYSTEM`, and `RATE_LIMITED` identify actionable failures; authenticated upstream 401/403 responses map to `SESSION_EXPIRED`, and numeric HTTP `Retry-After` values are forwarded for rate limits.
+
 `login --interactive` verifies the real login chain and stores the session in the system credential store. `session --json` reads that stored session and must not print access tokens, refresh tokens, cookies, passwords, or upstream session data. If secure storage is unavailable or locked, commands return `SECURE_STORAGE_UNAVAILABLE` instead of falling back to plaintext files.
 
 `capabilities --json` does not require a session and prints build capability flags:

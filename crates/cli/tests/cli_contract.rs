@@ -303,7 +303,7 @@ async fn assignment_writes_require_yes_before_session_load() {
         .await
         .expect_err("missing yes fails");
 
-    assert_eq!(err.response().code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.response().code, AuthErrorCode::InvalidInput);
     assert!(err.response().message.contains("--yes"));
 }
 
@@ -326,7 +326,7 @@ async fn assignment_writes_preserve_json_errors_for_missing_yes() {
         .expect_err("missing yes fails");
 
     assert!(err.json_error_was_printed());
-    assert_eq!(err.response().code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.response().code, AuthErrorCode::InvalidInput);
     assert!(err.response().message.contains("--yes"));
 }
 
@@ -350,7 +350,7 @@ async fn resource_batch_writes_preserve_json_errors_for_missing_yes() {
         .expect_err("missing yes fails");
 
     assert!(err.json_error_was_printed());
-    assert_eq!(err.response().code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.response().code, AuthErrorCode::InvalidInput);
     assert!(err.response().message.contains("--yes"));
 }
 

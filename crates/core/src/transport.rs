@@ -150,7 +150,7 @@ pub trait HttpClient: Clone + Send + Sync + 'static {
     ) -> Result<HttpResponse, AuthError> {
         let bytes = tokio::fs::read(&path)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         let boundary = format!(
             "open-cloud-boundary-{}-{}",
             fields.len(),
@@ -193,14 +193,14 @@ pub trait HttpClient: Clone + Send + Sync + 'static {
         }
         let mut file = tokio::fs::File::create(path)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         file.write_all(&response.body)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         progress.add(response.body.len() as u64);
         file.flush()
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         Ok(head)
     }
 }
@@ -293,7 +293,7 @@ impl HttpClient for ReqwestHttpClient {
         }
         let mut file = tokio::fs::File::create(path)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         let mut stream = response.bytes_stream();
         while let Some(chunk) = stream.next().await {
             if cancel.is_cancelled() {
@@ -302,12 +302,12 @@ impl HttpClient for ReqwestHttpClient {
             let chunk = chunk.map_err(|error| AuthError::upstream(error.to_string()))?;
             file.write_all(&chunk)
                 .await
-                .map_err(|error| AuthError::upstream(error.to_string()))?;
+                .map_err(|error| AuthError::file_system(error.to_string()))?;
             progress.add(chunk.len() as u64);
         }
         file.flush()
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         Ok(head)
     }
 
@@ -333,7 +333,7 @@ impl HttpClient for ReqwestHttpClient {
         }
         let file_part = reqwest::multipart::Part::file(path)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?
+            .map_err(|error| AuthError::file_system(error.to_string()))?
             .file_name(file_name);
         form = form.part(file_field_name, file_part);
         let response = builder
@@ -437,7 +437,7 @@ fn multipart_quoted_string(value: &str) -> String {
 }
 
 fn cancelled_error() -> AuthError {
-    AuthError::new(AuthErrorCode::UnknownAuthError, "下载已取消。")
+    AuthError::new(AuthErrorCode::Cancelled, "下载已取消。")
 }
 
 #[cfg(test)]

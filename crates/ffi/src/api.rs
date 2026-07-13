@@ -51,6 +51,11 @@ pub enum FfiAuthErrorCode {
     SessionExpired,
     UpstreamUnavailable,
     UnknownAuthError,
+    Cancelled,
+    InvalidInput,
+    NotFound,
+    FileSystem,
+    RateLimited,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -428,7 +433,7 @@ fn read_download_status(task_id: &str) -> Result<FfiDownloadTaskStatus, FfiAuthE
         .expect("download task map poisoned")
         .get(task_id)
         .cloned()
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
     let status = task.status.lock().expect("download task poisoned");
     let terminal = is_terminal_download_state(&status.state);
     Ok(FfiDownloadTaskStatus {
@@ -728,7 +733,7 @@ pub fn download_task_cancel(task_id: String) -> Result<FfiDownloadTaskStatus, Ff
         .expect("download task map poisoned")
         .get(&task_id)
         .cloned()
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
     task.cancel.cancel();
     update_download_status(&task, |status| {
         if matches!(
@@ -747,7 +752,7 @@ pub fn download_task_dispose(task_id: String) -> Result<FfiLogoutResponse, FfiAu
         .lock()
         .expect("download task map poisoned")
         .remove(&task_id)
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
     task.cancel.cancel();
     Ok(FfiLogoutResponse {
         clear_session: false,
@@ -942,7 +947,7 @@ where
         .map_err(to_ffi_error)?;
     if detail.status == open_cloud_api::AssignmentStatus::Expired {
         return Err(error(
-            AuthErrorCode::UnknownAuthError,
+            AuthErrorCode::InvalidInput,
             "当前作业已截止，不能继续上传附件。",
         ));
     }
@@ -950,7 +955,7 @@ where
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "invalid upload file name"))?;
+        .ok_or_else(|| error(AuthErrorCode::InvalidFileName, "invalid upload file name"))?;
     validate_upload_file_metadata(&path, file_name)?;
     let upload = client
         .upload_assignment_file_path(
@@ -1246,14 +1251,14 @@ where
             let cancel = cancel.clone();
             async move {
                 if cancel.is_cancelled() {
-                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                    return Err(error(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
                 let detail = client
                     .get_resource_detail(&resource.resource_id, &site_id, &site_name, &access_token)
                     .await
                     .map_err(to_ffi_error)?;
                 if cancel.is_cancelled() {
-                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                    return Err(error(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
                 Ok(detail)
             }
@@ -1305,7 +1310,7 @@ fn next_download_path_reserved(
         }
     }
     Err(error(
-        AuthErrorCode::UnknownAuthError,
+        AuthErrorCode::FileSystem,
         "could not allocate a non-overwriting download path.",
     ))
 }
@@ -1326,7 +1331,7 @@ where
             let task = task.clone();
             async move {
                 if cancel.is_cancelled() {
-                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                    return Err(error(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
                 if let Some(task) = &task {
                     update_download_status(task, |status| {
@@ -1419,12 +1424,10 @@ async fn download_resource_to_path<C>(
 where
     C: open_cloud_core::HttpClient,
 {
-    let url = detail.download_url.as_deref().ok_or_else(|| {
-        error(
-            AuthErrorCode::UnknownAuthError,
-            "当前资料暂时没有可用下载链接。",
-        )
-    })?;
+    let url = detail
+        .download_url
+        .as_deref()
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "当前资料暂时没有可用下载链接。"))?;
     let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent).map_err(fs_error)?;
     let path = next_download_path(requested_path)?;
@@ -1457,7 +1460,7 @@ fn next_download_path(requested_path: &Path) -> Result<PathBuf, FfiAuthError> {
         }
     }
     Err(error(
-        AuthErrorCode::UnknownAuthError,
+        AuthErrorCode::FileSystem,
         "could not allocate a non-overwriting download path.",
     ))
 }
@@ -1480,7 +1483,7 @@ fn sanitize_file_name(file_name: &str) -> String {
 }
 
 fn fs_error(source: std::io::Error) -> FfiAuthError {
-    error(AuthErrorCode::UnknownAuthError, source.to_string())
+    error(AuthErrorCode::FileSystem, source.to_string())
 }
 
 fn validate_upload_file_metadata(path: &Path, file_name: &str) -> Result<(), FfiAuthError> {
@@ -1541,7 +1544,11 @@ fn decode_session_payload(session_payload: &str, now_ms: u64) -> Result<AuthSess
 }
 
 fn to_ffi_error(error_value: open_cloud_core::AuthError) -> FfiAuthError {
-    error(error_value.code, error_value.message)
+    FfiAuthError {
+        code: error_value.code.into(),
+        message: error_value.message,
+        retry_after_seconds: error_value.retry_after_seconds,
+    }
 }
 
 fn error(code: AuthErrorCode, message: impl Into<String>) -> FfiAuthError {
@@ -1601,6 +1608,11 @@ impl From<AuthErrorCode> for FfiAuthErrorCode {
             AuthErrorCode::SessionExpired => Self::SessionExpired,
             AuthErrorCode::UpstreamUnavailable => Self::UpstreamUnavailable,
             AuthErrorCode::UnknownAuthError => Self::UnknownAuthError,
+            AuthErrorCode::Cancelled => Self::Cancelled,
+            AuthErrorCode::InvalidInput => Self::InvalidInput,
+            AuthErrorCode::NotFound => Self::NotFound,
+            AuthErrorCode::FileSystem => Self::FileSystem,
+            AuthErrorCode::RateLimited => Self::RateLimited,
         }
     }
 }
@@ -2007,7 +2019,7 @@ mod tests {
         let err = parse_attendance_qr_payload_text("site-1:group-1".to_string())
             .expect_err("invalid payload fails");
 
-        assert_eq!(err.code, FfiAuthErrorCode::UnknownAuthError);
+        assert_eq!(err.code, FfiAuthErrorCode::InvalidInput);
     }
 
     #[test]
@@ -2319,6 +2331,7 @@ mod tests {
         .expect_err("expired assignment is rejected");
 
         assert_eq!(err.message, "当前作业已截止，不能继续上传附件。");
+        assert_eq!(err.code, FfiAuthErrorCode::InvalidInput);
     }
 
     #[tokio::test]

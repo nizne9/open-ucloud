@@ -261,6 +261,15 @@ fn keeps_stable_auth_error_codes() {
 
     assert_eq!(json["code"], "CAPTCHA_INVALID");
     assert_eq!(json["message"], "验证码错误。");
+
+    let limited = AuthErrorResponse {
+        code: AuthErrorCode::RateLimited,
+        message: "请求过于频繁。".to_string(),
+        retry_after_seconds: Some(30),
+    };
+    let limited_json = serde_json::to_value(limited).expect("rate limit error serializes");
+    assert_eq!(limited_json["code"], "RATE_LIMITED");
+    assert_eq!(limited_json["retryAfterSeconds"], 30);
 }
 
 #[test]

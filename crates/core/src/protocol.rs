@@ -1,4 +1,5 @@
 use crate::{AuthError, HttpResponse};
+use open_cloud_api::AuthErrorCode;
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -26,10 +27,7 @@ where
     T: for<'de> Deserialize<'de>,
 {
     if !(200..300).contains(&response.status) {
-        return Err(AuthError::upstream(format!(
-            "{fallback} HTTP status {}.",
-            response.status
-        )));
+        return Err(http_status_error(&response, fallback));
     }
     let payload: UcloudEnvelope<T> = serde_json::from_slice(&response.body)
         .map_err(|error| AuthError::upstream(error.to_string()))?;
@@ -39,6 +37,20 @@ where
     payload
         .data
         .ok_or_else(|| AuthError::upstream(fallback.to_string()))
+}
+
+fn http_status_error(response: &HttpResponse, fallback: &str) -> AuthError {
+    let message = format!("{fallback} HTTP status {}.", response.status);
+    match response.status {
+        401 | 403 => AuthError::new(AuthErrorCode::SessionExpired, message),
+        404 => AuthError::new(AuthErrorCode::NotFound, message),
+        429 => AuthError::new(AuthErrorCode::RateLimited, message).with_retry_after(
+            response
+                .header("retry-after")
+                .and_then(|value| value.trim().parse().ok()),
+        ),
+        _ => AuthError::upstream(message),
+    }
 }
 
 pub(crate) struct UcloudJsonHeaders<'a> {
@@ -85,6 +97,17 @@ mod tests {
         HttpResponse {
             status,
             headers: Vec::new(),
+            body: body.as_bytes().to_vec(),
+        }
+    }
+
+    fn response_with_headers(status: u16, headers: &[(&str, &str)], body: &str) -> HttpResponse {
+        HttpResponse {
+            status,
+            headers: headers
+                .iter()
+                .map(|(name, value)| (name.to_string(), value.to_string()))
+                .collect(),
             body: body.as_bytes().to_vec(),
         }
     }
@@ -149,6 +172,29 @@ mod tests {
 
         assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
         assert_eq!(err.message, "fallback HTTP status 503.");
+    }
+
+    #[test]
+    fn maps_rate_limit_status_and_retry_after() {
+        let err = parse_ucloud_envelope::<Payload>(
+            response_with_headers(429, &[("Retry-After", "30")], "not json"),
+            "fallback",
+        )
+        .expect_err("rate limit maps");
+
+        assert_eq!(err.code, AuthErrorCode::RateLimited);
+        assert_eq!(err.retry_after_seconds, Some(30));
+    }
+
+    #[test]
+    fn maps_session_and_not_found_statuses() {
+        let session = parse_ucloud_envelope::<Payload>(response(401, ""), "fallback")
+            .expect_err("session status maps");
+        let missing = parse_ucloud_envelope::<Payload>(response(404, ""), "fallback")
+            .expect_err("not found maps");
+
+        assert_eq!(session.code, AuthErrorCode::SessionExpired);
+        assert_eq!(missing.code, AuthErrorCode::NotFound);
     }
 
     #[test]
