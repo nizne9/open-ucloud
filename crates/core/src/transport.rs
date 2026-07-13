@@ -7,7 +7,14 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use std::time::Duration;
 use tokio::io::AsyncWriteExt;
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
+const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(45);
+const MULTIPART_REQUEST_TIMEOUT: Duration = Duration::from_secs(5 * 60);
+const MAX_BUFFERED_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum HttpMethod {
@@ -199,7 +206,10 @@ pub struct ReqwestHttpClient {
 impl ReqwestHttpClient {
     pub fn new() -> Result<Self, AuthError> {
         let client = reqwest::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
+            .user_agent(concat!("open-cloud/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|error| AuthError::upstream(error.to_string()))?;
         Ok(Self { client })
@@ -224,30 +234,11 @@ impl HttpClient for ReqwestHttpClient {
             };
         }
         let response = builder
+            .timeout(API_REQUEST_TIMEOUT)
             .send()
             .await
             .map_err(|error| AuthError::upstream(error.to_string()))?;
-        let status = response.status().as_u16();
-        let headers = response
-            .headers()
-            .iter()
-            .filter_map(|(name, value)| {
-                value
-                    .to_str()
-                    .ok()
-                    .map(|value| (name.as_str().to_string(), value.to_string()))
-            })
-            .collect();
-        let body = response
-            .bytes()
-            .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?
-            .to_vec();
-        Ok(HttpResponse {
-            status,
-            headers,
-            body,
-        })
+        buffered_response(response).await
     }
 
     async fn download_to_path(
@@ -340,31 +331,60 @@ impl HttpClient for ReqwestHttpClient {
         form = form.part(file_field_name, file_part);
         let response = builder
             .multipart(form)
+            .timeout(MULTIPART_REQUEST_TIMEOUT)
             .send()
             .await
             .map_err(|error| AuthError::upstream(error.to_string()))?;
-        let status = response.status().as_u16();
-        let headers = response
-            .headers()
-            .iter()
-            .filter_map(|(name, value)| {
-                value
-                    .to_str()
-                    .ok()
-                    .map(|value| (name.as_str().to_string(), value.to_string()))
-            })
-            .collect();
-        let body = response
-            .bytes()
-            .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?
-            .to_vec();
-        Ok(HttpResponse {
-            status,
-            headers,
-            body,
-        })
+        buffered_response(response).await
     }
+}
+
+async fn buffered_response(response: reqwest::Response) -> Result<HttpResponse, AuthError> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_BUFFERED_RESPONSE_BYTES as u64)
+    {
+        return Err(response_too_large());
+    }
+    let status = response.status().as_u16();
+    let headers = response
+        .headers()
+        .iter()
+        .filter_map(|(name, value)| {
+            value
+                .to_str()
+                .ok()
+                .map(|value| (name.as_str().to_string(), value.to_string()))
+        })
+        .collect();
+    let mut body = Vec::with_capacity(
+        response
+            .content_length()
+            .unwrap_or_default()
+            .min(MAX_BUFFERED_RESPONSE_BYTES as u64) as usize,
+    );
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| AuthError::upstream(error.to_string()))?;
+        append_buffered_chunk(&mut body, &chunk)?;
+    }
+    Ok(HttpResponse {
+        status,
+        headers,
+        body,
+    })
+}
+
+fn append_buffered_chunk(body: &mut Vec<u8>, chunk: &[u8]) -> Result<(), AuthError> {
+    if body.len().saturating_add(chunk.len()) > MAX_BUFFERED_RESPONSE_BYTES {
+        return Err(response_too_large());
+    }
+    body.extend_from_slice(chunk);
+    Ok(())
+}
+
+fn response_too_large() -> AuthError {
+    AuthError::upstream("upstream response exceeded the 8 MiB safety limit")
 }
 
 fn multipart_file_body(
@@ -411,4 +431,19 @@ fn multipart_quoted_string(value: &str) -> String {
 
 fn cancelled_error() -> AuthError {
     AuthError::new(AuthErrorCode::UnknownAuthError, "下载已取消。")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn buffered_response_rejects_chunks_over_the_limit() {
+        let mut body = vec![0; MAX_BUFFERED_RESPONSE_BYTES];
+
+        let error = append_buffered_chunk(&mut body, &[1]).expect_err("response is capped");
+
+        assert_eq!(error.code, AuthErrorCode::UpstreamUnavailable);
+        assert_eq!(body.len(), MAX_BUFFERED_RESPONSE_BYTES);
+    }
 }

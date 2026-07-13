@@ -26,7 +26,7 @@ The current implemented harness contains `api`, `core`, `store`, `cli`, `ffi`, a
 - `attendance.rs`: check-in/attendance state loading and pure parsing for user-supplied `checkwork|...` QR payload text.
 - `extensions.rs`: client capability defaults shared by adapters.
 - `assignments.rs`: assignment list/detail normalization, attachment upload, and assignment submit protocol.
-- `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, and raw download bytes.
+- `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, and streamed, non-overwriting file downloads.
 - `protocol.rs`: shared UCloud response envelope parsing and primitive value normalization.
 
 Do not move shared transport, client, error, or protocol helpers back into a business module just because one module uses them first.

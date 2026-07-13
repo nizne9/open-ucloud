@@ -7,8 +7,8 @@ use open_cloud_api::{
     CourseResourceSummary, CourseResourcesResponse, CourseSite, GoingSite, RoleName,
 };
 use open_cloud_core::{
-    client_capabilities, refresh_session_if_needed, resolve_course_detail, OpenCloudClient,
-    OpenCloudEndpoints, ReqwestHttpClient,
+    client_capabilities, refresh_session_if_needed, resolve_course_detail, DownloadCancelFlag,
+    DownloadProgress, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
 };
 use open_cloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
@@ -1312,12 +1312,15 @@ where
     std::fs::create_dir_all(out_dir)
         .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
     let path = next_download_path(out_dir, &detail.name)?;
-    let bytes = client
-        .download_url_bytes(url)
+    client
+        .download_url_to_path(
+            url,
+            &path,
+            DownloadProgress::default(),
+            DownloadCancelFlag::default(),
+        )
         .await
         .map_err(to_response_error)?;
-    std::fs::write(&path, bytes)
-        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?;
     Ok(path)
 }
 
