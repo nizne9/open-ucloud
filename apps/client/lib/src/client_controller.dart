@@ -20,7 +20,12 @@ enum ClientTab { dashboard, assignments, resources, account }
 
 enum AssignmentView { undone, course }
 
-enum OperationContext { assignmentDetail, assignmentList, resourceDetail, resourceList }
+enum OperationContext {
+  assignmentDetail,
+  assignmentList,
+  resourceDetail,
+  resourceList,
+}
 
 const _defaultCapabilities = FfiClientCapabilities(
   selfAttendance: false,

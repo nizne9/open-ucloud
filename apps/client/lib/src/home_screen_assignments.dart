@@ -1,4 +1,5 @@
 part of 'home_screen.dart';
+
 class _AssignmentsPane extends ConsumerWidget {
   const _AssignmentsPane();
 
@@ -123,15 +124,18 @@ class _AssignmentsPane extends ConsumerWidget {
               label: state.assignmentView == AssignmentView.undone
                   ? '当前没有待提交作业'
                   : '当前课程暂无作业',
-              action: state.assignmentView == AssignmentView.course &&
+              action:
+                  state.assignmentView == AssignmentView.course &&
                       state.courses.length > 1
                   ? OutlinedButton.icon(
                       onPressed: () {
-                        unawaited(_changeAssignmentView(
-                          context,
-                          ref,
-                          AssignmentView.undone,
-                        ));
+                        unawaited(
+                          _changeAssignmentView(
+                            context,
+                            ref,
+                            AssignmentView.undone,
+                          ),
+                        );
                       },
                       icon: const Icon(Icons.pending_actions_outlined),
                       label: const Text('查看待提交'),
@@ -327,8 +331,7 @@ class _AssignmentsPane extends ConsumerWidget {
       ),
     );
   }
-
-  }
+}
 
 String _assignmentStatusText(FfiAssignmentStatus status) {
   return switch (status) {
@@ -423,10 +426,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _MetaChip(
-                  icon: Icons.class_outlined,
-                  label: courseName,
-                ),
+                _MetaChip(icon: Icons.class_outlined, label: courseName),
                 if (detail.endTime.isNotEmpty)
                   _MetaChip(
                     icon: Icons.event_outlined,

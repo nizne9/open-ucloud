@@ -1,4 +1,5 @@
 part of 'home_screen.dart';
+
 const _downloadSummaryInlinePathLimit = 5;
 
 class _DownloadSummary extends StatefulWidget {
@@ -107,7 +108,10 @@ class _FeedbackBanners extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         if (visibleOperationMessage != null) ...[
-          _StatusBanner(kind: _BannerKind.info, message: visibleOperationMessage),
+          _StatusBanner(
+            kind: _BannerKind.info,
+            message: visibleOperationMessage,
+          ),
           const SizedBox(height: 12),
         ],
       ],
@@ -272,10 +276,7 @@ class _LoadingPane extends StatelessWidget {
 enum _BannerKind { error, info }
 
 class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({
-    required this.message,
-    required this.kind,
-  });
+  const _StatusBanner({required this.message, required this.kind});
 
   final String message;
   final _BannerKind kind;
@@ -285,15 +286,15 @@ class _StatusBanner extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final (backgroundColor, foregroundColor, iconData) = switch (kind) {
       _BannerKind.error => (
-          colorScheme.errorContainer,
-          colorScheme.onErrorContainer,
-          Icons.error_outline,
-        ),
+        colorScheme.errorContainer,
+        colorScheme.onErrorContainer,
+        Icons.error_outline,
+      ),
       _BannerKind.info => (
-          colorScheme.primaryContainer,
-          colorScheme.onPrimaryContainer,
-          Icons.check_circle_outline,
-        ),
+        colorScheme.primaryContainer,
+        colorScheme.onPrimaryContainer,
+        Icons.check_circle_outline,
+      ),
     };
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -307,7 +308,9 @@ class _StatusBanner extends StatelessWidget {
           children: [
             Icon(iconData, color: foregroundColor),
             const SizedBox(width: 8),
-            Expanded(child: Text(message, style: TextStyle(color: foregroundColor))),
+            Expanded(
+              child: Text(message, style: TextStyle(color: foregroundColor)),
+            ),
           ],
         ),
       ),

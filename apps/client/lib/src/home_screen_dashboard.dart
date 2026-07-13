@@ -1,4 +1,5 @@
 part of 'home_screen.dart';
+
 class _DashboardPane extends ConsumerWidget {
   const _DashboardPane();
 
@@ -10,16 +11,14 @@ class _DashboardPane extends ConsumerWidget {
         !state.undoneAssignmentsLoaded &&
         !state.assignmentsLoading &&
         state.selectedTab == ClientTab.dashboard) {
-      Future.microtask(
-        () {
-          ref
-              .read(clientControllerProvider.notifier)
-              .loadUndoneAssignments(
-                selectedTab: ClientTab.dashboard,
-                clearGlobalError: false,
-              );
-        },
-      );
+      Future.microtask(() {
+        ref
+            .read(clientControllerProvider.notifier)
+            .loadUndoneAssignments(
+              selectedTab: ClientTab.dashboard,
+              clearGlobalError: false,
+            );
+      });
     }
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -235,10 +234,10 @@ class _CourseContextCard extends ConsumerWidget {
                 for (final course in state.courses)
                   _CourseContextRow(
                     course: course,
-                    onAssignments: () => unawaited(
-                        controller.loadCourseAssignments(course.id)),
-                    onResources: () => unawaited(
-                        controller.loadResourcesForCourse(course.id)),
+                    onAssignments: () =>
+                        unawaited(controller.loadCourseAssignments(course.id)),
+                    onResources: () =>
+                        unawaited(controller.loadResourcesForCourse(course.id)),
                   ),
               ],
             ),
@@ -355,7 +354,10 @@ class _PendingAssignmentsCard extends ConsumerWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _StatusBanner(kind: _BannerKind.error, message: state.pendingAssignmentsErrorMessage!),
+                _StatusBanner(
+                  kind: _BannerKind.error,
+                  message: state.pendingAssignmentsErrorMessage!,
+                ),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -376,11 +378,9 @@ class _PendingAssignmentsCard extends ConsumerWidget {
               label: '当前没有待提交作业',
               action: OutlinedButton.icon(
                 onPressed: () {
-                  unawaited(_selectClientTab(
-                    ClientTab.assignments,
-                    ref,
-                    context,
-                  ));
+                  unawaited(
+                    _selectClientTab(ClientTab.assignments, ref, context),
+                  );
                 },
                 icon: const Icon(Icons.assignment_outlined),
                 label: const Text('查看作业'),
@@ -509,7 +509,10 @@ class _AccountPane extends ConsumerWidget {
               if (session != null) ...[
                 _AccountBadge(name: session.user.realName, subtitle: '已登录'),
                 const SizedBox(height: 12),
-                _LabelValueRow(label: '角色', value: _roleLabel(session.selectedRole)),
+                _LabelValueRow(
+                  label: '角色',
+                  value: _roleLabel(session.selectedRole),
+                ),
                 _LabelValueRow(label: '账号', value: session.user.account),
               ],
               const SizedBox(height: 12),
@@ -545,4 +548,3 @@ class _AccountPane extends ConsumerWidget {
     );
   }
 }
-

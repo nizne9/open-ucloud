@@ -1,4 +1,5 @@
 part of 'home_screen.dart';
+
 void _openAttendanceQrDialog(BuildContext context, WidgetRef ref) {
   ref
       .read(clientControllerProvider.notifier)
@@ -70,18 +71,63 @@ class _AttendanceQrPayloadDialogState
               ),
               if (state.attendanceQrInputError != null) ...[
                 const SizedBox(height: 12),
-                _StatusBanner(kind: _BannerKind.error, message: state.attendanceQrInputError!),
+                _StatusBanner(
+                  kind: _BannerKind.error,
+                  message: state.attendanceQrInputError!,
+                ),
               ],
               if (parsed != null) ...[
                 const SizedBox(height: 16),
-                _LabelValueRow(label: '签到 ID', value: parsed.attendanceId, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
-                _LabelValueRow(label: '课程 ID', value: parsed.siteId, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
-                _LabelValueRow(label: '创建时间', value: parsed.createTime, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
-                _LabelValueRow(label: '课节 ID', value: parsed.classLessonId, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
+                _LabelValueRow(
+                  label: '签到 ID',
+                  value: parsed.attendanceId,
+                  labelWidth: 112,
+                  labelStyle: Theme.of(context).textTheme.labelLarge,
+                  bottomPadding: 8,
+                  selectable: true,
+                ),
+                _LabelValueRow(
+                  label: '课程 ID',
+                  value: parsed.siteId,
+                  labelWidth: 112,
+                  labelStyle: Theme.of(context).textTheme.labelLarge,
+                  bottomPadding: 8,
+                  selectable: true,
+                ),
+                _LabelValueRow(
+                  label: '创建时间',
+                  value: parsed.createTime,
+                  labelWidth: 112,
+                  labelStyle: Theme.of(context).textTheme.labelLarge,
+                  bottomPadding: 8,
+                  selectable: true,
+                ),
+                _LabelValueRow(
+                  label: '课节 ID',
+                  value: parsed.classLessonId,
+                  labelWidth: 112,
+                  labelStyle: Theme.of(context).textTheme.labelLarge,
+                  bottomPadding: 8,
+                  selectable: true,
+                ),
                 if (matchedCourse != null)
-                  _LabelValueRow(label: '课程', value: matchedCourse.name, labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
+                  _LabelValueRow(
+                    label: '课程',
+                    value: matchedCourse.name,
+                    labelWidth: 112,
+                    labelStyle: Theme.of(context).textTheme.labelLarge,
+                    bottomPadding: 8,
+                    selectable: true,
+                  ),
                 if (matchedCourse?.going ?? false)
-                  _LabelValueRow(label: '状态', value: '正在进行', labelWidth: 112, labelStyle: Theme.of(context).textTheme.labelLarge, bottomPadding: 8, selectable: true),
+                  _LabelValueRow(
+                    label: '状态',
+                    value: '正在进行',
+                    labelWidth: 112,
+                    labelStyle: Theme.of(context).textTheme.labelLarge,
+                    bottomPadding: 8,
+                    selectable: true,
+                  ),
               ],
             ],
           ),
@@ -103,5 +149,3 @@ class _AttendanceQrPayloadDialogState
     );
   }
 }
-
-

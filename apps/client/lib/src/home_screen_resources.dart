@@ -1,4 +1,5 @@
 part of 'home_screen.dart';
+
 String _resourceSummaryText(FfiCourseResourceSummary resource) {
   final parts = [
     if (resource.ext != null && resource.ext!.trim().isNotEmpty)
@@ -531,4 +532,3 @@ class _ResourceDetailCard extends ConsumerWidget {
     );
   }
 }
-

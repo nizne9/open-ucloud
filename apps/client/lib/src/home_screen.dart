@@ -59,8 +59,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               title: const Text('Open UCloud'),
               actions: [_ThemeModeMenu(themeMode: themeMode)],
             ),
-      bottomNavigationBar:
-          showBottomNav ? const _ClientNavigationBar() : null,
+      bottomNavigationBar: showBottomNav ? const _ClientNavigationBar() : null,
       body: SafeArea(
         bottom: !showBottomNav,
         child: AnimatedSwitcher(
@@ -937,7 +936,6 @@ Future<bool> _prepareForAssignmentContextChange(
   return true;
 }
 
-
 class _LoginPane extends ConsumerStatefulWidget {
   const _LoginPane();
 
@@ -964,9 +962,15 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
       text: initialState.pendingPassword ?? '',
     );
     _captchaController = TextEditingController();
-    _clearFieldOnError(_usernameController, () => _usernameError, () { _usernameError = null; });
-    _clearFieldOnError(_passwordController, () => _passwordError, () { _passwordError = null; });
-    _clearFieldOnError(_captchaController, () => _captchaError, () { _captchaError = null; });
+    _clearFieldOnError(_usernameController, () => _usernameError, () {
+      _usernameError = null;
+    });
+    _clearFieldOnError(_passwordController, () => _passwordError, () {
+      _passwordError = null;
+    });
+    _clearFieldOnError(_captchaController, () => _captchaError, () {
+      _captchaError = null;
+    });
   }
 
   void _clearFieldOnError(
@@ -1093,7 +1097,10 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
             ],
             if (state.errorMessage != null) ...[
               const SizedBox(height: 16),
-              _StatusBanner(kind: _BannerKind.error, message: state.errorMessage!),
+              _StatusBanner(
+                kind: _BannerKind.error,
+                message: state.errorMessage!,
+              ),
             ],
           ],
         ),
@@ -1132,10 +1139,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
       });
       return;
     }
-    controller.startLogin(
-      username: username,
-      password: password,
-    );
+    controller.startLogin(username: username, password: password);
   }
 }
 
@@ -1225,17 +1229,12 @@ class _LabelValueRow extends StatelessWidget {
             width: labelWidth,
             child: Text(label, style: labelStyle ?? defaultLabelStyle),
           ),
-          Expanded(
-            child: selectable
-                ? SelectableText(value)
-                : Text(value),
-          ),
+          Expanded(child: selectable ? SelectableText(value) : Text(value)),
         ],
       ),
     );
   }
 }
-
 
 IconData _assignmentIcon(FfiAssignmentStatus status) {
   return switch (status) {
@@ -1252,5 +1251,3 @@ String _roleLabel(FfiRoleName role) {
     FfiRoleName.assistant => '助教',
   };
 }
-
-
