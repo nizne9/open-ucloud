@@ -540,6 +540,13 @@ void main() {
     expect(find.widgetWithText(TextField, '用户名'), findsOneWidget);
     expect(find.widgetWithText(TextField, '密码'), findsOneWidget);
     expect(find.widgetWithText(TextField, '验证码'), findsNothing);
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, '密码'))
+          .controller
+          ?.text,
+      isEmpty,
+    );
   });
 
   testWidgets('restores session and renders courses', (tester) async {

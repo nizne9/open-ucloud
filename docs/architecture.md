@@ -41,6 +41,8 @@ Do not move shared transport, client, error, or protocol helpers back into a bus
 
 Core must not depend on CLI, FFI, Flutter, Web, or UI concepts. API must stay DTO-oriented. Store must expose interfaces that core can use without knowing platform details. Adapters depend inward on API/core/store.
 
+Flutter keeps immutable public presentation state in `client_state.dart` and orchestration in `client_controller.dart`. Login passwords are never fields on Riverpod state; the controller holds them only for the active authentication flow and clears them on success, cancellation, terminal failure, logout, session expiry, and provider disposal.
+
 ## Product Scope
 
 The project is a personal client and self-hosted entry point for regular Open UCloud account use.
