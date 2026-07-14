@@ -73,12 +73,21 @@ async fn start_login_flow_extracts_execution_and_captcha() {
     let http = MockHttp::with(vec![
         response(
             200,
-            &[("set-cookie", "JSESSIONID=abc; Path=/")],
-            r#"<input name="execution" value="e1"><script>config.captcha = { id: 'cap-1' }</script>"#,
+            &[
+                ("set-cookie", "route=node-1; Path=/; HttpOnly"),
+                ("set-cookie", "JSESSIONID=abc; Path=/; Secure"),
+            ],
+            r#"<input type="hidden" value="e1" data-extra="ok" name="execution">
+               <script>config.captcha = { "identity": "not-the-id", "id" : "cap-1" };</script>"#,
         ),
         response(200, &[("content-type", "image/png")], "png"),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let endpoints = OpenCloudEndpoints {
+        login_url: "https://login.example.edu/cas/login?service=https://cloud.example.edu"
+            .to_string(),
+        ..OpenCloudEndpoints::default()
+    };
+    let client = OpenCloudClient::new(http.clone(), endpoints);
 
     let flow = client.start_login("2024000000").await.expect("flow starts");
 
@@ -88,7 +97,14 @@ async fn start_login_flow_extracts_execution_and_captcha() {
         flow.captcha_image.as_deref(),
         Some("data:image/png;base64,cG5n")
     );
-    assert_eq!(flow.cookie, "JSESSIONID=abc");
+    assert_eq!(flow.cookie, "route=node-1; JSESSIONID=abc");
+    let requests = http.requests();
+    assert!(requests[1].headers.iter().any(|(name, value)| {
+        name.eq_ignore_ascii_case("cookie") && value == "route=node-1; JSESSIONID=abc"
+    }));
+    assert!(requests[1]
+        .url
+        .starts_with("https://login.example.edu/authserver/captcha?"));
 }
 
 #[tokio::test]
@@ -96,7 +112,7 @@ async fn finish_login_flow_maps_invalid_captcha() {
     let http = MockHttp::with(vec![response(
         401,
         &[],
-        r#"<div class="alert alert-danger" id="errorDiv"><p>Bad captcha.</p></div>"#,
+        r#"<div id="errorDiv" class="alert alert-danger"><p><strong>Bad captcha.</strong></p></div>"#,
     )]);
     let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
     let flow = open_cloud_core::LoginFlow {
@@ -121,11 +137,7 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
     let access = jwt_with_exp(4_200);
     let refresh = jwt_with_exp(9_200);
     let http = MockHttp::with(vec![
-        response(
-            302,
-            &[("location", "https://ucloud.bupt.edu.cn?ticket=ticket-1")],
-            "",
-        ),
+        response(303, &[("location", "/callback?ticket=ticket-1")], ""),
         response(
             200,
             &[],
@@ -312,7 +324,7 @@ async fn get_student_courses_requests_documented_endpoint_and_filters_records() 
     );
     assert_eq!(
         url.query_pairs().find(|(key, _)| key == "size").unwrap().1,
-        "9999"
+        "100"
     );
     assert_eq!(
         url.query_pairs()
@@ -328,6 +340,48 @@ async fn get_student_courses_requests_documented_endpoint_and_filters_records() 
         .headers
         .iter()
         .any(|(name, value)| name == "Blade-Auth" && value == "access-token"));
+}
+
+#[tokio::test]
+async fn get_student_courses_paginates_and_deduplicates_ids() {
+    let first_page = (0..100)
+        .map(|index| serde_json::json!({"id": format!("site-{index}"), "siteName": format!("课程 {index}")}))
+        .collect::<Vec<_>>();
+    let http = MockHttp::with(vec![
+        response(
+            200,
+            &[],
+            &serde_json::json!({"success": true, "data": {"records": first_page}}).to_string(),
+        ),
+        response(
+            200,
+            &[],
+            r#"{"success":true,"data":{"records":[
+              {"id":"site-99","siteName":"重复课程"},
+              {"id":"site-100","siteName":"新课程"}
+            ]}}"#,
+        ),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let courses = client
+        .get_student_courses("u-1", "access-token")
+        .await
+        .expect("courses load");
+
+    assert_eq!(courses.len(), 101);
+    assert_eq!(courses.last().expect("last course").id, "site-100");
+    let requests = http.requests();
+    assert_eq!(requests.len(), 2);
+    let second_url = url::Url::parse(&requests[1].url).expect("second request url parses");
+    assert_eq!(
+        second_url
+            .query_pairs()
+            .find(|(key, _)| key == "current")
+            .expect("current query")
+            .1,
+        "2"
+    );
 }
 
 #[tokio::test]
@@ -580,6 +634,6 @@ fn resolve_course_detail_reports_missing_course() {
 
     let err = resolve_course_detail(&courses, &[], "missing").expect_err("course is missing");
 
-    assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.code, AuthErrorCode::NotFound);
     assert_eq!(err.message, "未找到课程：missing。");
 }

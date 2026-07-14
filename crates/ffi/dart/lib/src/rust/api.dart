@@ -6,8 +6,8 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `assignment_detail_with_client`, `assignment_submit_with_client`, `assignment_upload_with_client`, `assignments_for_course_with_client`, `assignments_undone_with_client`, `auth_finish_with_client`, `auth_start_with_client`, `courses_with_client`, `create_download_task`, `decode_session_payload`, `default_client`, `download_resource_to_path`, `download_tasks`, `encode_session_payload`, `error`, `finish_download_task`, `fs_error`, `next_download_path`, `now_ms`, `read_download_status`, `refreshed_session`, `resource_detail_with_client`, `resource_download_course_task`, `resource_download_course_with_client`, `resource_download_task`, `resource_download_with_client`, `resources_for_course_with_client`, `sanitize_file_name`, `shared_default_client`, `to_ffi_error`, `update_download_status`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadTask`, `FfiCourseResourceDownloadResponse`
+// These functions are ignored because they are not marked as `pub`: `assignment_detail_with_client`, `assignment_submit_with_client`, `assignment_upload_with_client`, `assignments_for_course_with_client`, `assignments_undone_with_client`, `auth_finish_with_client`, `auth_start_with_client`, `course_download_targets`, `courses_with_client`, `create_download_task`, `decode_session_payload`, `download_course_targets`, `download_resource_to_path`, `download_tasks`, `encode_session_payload`, `error`, `fetch_course_resource_details`, `finish_download_task`, `fs_error`, `is_terminal_download_state`, `next_download_path_reserved`, `next_download_path`, `now_ms`, `read_download_status`, `refreshed_session`, `resource_detail_with_client`, `resource_download_course_task`, `resource_download_task`, `resources_for_course_with_client`, `sanitize_file_name`, `shared_default_client`, `to_ffi_error`, `update_download_status`, `validate_upload_file_metadata`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadTask`, `FfiCourseResourceDownloadResponse`, `ResourceDownloadTaskRequest`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 Future<FfiAuthStartResponse> authStart({required String username}) =>
@@ -454,6 +454,11 @@ enum FfiAuthErrorCode {
   sessionExpired,
   upstreamUnavailable,
   unknownAuthError,
+  cancelled,
+  invalidInput,
+  notFound,
+  fileSystem,
+  rateLimited,
   ;
 }
 

@@ -108,8 +108,5 @@ pub fn parse_attendance_qr_payload(value: &str) -> Result<AttendanceQrPayload, A
 }
 
 fn invalid_attendance_qr_payload() -> AuthError {
-    AuthError::new(
-        AuthErrorCode::UnknownAuthError,
-        "签到二维码内容无效或不完整。",
-    )
+    AuthError::new(AuthErrorCode::InvalidInput, "签到二维码内容无效或不完整。")
 }

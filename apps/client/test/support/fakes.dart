@@ -41,7 +41,6 @@ FfiDownloadTaskStatus _succeededDownloadStatus(
     bytesDownloaded: BigInt.zero,
     writtenPaths: response.writtenPaths,
     records: response.records,
-    updatedSessionPayload: response.updatedSessionPayload,
   );
 }
 
@@ -430,6 +429,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
         bytesDownloaded: BigInt.zero,
         writtenPaths: const [],
         records: const [],
+        updatedSessionPayload: response.updatedSessionPayload,
       ),
     );
   }
@@ -458,6 +458,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
         bytesDownloaded: BigInt.zero,
         writtenPaths: const [],
         records: const [],
+        updatedSessionPayload: response.updatedSessionPayload,
       ),
     );
   }

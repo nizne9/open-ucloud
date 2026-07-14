@@ -1,11 +1,11 @@
+use crate::session::{shared_session_coordinator, SessionCoordinator};
 use futures_util::stream::{self, StreamExt};
 use open_cloud_api::{
     AuthErrorCode, AuthErrorResponse, CourseResourceDetail, CourseResourceSummary,
 };
 use open_cloud_core::{
-    client_capabilities, parse_attendance_qr_payload, refresh_session_if_needed,
-    DownloadCancelFlag, DownloadProgress, LoginFlow, OpenCloudClient, OpenCloudEndpoints,
-    ReqwestHttpClient,
+    client_capabilities, parse_attendance_qr_payload, DownloadCancelFlag, DownloadProgress,
+    LoginFlow, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
 };
 use open_cloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
@@ -51,6 +51,11 @@ pub enum FfiAuthErrorCode {
     SessionExpired,
     UpstreamUnavailable,
     UnknownAuthError,
+    Cancelled,
+    InvalidInput,
+    NotFound,
+    FileSystem,
+    RateLimited,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -358,6 +363,15 @@ struct DownloadTask {
 }
 
 struct ResourceDownloadTaskRequest {
+    session: AuthSession,
+    resource_id: String,
+    site_id: String,
+    site_name: String,
+    output_path: String,
+}
+
+#[cfg(test)]
+struct TestResourceDownloadRequest {
     session_payload: String,
     resource_id: String,
     site_id: String,
@@ -419,7 +433,7 @@ fn read_download_status(task_id: &str) -> Result<FfiDownloadTaskStatus, FfiAuthE
         .expect("download task map poisoned")
         .get(task_id)
         .cloned()
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
     let status = task.status.lock().expect("download task poisoned");
     let terminal = is_terminal_download_state(&status.state);
     Ok(FfiDownloadTaskStatus {
@@ -469,7 +483,10 @@ pub async fn auth_finish(
     flow: FfiLoginFlow,
 ) -> Result<FfiAuthFinishResponse, FfiAuthError> {
     let client = shared_default_client()?;
-    auth_finish_with_client(client, request, flow).await
+    let response = auth_finish_with_client(client, request, flow).await?;
+    let session = decode_session_payload(&response.session_payload, now_ms())?;
+    shared_session_coordinator().replace(session).await;
+    Ok(response)
 }
 
 pub fn session_summary(session_payload: String) -> Result<FfiAuthSessionResponse, FfiAuthError> {
@@ -497,14 +514,27 @@ pub async fn courses(
     with_going: bool,
 ) -> Result<FfiCourseResponse, FfiAuthError> {
     let client = shared_default_client()?;
-    courses_with_client(client, session_payload, with_going, now_ms()).await
+    courses_with_client(
+        client,
+        shared_session_coordinator(),
+        session_payload,
+        with_going,
+        now_ms(),
+    )
+    .await
 }
 
 pub async fn assignments_undone(
     session_payload: String,
 ) -> Result<FfiAssignmentListResponse, FfiAuthError> {
     let client = shared_default_client()?;
-    assignments_undone_with_client(client, session_payload, now_ms()).await
+    assignments_undone_with_client(
+        client,
+        shared_session_coordinator(),
+        session_payload,
+        now_ms(),
+    )
+    .await
 }
 
 pub async fn assignments_for_course(
@@ -516,6 +546,7 @@ pub async fn assignments_for_course(
     let client = shared_default_client()?;
     assignments_for_course_with_client(
         client,
+        shared_session_coordinator(),
         session_payload,
         site_id,
         site_name,
@@ -530,7 +561,14 @@ pub async fn assignment_detail(
     assignment_id: String,
 ) -> Result<FfiAssignmentDetailResponse, FfiAuthError> {
     let client = shared_default_client()?;
-    assignment_detail_with_client(client, session_payload, assignment_id, now_ms()).await
+    assignment_detail_with_client(
+        client,
+        shared_session_coordinator(),
+        session_payload,
+        assignment_id,
+        now_ms(),
+    )
+    .await
 }
 
 pub async fn assignment_upload(
@@ -539,7 +577,15 @@ pub async fn assignment_upload(
     file_path: String,
 ) -> Result<FfiAssignmentUploadResponse, FfiAuthError> {
     let client = shared_default_client()?;
-    assignment_upload_with_client(client, session_payload, assignment_id, file_path, now_ms()).await
+    assignment_upload_with_client(
+        client,
+        shared_session_coordinator(),
+        session_payload,
+        assignment_id,
+        file_path,
+        now_ms(),
+    )
+    .await
 }
 
 pub async fn assignment_submit(
@@ -551,6 +597,7 @@ pub async fn assignment_submit(
     let client = shared_default_client()?;
     assignment_submit_with_client(
         client,
+        shared_session_coordinator(),
         session_payload,
         assignment_id,
         content,
@@ -566,7 +613,15 @@ pub async fn resources_for_course(
     site_name: String,
 ) -> Result<FfiCourseResourcesResponse, FfiAuthError> {
     let client = shared_default_client()?;
-    resources_for_course_with_client(client, session_payload, site_id, site_name, now_ms()).await
+    resources_for_course_with_client(
+        client,
+        shared_session_coordinator(),
+        session_payload,
+        site_id,
+        site_name,
+        now_ms(),
+    )
+    .await
 }
 
 pub async fn resource_detail(
@@ -578,6 +633,7 @@ pub async fn resource_detail(
     let client = shared_default_client()?;
     resource_detail_with_client(
         client,
+        shared_session_coordinator(),
         session_payload,
         resource_id,
         site_id,
@@ -594,8 +650,17 @@ pub async fn resource_download_start(
     site_name: String,
     output_path: String,
 ) -> Result<FfiDownloadTaskStartResponse, FfiAuthError> {
-    let client = shared_default_client()?.clone();
-    let (task_id, task, status) = create_download_task(1);
+    let client = shared_default_client()?;
+    let (session, updated_session_payload) = refreshed_session(
+        client,
+        shared_session_coordinator(),
+        session_payload,
+        now_ms(),
+    )
+    .await?;
+    let client = client.clone();
+    let (task_id, task, mut status) = create_download_task(1);
+    status.updated_session_payload = updated_session_payload;
     let worker_task = task.clone();
     let worker_task_id = task_id.clone();
     let handle = tokio::spawn(async move {
@@ -603,12 +668,11 @@ pub async fn resource_download_start(
             client,
             worker_task.clone(),
             ResourceDownloadTaskRequest {
-                session_payload,
+                session,
                 resource_id,
                 site_id,
                 site_name,
                 output_path,
-                now_ms: now_ms(),
             },
         )
         .await;
@@ -627,19 +691,27 @@ pub async fn resource_download_course_start(
     site_name: String,
     output_dir: String,
 ) -> Result<FfiDownloadTaskStartResponse, FfiAuthError> {
-    let client = shared_default_client()?.clone();
-    let (task_id, task, status) = create_download_task(0);
+    let client = shared_default_client()?;
+    let (session, updated_session_payload) = refreshed_session(
+        client,
+        shared_session_coordinator(),
+        session_payload,
+        now_ms(),
+    )
+    .await?;
+    let client = client.clone();
+    let (task_id, task, mut status) = create_download_task(0);
+    status.updated_session_payload = updated_session_payload;
     let worker_task = task.clone();
     let worker_task_id = task_id.clone();
     let handle = tokio::spawn(async move {
         let result = resource_download_course_task(
             client,
             worker_task.clone(),
-            session_payload,
+            session,
             site_id,
             site_name,
             output_dir,
-            now_ms(),
         )
         .await;
         finish_download_task(worker_task, result);
@@ -661,7 +733,7 @@ pub fn download_task_cancel(task_id: String) -> Result<FfiDownloadTaskStatus, Ff
         .expect("download task map poisoned")
         .get(&task_id)
         .cloned()
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
     task.cancel.cancel();
     update_download_status(&task, |status| {
         if matches!(
@@ -680,14 +752,15 @@ pub fn download_task_dispose(task_id: String) -> Result<FfiLogoutResponse, FfiAu
         .lock()
         .expect("download task map poisoned")
         .remove(&task_id)
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "下载任务不存在。"))?;
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
     task.cancel.cancel();
     Ok(FfiLogoutResponse {
         clear_session: false,
     })
 }
 
-pub fn logout() -> FfiLogoutResponse {
+pub async fn logout() -> FfiLogoutResponse {
+    shared_session_coordinator().clear().await;
     FfiLogoutResponse {
         clear_session: true,
     }
@@ -756,6 +829,7 @@ where
 
 async fn courses_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     with_going: bool,
     now_ms: u64,
@@ -763,16 +837,8 @@ async fn courses_with_client<C>(
 where
     C: open_cloud_core::HttpClient,
 {
-    let session = decode_session_payload(&session_payload, now_ms)?;
-    let original = session.clone();
-    let refreshed = refresh_session_if_needed(client, session, now_ms)
-        .await
-        .map_err(to_ffi_error)?;
-    let updated_session_payload = if refreshed != original {
-        Some(encode_session_payload(&refreshed)?)
-    } else {
-        None
-    };
+    let (refreshed, updated_session_payload) =
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let records = client
         .get_student_courses(&refreshed.user.user_id, &refreshed.access_token)
         .await
@@ -798,6 +864,7 @@ where
 
 async fn assignments_undone_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     now_ms: u64,
 ) -> Result<FfiAssignmentListResponse, FfiAuthError>
@@ -805,7 +872,7 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let response = client
         .get_undone_assignments(&session.user.user_id, &session.access_token)
         .await
@@ -818,6 +885,7 @@ where
 
 async fn assignments_for_course_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     site_id: String,
     site_name: String,
@@ -828,7 +896,7 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let response = client
         .get_course_assignments(&site_id, &site_name, &session.access_token, &keyword)
         .await
@@ -841,6 +909,7 @@ where
 
 async fn assignment_detail_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     assignment_id: String,
     now_ms: u64,
@@ -849,7 +918,7 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let detail = client
         .get_assignment_detail(&assignment_id, &session.access_token)
         .await
@@ -861,6 +930,7 @@ where
 
 async fn assignment_upload_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     assignment_id: String,
     file_path: String,
@@ -870,14 +940,14 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let detail = client
         .get_assignment_detail(&assignment_id, &session.access_token)
         .await
         .map_err(to_ffi_error)?;
     if detail.status == open_cloud_api::AssignmentStatus::Expired {
         return Err(error(
-            AuthErrorCode::UnknownAuthError,
+            AuthErrorCode::InvalidInput,
             "当前作业已截止，不能继续上传附件。",
         ));
     }
@@ -885,7 +955,7 @@ where
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| error(AuthErrorCode::UnknownAuthError, "invalid upload file name"))?;
+        .ok_or_else(|| error(AuthErrorCode::InvalidFileName, "invalid upload file name"))?;
     validate_upload_file_metadata(&path, file_name)?;
     let upload = client
         .upload_assignment_file_path(
@@ -904,6 +974,7 @@ where
 
 async fn assignment_submit_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     assignment_id: String,
     content: String,
@@ -914,7 +985,7 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let response = client
         .submit_assignment(
             &assignment_id,
@@ -933,6 +1004,7 @@ where
 
 async fn resources_for_course_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     site_id: String,
     site_name: String,
@@ -942,7 +1014,7 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let response = client
         .get_course_resources(
             &site_id,
@@ -960,6 +1032,7 @@ where
 
 async fn resource_detail_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     resource_id: String,
     site_id: String,
@@ -970,7 +1043,7 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let detail = client
         .get_resource_detail(&resource_id, &site_id, &site_name, &session.access_token)
         .await
@@ -984,26 +1057,27 @@ where
 #[cfg(test)]
 async fn resource_download_with_client<C>(
     client: &OpenCloudClient<C>,
-    session_payload: String,
-    resource_id: String,
-    site_id: String,
-    site_name: String,
-    output_path: String,
-    now_ms: u64,
+    coordinator: &SessionCoordinator,
+    request: TestResourceDownloadRequest,
 ) -> Result<FfiCourseResourceDownloadResponse, FfiAuthError>
 where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, request.session_payload, request.now_ms).await?;
     let detail = client
-        .get_resource_detail(&resource_id, &site_id, &site_name, &session.access_token)
+        .get_resource_detail(
+            &request.resource_id,
+            &request.site_id,
+            &request.site_name,
+            &session.access_token,
+        )
         .await
         .map_err(to_ffi_error)?;
     let written_path = download_resource_to_path(
         client,
         &detail,
-        Path::new(&output_path),
+        Path::new(&request.output_path),
         DownloadProgress::default(),
         DownloadCancelFlag::default(),
     )
@@ -1018,6 +1092,7 @@ where
 #[cfg(test)]
 async fn resource_download_course_with_client<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     site_id: String,
     site_name: String,
@@ -1028,7 +1103,7 @@ where
     C: open_cloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
-        refreshed_session(client, session_payload, now_ms).await?;
+        refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let list = client
         .get_course_resources(
             &site_id,
@@ -1075,20 +1150,17 @@ async fn resource_download_task(
         status.state = FfiDownloadTaskState::Running;
         status.total = 1;
     });
-    let (session, updated_session_payload) =
-        refreshed_session(&client, request.session_payload, request.now_ms).await?;
     let detail = client
         .get_resource_detail(
             &request.resource_id,
             &request.site_id,
             &request.site_name,
-            &session.access_token,
+            &request.session.access_token,
         )
         .await
         .map_err(to_ffi_error)?;
     update_download_status(&task, |status| {
         status.current_file_name = Some(detail.name.clone());
-        status.updated_session_payload = updated_session_payload.clone();
         status.records = vec![detail.clone().into()];
     });
     let progress_task = task.clone();
@@ -1116,17 +1188,14 @@ async fn resource_download_task(
 async fn resource_download_course_task(
     client: OpenCloudClient<ReqwestHttpClient>,
     task: Arc<DownloadTask>,
-    session_payload: String,
+    session: AuthSession,
     site_id: String,
     site_name: String,
     output_dir: String,
-    now_ms: u64,
 ) -> Result<(), FfiAuthError> {
     update_download_status(&task, |status| {
         status.state = FfiDownloadTaskState::Running;
     });
-    let (session, updated_session_payload) =
-        refreshed_session(&client, session_payload, now_ms).await?;
     let list = client
         .get_course_resources(
             &site_id,
@@ -1139,7 +1208,6 @@ async fn resource_download_course_task(
     fs::create_dir_all(&output_dir).map_err(fs_error)?;
     update_download_status(&task, |status| {
         status.total = list.records.len() as u32;
-        status.updated_session_payload = updated_session_payload.clone();
     });
     let details = fetch_course_resource_details(
         &client,
@@ -1183,14 +1251,14 @@ where
             let cancel = cancel.clone();
             async move {
                 if cancel.is_cancelled() {
-                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                    return Err(error(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
                 let detail = client
                     .get_resource_detail(&resource.resource_id, &site_id, &site_name, &access_token)
                     .await
                     .map_err(to_ffi_error)?;
                 if cancel.is_cancelled() {
-                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                    return Err(error(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
                 Ok(detail)
             }
@@ -1242,7 +1310,7 @@ fn next_download_path_reserved(
         }
     }
     Err(error(
-        AuthErrorCode::UnknownAuthError,
+        AuthErrorCode::FileSystem,
         "could not allocate a non-overwriting download path.",
     ))
 }
@@ -1263,7 +1331,7 @@ where
             let task = task.clone();
             async move {
                 if cancel.is_cancelled() {
-                    return Err(error(AuthErrorCode::UnknownAuthError, "下载已取消。"));
+                    return Err(error(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
                 if let Some(task) = &task {
                     update_download_status(task, |status| {
@@ -1326,18 +1394,19 @@ fn finish_download_task(task: Arc<DownloadTask>, result: Result<(), FfiAuthError
 
 async fn refreshed_session<C>(
     client: &OpenCloudClient<C>,
+    coordinator: &SessionCoordinator,
     session_payload: String,
     now_ms: u64,
 ) -> Result<(AuthSession, Option<String>), FfiAuthError>
 where
     C: open_cloud_core::HttpClient,
 {
-    let session = decode_session_payload(&session_payload, now_ms)?;
-    let original = session.clone();
-    let refreshed = refresh_session_if_needed(client, session, now_ms)
+    let incoming = decode_session_payload(&session_payload, now_ms)?;
+    let refreshed = coordinator
+        .resolve(client, incoming.clone(), now_ms)
         .await
         .map_err(to_ffi_error)?;
-    let updated_session_payload = if refreshed != original {
+    let updated_session_payload = if refreshed != incoming {
         Some(encode_session_payload(&refreshed)?)
     } else {
         None
@@ -1355,12 +1424,10 @@ async fn download_resource_to_path<C>(
 where
     C: open_cloud_core::HttpClient,
 {
-    let url = detail.download_url.as_deref().ok_or_else(|| {
-        error(
-            AuthErrorCode::UnknownAuthError,
-            "当前资料暂时没有可用下载链接。",
-        )
-    })?;
+    let url = detail
+        .download_url
+        .as_deref()
+        .ok_or_else(|| error(AuthErrorCode::NotFound, "当前资料暂时没有可用下载链接。"))?;
     let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent).map_err(fs_error)?;
     let path = next_download_path(requested_path)?;
@@ -1393,7 +1460,7 @@ fn next_download_path(requested_path: &Path) -> Result<PathBuf, FfiAuthError> {
         }
     }
     Err(error(
-        AuthErrorCode::UnknownAuthError,
+        AuthErrorCode::FileSystem,
         "could not allocate a non-overwriting download path.",
     ))
 }
@@ -1416,7 +1483,7 @@ fn sanitize_file_name(file_name: &str) -> String {
 }
 
 fn fs_error(source: std::io::Error) -> FfiAuthError {
-    error(AuthErrorCode::UnknownAuthError, source.to_string())
+    error(AuthErrorCode::FileSystem, source.to_string())
 }
 
 fn validate_upload_file_metadata(path: &Path, file_name: &str) -> Result<(), FfiAuthError> {
@@ -1477,7 +1544,11 @@ fn decode_session_payload(session_payload: &str, now_ms: u64) -> Result<AuthSess
 }
 
 fn to_ffi_error(error_value: open_cloud_core::AuthError) -> FfiAuthError {
-    error(error_value.code, error_value.message)
+    FfiAuthError {
+        code: error_value.code.into(),
+        message: error_value.message,
+        retry_after_seconds: error_value.retry_after_seconds,
+    }
 }
 
 fn error(code: AuthErrorCode, message: impl Into<String>) -> FfiAuthError {
@@ -1537,6 +1608,11 @@ impl From<AuthErrorCode> for FfiAuthErrorCode {
             AuthErrorCode::SessionExpired => Self::SessionExpired,
             AuthErrorCode::UpstreamUnavailable => Self::UpstreamUnavailable,
             AuthErrorCode::UnknownAuthError => Self::UnknownAuthError,
+            AuthErrorCode::Cancelled => Self::Cancelled,
+            AuthErrorCode::InvalidInput => Self::InvalidInput,
+            AuthErrorCode::NotFound => Self::NotFound,
+            AuthErrorCode::FileSystem => Self::FileSystem,
+            AuthErrorCode::RateLimited => Self::RateLimited,
         }
     }
 }
@@ -1943,7 +2019,7 @@ mod tests {
         let err = parse_attendance_qr_payload_text("site-1:group-1".to_string())
             .expect_err("invalid payload fails");
 
-        assert_eq!(err.code, FfiAuthErrorCode::UnknownAuthError);
+        assert_eq!(err.code, FfiAuthErrorCode::InvalidInput);
     }
 
     #[test]
@@ -2078,9 +2154,10 @@ mod tests {
             ),
         ]);
         let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(101, 1_000)).expect("session encodes");
 
-        let result = courses_with_client(&client, payload, true, 100_500)
+        let result = courses_with_client(&client, &coordinator, payload, true, 100_500)
             .await
             .expect("courses load");
 
@@ -2099,6 +2176,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_session_resolution_refreshes_only_once() {
+        let refreshed_access = jwt_with_exp(8_000);
+        let refreshed_refresh = jwt_with_exp(16_000);
+        let http = MockHttp::with(vec![
+            response(
+                200,
+                &[],
+                r#"{"data":[{"domainId":"d","domainName":"教学空间","id":"identity-1","roleAliase":"学生","roleId":"role-1","roleName":"学生"}]}"#,
+            ),
+            response(
+                200,
+                &[],
+                &format!(
+                    r#"{{
+                      "access_token":"{refreshed_access}",
+                      "refresh_token":"{refreshed_refresh}",
+                      "expires_in":3600,
+                      "account":"2024000000",
+                      "real_name":"Alice",
+                      "user_id":"u-1",
+                      "user_name":"2024000000"
+                    }}"#
+                ),
+            ),
+        ]);
+        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
+        let incoming = session(101, 1_000);
+
+        let (first, second) = tokio::join!(
+            coordinator.resolve(&client, incoming.clone(), 100_500),
+            coordinator.resolve(&client, incoming, 100_500),
+        );
+
+        assert_eq!(first.expect("first session").access_token, refreshed_access);
+        assert_eq!(
+            second.expect("second session").access_token,
+            refreshed_access
+        );
+        assert_eq!(
+            http.requests().len(),
+            2,
+            "refresh chain must be single-flight"
+        );
+    }
+
+    #[tokio::test]
+    async fn session_resolution_reconciles_a_stale_payload_with_cached_session() {
+        let http = MockHttp::default();
+        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
+        let stale = session(future_exp(5_000), future_exp(10_000));
+        let current = session(future_exp(15_000), future_exp(20_000));
+        coordinator.replace(current.clone()).await;
+
+        let resolved = coordinator
+            .resolve(&client, stale, now_ms())
+            .await
+            .expect("cached session resolves");
+
+        assert_eq!(resolved, current);
+        assert!(http.requests().is_empty());
+    }
+
+    #[tokio::test]
     async fn courses_without_going_keeps_session_payload_when_access_token_is_valid() {
         let http = MockHttp::with(vec![response(
             200,
@@ -2106,10 +2248,11 @@ mod tests {
             r#"{"success":true,"data":{"records":[{"id":"site-1","siteName":"软件测试"}]}}"#,
         )]);
         let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
 
-        let result = courses_with_client(&client, payload, false, 100_500)
+        let result = courses_with_client(&client, &coordinator, payload, false, 100_500)
             .await
             .expect("courses load");
 
@@ -2150,9 +2293,10 @@ mod tests {
             ),
         ]);
         let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(101, 1_000)).expect("session encodes");
 
-        let result = assignments_undone_with_client(&client, payload, 100_500)
+        let result = assignments_undone_with_client(&client, &coordinator, payload, 100_500)
             .await
             .expect("assignments load");
 
@@ -2171,11 +2315,13 @@ mod tests {
             r#"{"success":true,"data":{"assignmentEndTime":"2000-01-01 00:00:00","assignmentTitle":"实验报告","id":"work-1","siteId":"site-1","siteName":"软件测试"}}"#,
         )]);
         let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
 
         let err = assignment_upload_with_client(
             &client,
+            &coordinator,
             payload,
             "work-1".to_string(),
             "/definitely/missing/report.pdf".to_string(),
@@ -2185,6 +2331,7 @@ mod tests {
         .expect_err("expired assignment is rejected");
 
         assert_eq!(err.message, "当前作业已截止，不能继续上传附件。");
+        assert_eq!(err.code, FfiAuthErrorCode::InvalidInput);
     }
 
     #[tokio::test]
@@ -2208,17 +2355,21 @@ mod tests {
             response(200, &[], "new bytes"),
         ]);
         let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
 
         let result = resource_download_with_client(
             &client,
-            payload,
-            "resource-1".to_string(),
-            "site-1".to_string(),
-            "软件测试".to_string(),
-            output.display().to_string(),
-            100_500,
+            &coordinator,
+            TestResourceDownloadRequest {
+                session_payload: payload,
+                resource_id: "resource-1".to_string(),
+                site_id: "site-1".to_string(),
+                site_name: "软件测试".to_string(),
+                output_path: output.display().to_string(),
+                now_ms: 100_500,
+            },
         )
         .await
         .expect("resource downloads");
@@ -2259,11 +2410,13 @@ mod tests {
             response(200, &[], "new bytes"),
         ]);
         let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
 
         let result = resource_download_course_with_client(
             &client,
+            &coordinator,
             payload,
             "site-1".to_string(),
             "软件测试".to_string(),
@@ -2318,11 +2471,13 @@ mod tests {
             ),
         ]);
         let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
 
         let result = resource_download_course_with_client(
             &client,
+            &coordinator,
             payload,
             "site-1".to_string(),
             "软件测试".to_string(),

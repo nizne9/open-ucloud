@@ -87,6 +87,11 @@ the equivalent values from the `android-release` Environment secrets. Release
 builds must fail when signing configuration is absent instead of falling back to
 the debug keystore.
 
+Android manifests must keep application backup disabled. The legacy full-backup
+rules and Android 12+ data-extraction rules both exclude all application domains
+so secure-session material and local student data are not copied through cloud
+backup or device transfer.
+
 Widget tests should cover current user-visible behavior and active regressions.
 When a UI element is removed, delete tests that only assert the old label or
 card is absent unless the absence is the product behavior being protected.
@@ -122,7 +127,9 @@ Release assets include CLI packages for Linux keyutils, Linux Secret Service, Wi
 
 The Android artifact produced by the build workflow is a `debug-signed` APK for development testing only and must not be treated as a formal release asset.
 
-The workflows use maintained major-version action tags such as `actions/checkout@v6`, `actions/cache@v5`, and `subosito/flutter-action@v2` instead of commit SHAs to keep this early CI readable and maintainable. If the project later requires high-assurance release provenance, pin those actions to audited commit SHAs in a dedicated hardening pass.
+All third-party workflow actions are pinned to reviewed full commit SHAs, with the corresponding major version retained in a line comment for readability. Dependabot checks Cargo, Pub, and GitHub Actions dependencies weekly. CI separately checks the declared Rust 1.88 MSRV and runs a fixed, locked `cargo-audit` release so stable-toolchain success cannot hide an MSRV regression or a known vulnerable Rust dependency.
+
+Rust 1.88 is the security-compatible floor for the current dependency set: Flutter Rust Bridge 2.12 already requires post-1.78 FFI syntax, while patched `time` releases addressing known denial-of-service advisories require 1.88. Direct dependencies are pinned to reviewed releases, and compatible transitive selections remain in `Cargo.lock`; dependency updates must pass both the MSRV and audit jobs before merge.
 
 ## Structural Expectations
 
@@ -143,5 +150,5 @@ Add structural tests or custom lints once the workspace is initialized:
 - dependency direction checks between crates
 - CLI JSON snapshot tests
 - file-size or module-size warnings
-- secret scanning for fixtures and logs
+- secret scanning for fixtures and logs beyond GitHub's repository-level scanning
 - documentation freshness checks for command names and module boundaries

@@ -210,6 +210,8 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
     let body = body_text(&request);
     assert!(body.contains(r#""siteId":"site-1""#));
     assert!(body.contains(r#""keyword":"实验""#));
+    assert!(body.contains(r#""current":1"#));
+    assert!(body.contains(r#""size":100"#));
     assert!(request.headers.iter().any(|(name, value)| {
         name.eq_ignore_ascii_case("authorization") && value == "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ="
     }));
@@ -217,6 +219,47 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
         .headers
         .iter()
         .any(|(name, value)| name == "Blade-Auth" && value == "access-token"));
+}
+
+#[tokio::test]
+async fn get_course_assignments_paginates_and_deduplicates_ids() {
+    let first_page = (0..100)
+        .map(|index| {
+            serde_json::json!({
+                "id": format!("work-{index}"),
+                "assignmentTitle": format!("作业 {index}"),
+                "assignmentEndTime": "2099-05-03"
+            })
+        })
+        .collect::<Vec<_>>();
+    let http = MockHttp::with(vec![
+        response(
+            200,
+            &serde_json::json!({"success": true, "data": {"records": first_page}}).to_string(),
+        ),
+        response(
+            200,
+            r#"{"success":true,"data":{"records":[
+              {"id":"work-99","assignmentTitle":"重复作业"},
+              {"id":"work-100","assignmentTitle":"新作业"}
+            ]}}"#,
+        ),
+    ]);
+    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+
+    let result = client
+        .get_course_assignments("site-1", "软件测试", "access-token", "")
+        .await
+        .expect("assignments load");
+
+    assert_eq!(result.records.len(), 101);
+    assert_eq!(
+        result.records.last().expect("last assignment").id,
+        "work-100"
+    );
+    let requests = http.requests();
+    assert_eq!(requests.len(), 2);
+    assert!(body_text(&requests[1]).contains(r#""current":2"#));
 }
 
 #[tokio::test]
@@ -351,7 +394,7 @@ async fn submit_assignment_rejects_empty_submission_before_network() {
         .await
         .expect_err("empty submission fails");
 
-    assert_eq!(err.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
     assert_eq!(err.message, "请先填写作业内容或上传附件。");
     assert!(http.requests().is_empty());
 }
@@ -691,29 +734,6 @@ async fn get_resource_detail_adds_download_url() {
 }
 
 #[tokio::test]
-async fn download_url_bytes_follows_download_redirects() {
-    let http = MockHttp::with(vec![
-        response_with_headers(
-            302,
-            &[("Location", "https://files.example/object/resource-1")],
-            "",
-        ),
-        response(200, "file bytes"),
-    ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
-
-    let bytes = client
-        .download_url_bytes("https://files.example/download/resource-1")
-        .await
-        .expect("download follows redirect");
-
-    assert_eq!(bytes, b"file bytes");
-    let requests = http.requests();
-    assert_eq!(requests.len(), 2);
-    assert_eq!(requests[1].url, "https://files.example/object/resource-1");
-}
-
-#[tokio::test]
 async fn download_url_to_path_streams_redirected_body_to_partial_then_renames() {
     let http = MockHttp::with(vec![
         response_with_headers(302, &[("Location", "/object/resource-1")], ""),
@@ -771,7 +791,7 @@ async fn download_url_to_path_removes_partial_when_cancelled_before_request() {
         .await
         .expect_err("download is cancelled");
 
-    assert_eq!(error.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(error.code, AuthErrorCode::Cancelled);
     assert!(!path.exists());
     assert!(partial_files_for(&path).is_empty());
     assert!(http.requests().is_empty());
@@ -801,10 +821,36 @@ async fn download_url_to_path_removes_partial_when_cancelled_before_rename() {
         .await
         .expect_err("download is cancelled before rename");
 
-    assert_eq!(error.code, AuthErrorCode::UnknownAuthError);
+    assert_eq!(error.code, AuthErrorCode::Cancelled);
     assert!(!path.exists());
     assert!(partial_files_for(&path).is_empty());
     assert_eq!(http.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn download_url_to_path_never_overwrites_a_racing_target() {
+    let http = MockHttp::with(vec![response(200, "new bytes")]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let path = temp_download_path("existing-resource.txt");
+    std::fs::write(&path, b"existing bytes").expect("existing target fixture");
+
+    let error = client
+        .download_url_to_path(
+            "https://files.example/download/resource-1",
+            &path,
+            DownloadProgress::default(),
+            DownloadCancelFlag::new(),
+        )
+        .await
+        .expect_err("existing target is preserved");
+
+    assert_eq!(error.code, AuthErrorCode::FileSystem);
+    assert_eq!(
+        std::fs::read(&path).expect("existing target remains"),
+        b"existing bytes"
+    );
+    assert!(partial_files_for(&path).is_empty());
+    let _ = std::fs::remove_file(&path);
 }
 
 fn temp_download_path(name: &str) -> PathBuf {

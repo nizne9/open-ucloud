@@ -1,6 +1,8 @@
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use base64::Engine;
+use cookie::Cookie;
 use open_cloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
+use scraper::{Html, Selector};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -41,22 +43,18 @@ where
                 body: None,
             })
             .await?;
-        let cookie = response
-            .header("set-cookie")
-            .and_then(|value| value.split(';').next())
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| AuthError::upstream("无法初始化统一认证登录会话。"))?
-            .to_string();
+        let cookie = login_cookie_header(&response)
+            .ok_or_else(|| AuthError::upstream("无法初始化统一认证登录会话。"))?;
         let html = response.text()?;
-        let execution = extract_between(&html, r#"<input name="execution" value=""#, r#"""#)
-            .ok_or_else(|| AuthError::upstream("无法获取统一认证 execution。"))?;
-        let captcha_id = extract_between(&html, "config.captcha", "}")
-            .and_then(|chunk| extract_between(&chunk, "id: '", "'"));
+        let (execution, captcha_id) = {
+            let document = Html::parse_document(&html);
+            let execution = input_value(&document, "execution")
+                .ok_or_else(|| AuthError::upstream("无法获取统一认证 execution。"))?;
+            (execution, captcha_id(&document))
+        };
 
         let captcha_image = if let Some(captcha_id) = &captcha_id {
-            let captcha_url = format!(
-                "https://auth.bupt.edu.cn/authserver/captcha?captchaId={captcha_id}&r=00000"
-            );
+            let captcha_url = captcha_url(&self.endpoints.login_url, captcha_id)?;
             let captcha_response = self
                 .http
                 .send(HttpRequest {
@@ -113,23 +111,18 @@ where
                 method: HttpMethod::Post,
                 url: self.endpoints.login_url.clone(),
                 headers: vec![
-                    ("authority".to_string(), "auth.bupt.edu.cn".to_string()),
                     (
                         "content-type".to_string(),
                         "application/x-www-form-urlencoded".to_string(),
                     ),
                     ("cookie".to_string(), flow.cookie.clone()),
                     ("referer".to_string(), self.endpoints.login_url.clone()),
-                    (
-                        "user-agent".to_string(),
-                        "Mozilla/5.0 AppleWebKit/537.36 Chrome/118 Safari/537.36".to_string(),
-                    ),
                 ],
                 body: Some(HttpBody::text(form_body)),
             })
             .await?;
 
-        if response.status != 302 {
+        if !matches!(response.status, 302 | 303) {
             let html = response.text().unwrap_or_default();
             let error = parse_error_message(&html);
             if response.status == 401 {
@@ -158,8 +151,7 @@ where
         let location = response
             .header("location")
             .ok_or_else(|| AuthError::upstream("登录成功但未收到 ticket。"))?;
-        let ticket = url::Url::parse(location)
-            .ok()
+        let ticket = resolve_location(&self.endpoints.login_url, location)
             .and_then(|url| {
                 url.query_pairs()
                     .find(|(key, _)| key == "ticket")
@@ -335,17 +327,85 @@ fn token_headers(referer: &str) -> Vec<(String, String)> {
     ]
 }
 
-fn extract_between(input: &str, prefix: &str, suffix: &str) -> Option<String> {
-    let start = input.find(prefix)? + prefix.len();
-    let rest = &input[start..];
-    let end = rest.find(suffix)?;
-    Some(rest[..end].to_string())
+fn login_cookie_header(response: &crate::HttpResponse) -> Option<String> {
+    let values = response
+        .header_values("set-cookie")
+        .filter_map(|value| Cookie::parse(value.to_string()).ok())
+        .map(|cookie| format!("{}={}", cookie.name(), cookie.value()))
+        .collect::<Vec<_>>();
+    (!values.is_empty()).then(|| values.join("; "))
+}
+
+fn input_value(document: &Html, name: &str) -> Option<String> {
+    let selector = Selector::parse(&format!(r#"input[name="{name}"]"#)).ok()?;
+    document
+        .select(&selector)
+        .filter_map(|element| element.value().attr("value"))
+        .map(str::trim)
+        .find(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn captcha_id(document: &Html) -> Option<String> {
+    let selector = Selector::parse("script").ok()?;
+    document.select(&selector).find_map(|script| {
+        quoted_property(&script.text().collect::<String>(), "config.captcha", "id")
+    })
+}
+
+fn quoted_property(source: &str, object_marker: &str, property: &str) -> Option<String> {
+    let object = source.split_once(object_marker)?.1;
+    let object = object.split_once('{')?.1.split_once('}')?.0;
+    let property_start = object.match_indices(property).find_map(|(index, _)| {
+        let before = object[..index].chars().next_back();
+        let after = object[index + property.len()..].chars().next();
+        let is_boundary = |value: Option<char>| match value {
+            Some(value) => !(value.is_ascii_alphanumeric() || value == '_'),
+            None => true,
+        };
+        (is_boundary(before) && is_boundary(after)).then_some(index + property.len())
+    })?;
+    let value = object[property_start..].split_once(':')?.1.trim_start();
+    let quote = value.chars().next()?;
+    if !matches!(quote, '\'' | '"') {
+        return None;
+    }
+    let value = &value[quote.len_utf8()..];
+    let end = value.find(quote)?;
+    (!value[..end].is_empty()).then(|| value[..end].to_string())
+}
+
+fn captcha_url(login_url: &str, captcha_id: &str) -> Result<String, AuthError> {
+    let mut url =
+        url::Url::parse(login_url).map_err(|error| AuthError::upstream(error.to_string()))?;
+    url.set_path("/authserver/captcha");
+    url.set_query(None);
+    url.query_pairs_mut()
+        .append_pair("captchaId", captcha_id)
+        .append_pair("r", "00000");
+    Ok(url.to_string())
+}
+
+fn resolve_location(base: &str, location: &str) -> Option<url::Url> {
+    url::Url::parse(location).ok().or_else(|| {
+        url::Url::parse(base)
+            .ok()
+            .and_then(|base| base.join(location).ok())
+    })
 }
 
 fn parse_error_message(html: &str) -> Option<String> {
-    let marker = r#"<div class="alert alert-danger" id="errorDiv">"#;
-    let section = extract_between(html, marker, "</div>")?;
-    extract_between(&section, "<p>", "</p>")
+    let document = Html::parse_document(html);
+    let selector = Selector::parse("#errorDiv p").ok()?;
+    let message = document
+        .select(&selector)
+        .next()?
+        .text()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    (!message.is_empty()).then_some(message)
 }
 
 fn form_url(value: &str) -> String {

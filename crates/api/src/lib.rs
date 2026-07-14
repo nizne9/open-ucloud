@@ -16,6 +16,11 @@ pub enum AuthErrorCode {
     SessionExpired,
     UpstreamUnavailable,
     UnknownAuthError,
+    Cancelled,
+    InvalidInput,
+    NotFound,
+    FileSystem,
+    RateLimited,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

@@ -958,9 +958,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
     _usernameController = TextEditingController(
       text: initialState.pendingUsername ?? '',
     );
-    _passwordController = TextEditingController(
-      text: initialState.pendingPassword ?? '',
-    );
+    _passwordController = TextEditingController();
     _captchaController = TextEditingController();
     _clearFieldOnError(_usernameController, () => _usernameError, () {
       _usernameError = null;
@@ -1082,7 +1080,11 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
             if (awaitingCaptcha) ...[
               const SizedBox(height: 8),
               TextButton.icon(
-                onPressed: controller.editLoginCredentials,
+                onPressed: () {
+                  _passwordController.clear();
+                  _captchaController.clear();
+                  controller.editLoginCredentials();
+                },
                 icon: const Icon(Icons.edit_outlined),
                 label: const Text('修改账号密码'),
               ),

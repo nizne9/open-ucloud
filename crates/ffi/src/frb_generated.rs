@@ -502,7 +502,7 @@ fn wire__crate__api__logout_impl(
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "logout",
             port: Some(port_),
@@ -519,11 +519,14 @@ fn wire__crate__api__logout_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok(crate::api::logout())?;
-                    Ok(output_ok)
-                })())
+            move |context| async move {
+                transform_result_sse::<_, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(crate::api::logout().await)?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
         },
     )
@@ -992,6 +995,11 @@ impl SseDecode for crate::api::FfiAuthErrorCode {
             10 => crate::api::FfiAuthErrorCode::SessionExpired,
             11 => crate::api::FfiAuthErrorCode::UpstreamUnavailable,
             12 => crate::api::FfiAuthErrorCode::UnknownAuthError,
+            13 => crate::api::FfiAuthErrorCode::Cancelled,
+            14 => crate::api::FfiAuthErrorCode::InvalidInput,
+            15 => crate::api::FfiAuthErrorCode::NotFound,
+            16 => crate::api::FfiAuthErrorCode::FileSystem,
+            17 => crate::api::FfiAuthErrorCode::RateLimited,
             _ => unreachable!("Invalid variant for FfiAuthErrorCode: {}", inner),
         };
     }
@@ -1814,6 +1822,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::FfiAuthErrorCode {
             Self::SessionExpired => 10.into_dart(),
             Self::UpstreamUnavailable => 11.into_dart(),
             Self::UnknownAuthError => 12.into_dart(),
+            Self::Cancelled => 13.into_dart(),
+            Self::InvalidInput => 14.into_dart(),
+            Self::NotFound => 15.into_dart(),
+            Self::FileSystem => 16.into_dart(),
+            Self::RateLimited => 17.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -2447,6 +2460,11 @@ impl SseEncode for crate::api::FfiAuthErrorCode {
                 crate::api::FfiAuthErrorCode::SessionExpired => 10,
                 crate::api::FfiAuthErrorCode::UpstreamUnavailable => 11,
                 crate::api::FfiAuthErrorCode::UnknownAuthError => 12,
+                crate::api::FfiAuthErrorCode::Cancelled => 13,
+                crate::api::FfiAuthErrorCode::InvalidInput => 14,
+                crate::api::FfiAuthErrorCode::NotFound => 15,
+                crate::api::FfiAuthErrorCode::FileSystem => 16,
+                crate::api::FfiAuthErrorCode::RateLimited => 17,
                 _ => {
                     unimplemented!("");
                 }

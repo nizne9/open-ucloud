@@ -99,37 +99,6 @@ where
         Ok(payload.data.and_then(|data| data.preview_url))
     }
 
-    pub async fn download_url_bytes(&self, url: &str) -> Result<Vec<u8>, AuthError> {
-        let mut next_url = url.to_string();
-        for _ in 0..=MAX_DOWNLOAD_REDIRECTS {
-            let response = self
-                .http
-                .send(HttpRequest {
-                    method: HttpMethod::Get,
-                    url: next_url.clone(),
-                    headers: Vec::new(),
-                    body: None,
-                })
-                .await?;
-            if (200..300).contains(&response.status) {
-                return Ok(response.body);
-            }
-            if is_download_redirect(response.status) {
-                let location = response
-                    .header("Location")
-                    .ok_or_else(|| AuthError::upstream("资料下载重定向缺少 Location。"))?
-                    .to_string();
-                next_url = resolve_download_redirect(&next_url, &location)?;
-                continue;
-            }
-            return Err(AuthError::upstream(format!(
-                "资料下载失败。 HTTP status {}.",
-                response.status
-            )));
-        }
-        Err(AuthError::upstream("资料下载重定向次数过多。"))
-    }
-
     pub async fn download_url_to_path(
         &self,
         url: &str,
@@ -140,16 +109,13 @@ where
         let parent = target_path.parent().unwrap_or_else(|| Path::new("."));
         tokio::fs::create_dir_all(parent)
             .await
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
+            .map_err(|error| AuthError::file_system(error.to_string()))?;
         let partial_path = partial_download_path(target_path);
         let mut next_url = url.to_string();
         for _ in 0..=MAX_DOWNLOAD_REDIRECTS {
             if cancel.is_cancelled() {
                 cleanup_partial(&partial_path).await;
-                return Err(AuthError::new(
-                    AuthErrorCode::UnknownAuthError,
-                    "下载已取消。",
-                ));
+                return Err(AuthError::new(AuthErrorCode::Cancelled, "下载已取消。"));
             }
             let response = self
                 .http
@@ -175,14 +141,9 @@ where
             if (200..300).contains(&response.status) {
                 if cancel.is_cancelled() {
                     cleanup_partial(&partial_path).await;
-                    return Err(AuthError::new(
-                        AuthErrorCode::UnknownAuthError,
-                        "下载已取消。",
-                    ));
+                    return Err(AuthError::new(AuthErrorCode::Cancelled, "下载已取消。"));
                 }
-                tokio::fs::rename(&partial_path, target_path)
-                    .await
-                    .map_err(|error| AuthError::upstream(error.to_string()))?;
+                commit_partial_without_overwrite(&partial_path, target_path).await?;
                 return Ok(target_path.to_path_buf());
             }
             cleanup_partial(&partial_path).await;
@@ -277,6 +238,29 @@ fn partial_download_path(target_path: &Path) -> PathBuf {
 
 async fn cleanup_partial(path: &Path) {
     let _ = tokio::fs::remove_file(path).await;
+}
+
+async fn commit_partial_without_overwrite(
+    partial_path: &Path,
+    target_path: &Path,
+) -> Result<(), AuthError> {
+    match tokio::fs::hard_link(partial_path, target_path).await {
+        Ok(()) => {
+            cleanup_partial(partial_path).await;
+            Ok(())
+        }
+        Err(error) => {
+            cleanup_partial(partial_path).await;
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                Err(AuthError::new(
+                    AuthErrorCode::FileSystem,
+                    "下载目标已存在，未覆盖原文件。",
+                ))
+            } else {
+                Err(AuthError::file_system(error.to_string()))
+            }
+        }
+    }
 }
 
 fn is_download_redirect(status: u16) -> bool {
