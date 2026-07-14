@@ -24,7 +24,7 @@ flutter_rust_bridge = "=2.12.0"
 keyring = { version = "3", default-features = false }
 reqwest = { version = "=0.12.28", default-features = false, features = ["cookies", "json", "multipart", "rustls-tls", "stream"] }
 futures-util = "0.3"
-rpassword = "=7.5.1"
+rpassword = "=7.5.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 scraper = "=0.27.0"
