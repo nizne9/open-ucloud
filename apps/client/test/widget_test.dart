@@ -41,7 +41,7 @@ void main() {
 
     expect(find.text('总览工作台'), findsWidgets);
     expect(find.text('查看课程、待交作业和资料更新。'), findsOneWidget);
-    expect(find.text('登录状态'), findsOneWidget);
+    expect(find.text('账户'), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byType(BottomNavigationBar), findsNothing);

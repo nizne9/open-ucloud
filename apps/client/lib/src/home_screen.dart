@@ -417,22 +417,15 @@ class _SideNavigation extends ConsumerWidget {
             children: [
               const _BrandHeader(subtitle: '学生桌面端'),
               const SizedBox(height: 24),
-              for (var index = 0; index < _clientDestinations.length; index++)
+              for (final destination in _clientDestinations)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _SideNavigationItem(
-                    number: '${index + 1}'.padLeft(2, '0'),
-                    destination: _clientDestinations[index],
-                    selected:
-                        navigationState.selectedTab ==
-                        _clientDestinations[index].tab,
+                    destination: destination,
+                    selected: navigationState.selectedTab == destination.tab,
                     onTap: () {
                       unawaited(
-                        _selectClientTab(
-                          _clientDestinations[index].tab,
-                          ref,
-                          context,
-                        ),
+                        _selectClientTab(destination.tab, ref, context),
                       );
                     },
                   ),
@@ -488,7 +481,9 @@ class _BrandHeader extends StatelessWidget {
 }
 
 class _BrandMark extends StatelessWidget {
-  const _BrandMark();
+  const _BrandMark({this.size = 28});
+
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -500,13 +495,14 @@ class _BrandMark extends StatelessWidget {
         color: colorScheme.primaryContainer.withValues(alpha: 0.28),
       ),
       child: SizedBox(
-        width: 28,
-        height: 28,
+        width: size,
+        height: size,
         child: Center(
           child: Text(
             'OU',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: colorScheme.primary,
+              fontSize: size * 0.4,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -518,13 +514,11 @@ class _BrandMark extends StatelessWidget {
 
 class _SideNavigationItem extends StatelessWidget {
   const _SideNavigationItem({
-    required this.number,
     required this.destination,
     required this.selected,
     required this.onTap,
   });
 
-  final String number;
   final _ClientDestination destination;
   final bool selected;
   final VoidCallback onTap;
@@ -549,22 +543,11 @@ class _SideNavigationItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           child: Row(
             children: [
-              SizedBox(
-                width: 26,
-                child: Text(
-                  number,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
               Icon(destination.icon, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  destination.tab == ClientTab.account
-                      ? destination.title
-                      : destination.label,
+                  destination.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelLarge,
@@ -1046,11 +1029,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
           shrinkWrap: true,
           padding: const EdgeInsets.all(24),
           children: [
-            Icon(
-              Icons.school_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            const Center(child: _BrandMark(size: 48)),
             const SizedBox(height: 16),
             Text(
               '登录 Open UCloud',
