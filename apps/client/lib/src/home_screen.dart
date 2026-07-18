@@ -18,6 +18,7 @@ part 'home_screen_dashboard.dart';
 part 'home_screen_assignments.dart';
 part 'home_screen_resources.dart';
 part 'home_screen_attendance.dart';
+part 'home_screen_downloads.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -191,49 +192,25 @@ _AssignmentDetailState _selectAssignmentDetailState(ClientState state) {
 
 typedef _ResourcesPaneState = ({
   List<CourseItem> courses,
-  List<String> downloadedPaths,
-  OperationContext? operationContext,
   String? errorMessage,
   FfiCourseResourceDetail? resourceDetail,
   bool resourceDetailLoading,
-  bool resourceDownloading,
   List<FfiCourseResourceSummary> resources,
   bool resourcesLoading,
   String? selectedResourceCourseId,
   String? selectedResourceId,
 });
 
-typedef _ResourceDownloadProgressState = ({
-  String? currentFileName,
-  int bytes,
-  int current,
-  int total,
-});
-
 _ResourcesPaneState _selectResourcesPaneState(ClientState state) {
   return (
     courses: state.courses,
-    downloadedPaths: state.downloadedPaths,
-    operationContext: state.operationContext,
     errorMessage: state.errorMessage,
     resourceDetail: state.resourceDetail,
     resourceDetailLoading: state.resourceDetailLoading,
-    resourceDownloading: state.resourceDownloading,
     resources: state.resources,
     resourcesLoading: state.resourcesLoading,
     selectedResourceCourseId: state.selectedResourceCourseId,
     selectedResourceId: state.selectedResourceId,
-  );
-}
-
-_ResourceDownloadProgressState _selectResourceDownloadProgressState(
-  ClientState state,
-) {
-  return (
-    currentFileName: state.resourceDownloadCurrentFileName,
-    bytes: state.resourceDownloadBytes,
-    current: state.resourceDownloadProgressCurrent,
-    total: state.resourceDownloadProgressTotal,
   );
 }
 
@@ -717,6 +694,7 @@ class _WorkbenchTopBar extends StatelessWidget {
                 icon: const Icon(Icons.refresh),
                 label: const Text('刷新'),
               ),
+              const _DownloadCenterButton(),
               _ThemeModeMenu(themeMode: themeMode),
               IconButton(
                 tooltip: '退出登录',
@@ -759,9 +737,6 @@ Future<bool> _prepareForTabDeparture(
 ) async {
   if (state.selectedTab == ClientTab.assignments) {
     return _prepareForAssignmentContextChange(context, ref);
-  }
-  if (state.selectedTab == ClientTab.resources && state.resourceDownloading) {
-    return _confirmCancelResourceDownload(context, ref);
   }
   return true;
 }
@@ -894,39 +869,6 @@ Future<void> _logoutWithConfirmation(
   if (ok && context.mounted) {
     onLogout();
   }
-}
-
-Future<bool> _confirmCancelResourceDownload(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  final ok = await _confirm(
-    context,
-    title: '取消当前下载？',
-    content: '当前资料下载还在进行。继续前需要先取消这个下载任务。',
-    confirmLabel: '取消下载',
-  );
-  if (!ok || !context.mounted) {
-    return false;
-  }
-  final contextHint =
-      ref.read(clientControllerProvider).operationContext ??
-      OperationContext.resourceList;
-  await ref
-      .read(clientControllerProvider.notifier)
-      .cancelActiveResourceDownload(context: contextHint);
-  return true;
-}
-
-Future<bool> _prepareForResourceContextChange(
-  BuildContext context,
-  WidgetRef ref,
-) async {
-  final state = ref.read(clientControllerProvider);
-  if (!state.resourceDownloading) {
-    return true;
-  }
-  return _confirmCancelResourceDownload(context, ref);
 }
 
 Future<bool> _prepareForAssignmentContextChange(

@@ -14,13 +14,6 @@ enum ClientTab { dashboard, assignments, resources, account }
 
 enum AssignmentView { undone, course }
 
-enum OperationContext {
-  assignmentDetail,
-  assignmentList,
-  resourceDetail,
-  resourceList,
-}
-
 const defaultClientCapabilities = FfiClientCapabilities(
   selfAttendance: false,
   attendanceQrPayloadParsing: false,
@@ -74,6 +67,68 @@ class AssignmentAttachmentState {
   final String? errorMessage;
 }
 
+/// Whether a download task state is terminal (no further updates expected).
+bool isTerminalDownloadState(FfiDownloadTaskState state) {
+  return state == FfiDownloadTaskState.succeeded ||
+      state == FfiDownloadTaskState.failed ||
+      state == FfiDownloadTaskState.cancelled ||
+      state == FfiDownloadTaskState.disposed;
+}
+
+/// One entry in the download queue. Queued items have no [taskId] yet; the
+/// id is assigned when the Rust-side task actually starts.
+class DownloadTaskItem {
+  const DownloadTaskItem({
+    required this.id,
+    required this.label,
+    required this.siteId,
+    required this.siteName,
+    required this.outputPath,
+    this.resourceId,
+    this.taskId,
+    this.status,
+  });
+
+  /// Local identity, stable across status updates.
+  final String id;
+  final String label;
+  final String siteId;
+  final String siteName;
+
+  /// Target file path for single downloads, directory for course downloads.
+  final String outputPath;
+
+  /// Null for whole-course downloads.
+  final String? resourceId;
+
+  /// Rust-side task id, assigned once the task starts.
+  final String? taskId;
+  final FfiDownloadTaskStatus? status;
+
+  bool get isCourseDownload => resourceId == null;
+  bool get isQueued => taskId == null;
+  bool get isTerminal {
+    final state = status?.state;
+    return state != null && isTerminalDownloadState(state);
+  }
+
+  bool get isRunning =>
+      !isQueued && status?.state == FfiDownloadTaskState.running;
+
+  DownloadTaskItem copyWith({String? taskId, FfiDownloadTaskStatus? status}) {
+    return DownloadTaskItem(
+      id: id,
+      label: label,
+      siteId: siteId,
+      siteName: siteName,
+      outputPath: outputPath,
+      resourceId: resourceId,
+      taskId: taskId ?? this.taskId,
+      status: status ?? this.status,
+    );
+  }
+}
+
 class ClientState {
   const ClientState({
     required this.phase,
@@ -100,21 +155,14 @@ class ClientState {
     this.resources = const [],
     this.resourcesLoading = false,
     this.resourceDetailLoading = false,
-    this.resourceDownloading = false,
     this.selectedResourceCourseId,
     this.selectedResourceId,
     this.resourceDetail,
-    this.downloadedPaths = const [],
-    this.resourceDownloadTaskId,
-    this.resourceDownloadProgressCurrent = 0,
-    this.resourceDownloadProgressTotal = 0,
-    this.resourceDownloadBytes = 0,
-    this.resourceDownloadCurrentFileName,
+    this.downloadTasks = const [],
     this.capabilities = defaultClientCapabilities,
     this.parsedAttendanceQrPayload,
     this.attendanceQrInputError,
     this.operationMessage,
-    this.operationContext,
     this.errorMessage,
   });
 
@@ -144,21 +192,14 @@ class ClientState {
   final List<FfiCourseResourceSummary> resources;
   final bool resourcesLoading;
   final bool resourceDetailLoading;
-  final bool resourceDownloading;
   final String? selectedResourceCourseId;
   final String? selectedResourceId;
   final FfiCourseResourceDetail? resourceDetail;
-  final List<String> downloadedPaths;
-  final String? resourceDownloadTaskId;
-  final int resourceDownloadProgressCurrent;
-  final int resourceDownloadProgressTotal;
-  final int resourceDownloadBytes;
-  final String? resourceDownloadCurrentFileName;
+  final List<DownloadTaskItem> downloadTasks;
   final FfiClientCapabilities capabilities;
   final FfiAttendanceQrPayload? parsedAttendanceQrPayload;
   final String? attendanceQrInputError;
   final String? operationMessage;
-  final OperationContext? operationContext;
   final String? errorMessage;
 
   bool get isBusy =>
@@ -195,21 +236,14 @@ class ClientState {
     List<FfiCourseResourceSummary>? resources,
     bool? resourcesLoading,
     bool? resourceDetailLoading,
-    bool? resourceDownloading,
     String? selectedResourceCourseId,
     String? selectedResourceId,
     FfiCourseResourceDetail? resourceDetail,
-    List<String>? downloadedPaths,
-    String? resourceDownloadTaskId,
-    int? resourceDownloadProgressCurrent,
-    int? resourceDownloadProgressTotal,
-    int? resourceDownloadBytes,
-    String? resourceDownloadCurrentFileName,
+    List<DownloadTaskItem>? downloadTasks,
     FfiClientCapabilities? capabilities,
     FfiAttendanceQrPayload? parsedAttendanceQrPayload,
     String? attendanceQrInputError,
     String? operationMessage,
-    OperationContext? operationContext,
     String? errorMessage,
     bool clearSession = false,
     bool clearLogin = false,
@@ -219,8 +253,6 @@ class ClientState {
     bool clearSelectedResourceCourse = false,
     bool clearResourceSelection = false,
     bool clearResourceDetail = false,
-    bool clearResourceDownloadTask = false,
-    bool clearResourceDownloadCurrentFileName = false,
     bool clearAttendanceQrResult = false,
     bool clearAttendanceQrError = false,
     bool clearPendingAssignmentsError = false,
@@ -269,7 +301,6 @@ class ClientState {
       resourcesLoading: resourcesLoading ?? this.resourcesLoading,
       resourceDetailLoading:
           resourceDetailLoading ?? this.resourceDetailLoading,
-      resourceDownloading: resourceDownloading ?? this.resourceDownloading,
       selectedResourceCourseId: clearSelectedResourceCourse
           ? null
           : selectedResourceCourseId ?? this.selectedResourceCourseId,
@@ -279,21 +310,7 @@ class ClientState {
       resourceDetail: clearResourceSelection || clearResourceDetail
           ? null
           : resourceDetail ?? this.resourceDetail,
-      downloadedPaths: downloadedPaths ?? this.downloadedPaths,
-      resourceDownloadTaskId: clearResourceDownloadTask
-          ? null
-          : resourceDownloadTaskId ?? this.resourceDownloadTaskId,
-      resourceDownloadProgressCurrent:
-          resourceDownloadProgressCurrent ??
-          this.resourceDownloadProgressCurrent,
-      resourceDownloadProgressTotal:
-          resourceDownloadProgressTotal ?? this.resourceDownloadProgressTotal,
-      resourceDownloadBytes:
-          resourceDownloadBytes ?? this.resourceDownloadBytes,
-      resourceDownloadCurrentFileName: clearResourceDownloadCurrentFileName
-          ? null
-          : resourceDownloadCurrentFileName ??
-                this.resourceDownloadCurrentFileName,
+      downloadTasks: downloadTasks ?? this.downloadTasks,
       capabilities: capabilities ?? this.capabilities,
       parsedAttendanceQrPayload: clearAttendanceQrResult
           ? null
@@ -304,9 +321,6 @@ class ClientState {
       operationMessage: clearOperationMessage
           ? null
           : operationMessage ?? this.operationMessage,
-      operationContext:
-          operationContext ??
-          (clearOperationMessage ? null : this.operationContext),
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
   }

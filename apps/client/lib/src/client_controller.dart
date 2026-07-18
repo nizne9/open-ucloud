@@ -22,9 +22,12 @@ final clientControllerProvider =
 
 class ClientController extends Notifier<ClientState> {
   String? _pendingPassword;
+  String? _lastPersistedPayload;
   int _assignmentListGeneration = 0;
   int _resourceListGeneration = 0;
   int _resourceDownloadGeneration = 0;
+  int _downloadItemSerial = 0;
+  bool _downloadQueuePumping = false;
   bool _resourceDownloadPollInFlight = false;
   Timer? _resourceDownloadPollTimer;
   List<FfiAssignmentSummary>? _undoneAssignmentsCache;
@@ -267,11 +270,15 @@ class ClientController extends Notifier<ClientState> {
 
   Future<void> logout() async {
     _pendingPassword = null;
+    _lastPersistedPayload = null;
     _assignmentListGeneration += 1;
     _resourceListGeneration += 1;
+    _resourceDownloadGeneration += 1;
+    _resourceDownloadPollTimer?.cancel();
+    _resourceDownloadPollTimer = null;
     _undoneAssignmentsCache = null;
     _courseAssignmentsCache.clear();
-    await _cancelActiveResourceDownloadSilently();
+    await _cancelAllDownloads();
     final gateway = ref.read(openCloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
     try {
@@ -285,20 +292,8 @@ class ClientController extends Notifier<ClientState> {
   }
 
   void selectTab(ClientTab tab) {
-    if (tab != ClientTab.resources) {
-      unawaited(_cancelActiveResourceDownloadSilently());
-    }
     state = state.copyWith(
       selectedTab: tab,
-      resourceDownloading: tab == ClientTab.resources
-          ? state.resourceDownloading
-          : false,
-      downloadedPaths: const [],
-      resourceDownloadProgressCurrent: 0,
-      resourceDownloadProgressTotal: 0,
-      resourceDownloadBytes: 0,
-      clearResourceDownloadTask: true,
-      clearResourceDownloadCurrentFileName: true,
       clearOperationMessage: true,
       clearError: true,
     );
@@ -624,7 +619,6 @@ class ClientController extends Notifier<ClientState> {
         ],
         assignmentUploading: false,
         operationMessage: '已上传附件 ${uploaded.fileName}',
-        operationContext: OperationContext.assignmentDetail,
         clearError: true,
       );
     } on FfiAuthError catch (error) {
@@ -668,7 +662,6 @@ class ClientController extends Notifier<ClientState> {
     state = state.copyWith(
       assignmentAttachments: attachments,
       operationMessage: '已移除附件 ${removed.name}',
-      operationContext: OperationContext.assignmentDetail,
       clearError: true,
     );
   }
@@ -757,7 +750,6 @@ class ClientController extends Notifier<ClientState> {
           title: detail.title,
         ),
         operationMessage: resubmitting ? '作业已重新提交' : '作业已提交',
-        operationContext: OperationContext.assignmentDetail,
       );
     } on FfiAuthError catch (error) {
       if (error.code != FfiAuthErrorCode.sessionExpired &&
@@ -786,20 +778,12 @@ class ClientController extends Notifier<ClientState> {
 
   Future<void> loadResourcesForCourse(String siteId) async {
     final generation = ++_resourceListGeneration;
-    unawaited(_cancelActiveResourceDownloadSilently());
     final course = _courseById(siteId);
     state = state.copyWith(
       selectedTab: ClientTab.resources,
       selectedResourceCourseId: siteId,
       resources: const [],
       resourcesLoading: true,
-      resourceDownloading: false,
-      downloadedPaths: const [],
-      resourceDownloadProgressCurrent: 0,
-      resourceDownloadProgressTotal: 0,
-      resourceDownloadBytes: 0,
-      clearResourceDownloadTask: true,
-      clearResourceDownloadCurrentFileName: true,
       resourceDetailLoading: false,
       clearResourceSelection: true,
       clearOperationMessage: true,
@@ -851,16 +835,9 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> selectResource(FfiCourseResourceSummary resource) async {
-    unawaited(_cancelActiveResourceDownloadSilently());
     state = state.copyWith(
       selectedResourceId: resource.resourceId,
       resourceDetailLoading: true,
-      downloadedPaths: const [],
-      resourceDownloadProgressCurrent: 0,
-      resourceDownloadProgressTotal: 0,
-      resourceDownloadBytes: 0,
-      clearResourceDownloadTask: true,
-      clearResourceDownloadCurrentFileName: true,
       clearResourceDetail: true,
       clearOperationMessage: true,
       clearError: true,
@@ -931,18 +908,9 @@ class ClientController extends Notifier<ClientState> {
   }
 
   void clearResourceSelection() {
-    unawaited(_cancelActiveResourceDownloadSilently());
     state = state.copyWith(
       resourceDetailLoading: false,
-      resourceDownloading: false,
-      downloadedPaths: const [],
-      resourceDownloadTaskId: null,
-      resourceDownloadProgressCurrent: 0,
-      resourceDownloadProgressTotal: 0,
-      resourceDownloadBytes: 0,
       clearResourceSelection: true,
-      clearResourceDownloadTask: true,
-      clearResourceDownloadCurrentFileName: true,
       clearOperationMessage: true,
       clearError: true,
     );
@@ -954,88 +922,13 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(errorMessage: '请先选择一个资料。');
       return;
     }
-    final payload = await _readSessionPayloadOrUnauthenticated();
-    if (payload == null) {
-      return;
-    }
-    final resourceId = detail.resourceId;
-    final siteId = detail.siteId;
-    _resourceDownloadGeneration += 1;
-    final downloadGeneration = _resourceDownloadGeneration;
-    state = state.copyWith(
-      resourceDownloading: true,
-      resourceDownloadProgressCurrent: 0,
-      resourceDownloadProgressTotal: 1,
-      resourceDownloadBytes: 0,
-      resourceDownloadCurrentFileName: detail.name,
-      downloadedPaths: const [],
-      operationContext: OperationContext.resourceDetail,
-      clearResourceDownloadTask: true,
-      clearError: true,
-      clearOperationMessage: true,
+    _enqueueDownload(
+      label: detail.name,
+      siteId: detail.siteId,
+      siteName: detail.siteName,
+      outputPath: outputPath,
+      resourceId: detail.resourceId,
     );
-    final gateway = ref.read(openCloudGatewayProvider);
-    try {
-      final response = await gateway.resourceDownloadStart(
-        sessionPayload: payload,
-        resourceId: resourceId,
-        siteId: siteId,
-        siteName: detail.siteName,
-        outputPath: outputPath,
-      );
-      if (downloadGeneration != _resourceDownloadGeneration) {
-        await gateway.downloadTaskCancel(taskId: response.taskId);
-        await gateway.downloadTaskDispose(taskId: response.taskId);
-        return;
-      }
-      await _persistUpdatedPayload(response.status.updatedSessionPayload);
-      if (downloadGeneration != _resourceDownloadGeneration) {
-        await gateway.downloadTaskCancel(taskId: response.taskId);
-        await gateway.downloadTaskDispose(taskId: response.taskId);
-        return;
-      }
-      state = state.copyWith(
-        resourceDownloadTaskId: response.taskId,
-        resourceDownloadProgressCurrent: response.status.current,
-        resourceDownloadProgressTotal: response.status.total,
-      );
-      await _startResourceDownloadPolling(
-        response.taskId,
-        downloadGeneration,
-        OperationContext.resourceDetail,
-        isStillCurrent: () =>
-            state.selectedTab == ClientTab.resources &&
-            state.selectedResourceId == resourceId &&
-            state.resourceDetail?.resourceId == resourceId &&
-            state.resourceDetail?.siteId == siteId,
-      );
-    } on FfiAuthError catch (error) {
-      if (downloadGeneration != _resourceDownloadGeneration &&
-          error.code != FfiAuthErrorCode.sessionExpired) {
-        return;
-      }
-      await _handleSessionError(
-        error,
-        fallbackPhase: ClientPhase.authenticated,
-      );
-      if (downloadGeneration == _resourceDownloadGeneration) {
-        state = state.copyWith(
-          resourceDownloading: false,
-          clearResourceDownloadTask: true,
-          clearResourceDownloadCurrentFileName: true,
-        );
-      }
-    } catch (error) {
-      if (downloadGeneration != _resourceDownloadGeneration) {
-        return;
-      }
-      state = state.copyWith(
-        resourceDownloading: false,
-        clearResourceDownloadTask: true,
-        clearResourceDownloadCurrentFileName: true,
-        errorMessage: '资料下载失败：${displayErrorText(error)}',
-      );
-    }
   }
 
   Future<void> downloadCourseResources(String outputDir) async {
@@ -1044,101 +937,59 @@ class ClientController extends Notifier<ClientState> {
       return;
     }
     final first = state.resources.first;
-    final siteId = first.siteId;
-    final siteName = first.siteName;
-    final payload = await _readSessionPayloadOrUnauthenticated();
-    if (payload == null) {
-      return;
-    }
-    _resourceDownloadGeneration += 1;
-    final downloadGeneration = _resourceDownloadGeneration;
-    state = state.copyWith(
-      resourceDownloading: true,
-      resourceDownloadProgressCurrent: 0,
-      resourceDownloadProgressTotal: state.resources.length,
-      resourceDownloadBytes: 0,
-      downloadedPaths: const [],
-      operationContext: OperationContext.resourceList,
-      clearResourceDownloadTask: true,
-      clearResourceDownloadCurrentFileName: true,
-      clearOperationMessage: true,
-      clearError: true,
+    _enqueueDownload(
+      label: first.siteName.isEmpty ? '课程资料' : first.siteName,
+      siteId: first.siteId,
+      siteName: first.siteName,
+      outputPath: outputDir,
     );
-    final gateway = ref.read(openCloudGatewayProvider);
-    try {
-      final response = await gateway.resourceDownloadCourseStart(
-        sessionPayload: payload,
-        siteId: siteId,
-        siteName: siteName,
-        outputDir: outputDir,
-      );
-      if (downloadGeneration != _resourceDownloadGeneration) {
-        await gateway.downloadTaskCancel(taskId: response.taskId);
-        await gateway.downloadTaskDispose(taskId: response.taskId);
-        return;
-      }
-      await _persistUpdatedPayload(response.status.updatedSessionPayload);
-      if (downloadGeneration != _resourceDownloadGeneration) {
-        await gateway.downloadTaskCancel(taskId: response.taskId);
-        await gateway.downloadTaskDispose(taskId: response.taskId);
-        return;
-      }
-      state = state.copyWith(
-        resourceDownloadTaskId: response.taskId,
-        resourceDownloadProgressCurrent: response.status.current,
-        resourceDownloadProgressTotal: response.status.total == 0
-            ? state.resources.length
-            : response.status.total,
-      );
-      await _startResourceDownloadPolling(
-        response.taskId,
-        downloadGeneration,
-        OperationContext.resourceList,
-        isStillCurrent: () =>
-            state.selectedTab == ClientTab.resources &&
-            state.selectedResourceCourseId == siteId,
-      );
-    } on FfiAuthError catch (error) {
-      if (downloadGeneration != _resourceDownloadGeneration &&
-          error.code != FfiAuthErrorCode.sessionExpired) {
-        return;
-      }
-      await _handleSessionError(
-        error,
-        fallbackPhase: ClientPhase.authenticated,
-      );
-      if (downloadGeneration == _resourceDownloadGeneration) {
-        state = state.copyWith(
-          resourceDownloading: false,
-          clearResourceDownloadTask: true,
-          clearResourceDownloadCurrentFileName: true,
-        );
-      }
-    } catch (error) {
-      if (downloadGeneration != _resourceDownloadGeneration) {
-        return;
-      }
-      state = state.copyWith(
-        resourceDownloading: false,
-        clearResourceDownloadTask: true,
-        clearResourceDownloadCurrentFileName: true,
-        errorMessage: '课程资料下载失败：${displayErrorText(error)}',
-      );
-    }
   }
 
-  Future<void> cancelActiveResourceDownload({OperationContext? context}) async {
-    final taskId = state.resourceDownloadTaskId;
+  void _enqueueDownload({
+    required String label,
+    required String siteId,
+    required String siteName,
+    required String outputPath,
+    String? resourceId,
+  }) {
+    final duplicate = state.downloadTasks.any(
+      (task) =>
+          !task.isTerminal &&
+          (resourceId == null
+              ? task.isCourseDownload && task.siteId == siteId
+              : task.resourceId == resourceId),
+    );
+    if (duplicate) {
+      state = state.copyWith(operationMessage: '已在下载队列中：$label');
+      return;
+    }
+    _downloadItemSerial += 1;
+    final item = DownloadTaskItem(
+      id: 'download-$_downloadItemSerial',
+      label: label,
+      siteId: siteId,
+      siteName: siteName,
+      outputPath: outputPath,
+      resourceId: resourceId,
+    );
+    state = state.copyWith(
+      downloadTasks: [...state.downloadTasks, item],
+      operationMessage: '已加入下载队列：$label',
+      clearError: true,
+    );
+    unawaited(_pumpDownloadQueue());
+  }
+
+  Future<void> cancelDownloadTask(String itemId) async {
+    final item = _downloadTaskById(itemId);
+    if (item == null) {
+      return;
+    }
+    final taskId = item.taskId;
     if (taskId == null) {
-      if (state.resourceDownloading) {
-        _resourceDownloadGeneration += 1;
-        state = state.copyWith(
-          resourceDownloading: false,
-          operationMessage: '下载已取消',
-          operationContext: context ?? state.operationContext,
-          clearResourceDownloadCurrentFileName: true,
-        );
-      }
+      _removeDownloadTask(itemId);
+      state = state.copyWith(operationMessage: '下载已取消');
+      unawaited(_pumpDownloadQueue());
       return;
     }
     _resourceDownloadGeneration += 1;
@@ -1148,109 +999,160 @@ class ClientController extends Notifier<ClientState> {
     try {
       final status = await gateway.downloadTaskCancel(taskId: taskId);
       await _persistUpdatedPayload(status.updatedSessionPayload);
-      state = state.copyWith(
-        resourceDownloading: false,
-        downloadedPaths: status.writtenPaths,
-        resourceDownloadProgressCurrent: status.current,
-        resourceDownloadProgressTotal: status.total,
-        resourceDownloadBytes: status.bytesDownloaded.toInt(),
-        operationMessage: '下载已取消',
-        operationContext: context ?? state.operationContext,
-        clearResourceDownloadTask: true,
-        clearResourceDownloadCurrentFileName: true,
-      );
+      _updateDownloadTask(itemId, status: status);
+      state = state.copyWith(operationMessage: '下载已取消');
     } catch (_) {
-      state = state.copyWith(
-        resourceDownloading: false,
-        clearResourceDownloadTask: true,
-        clearResourceDownloadCurrentFileName: true,
-      );
+      _removeDownloadTask(itemId);
     } finally {
+      try {
+        await gateway.downloadTaskDispose(taskId: taskId);
+      } catch (_) {}
+    }
+    unawaited(_pumpDownloadQueue());
+  }
+
+  void clearFinishedDownloads() {
+    state = state.copyWith(
+      downloadTasks: [
+        for (final task in state.downloadTasks)
+          if (!task.isTerminal) task,
+      ],
+    );
+  }
+
+  Future<void> _cancelAllDownloads() async {
+    final gateway = ref.read(openCloudGatewayProvider);
+    for (final task in state.downloadTasks) {
+      final taskId = task.taskId;
+      if (taskId == null) {
+        continue;
+      }
+      try {
+        await gateway.downloadTaskCancel(taskId: taskId);
+      } catch (_) {}
       try {
         await gateway.downloadTaskDispose(taskId: taskId);
       } catch (_) {}
     }
   }
 
-  Future<void> _cancelActiveResourceDownloadSilently() async {
-    final taskId = state.resourceDownloadTaskId;
-    if (taskId == null) {
-      if (state.resourceDownloading) {
-        _resourceDownloadGeneration += 1;
-        _resourceDownloadPollTimer?.cancel();
-        _resourceDownloadPollTimer = null;
-      }
+  /// Serial queue: starts the next queued item when nothing is running.
+  Future<void> _pumpDownloadQueue() async {
+    if (_downloadQueuePumping) {
       return;
     }
-    _resourceDownloadGeneration += 1;
-    _resourceDownloadPollTimer?.cancel();
-    _resourceDownloadPollTimer = null;
+    _downloadQueuePumping = true;
+    try {
+      while (!state.downloadTasks.any(
+        (task) => !task.isQueued && !task.isTerminal,
+      )) {
+        final queued = state.downloadTasks.where((task) => task.isQueued);
+        if (queued.isEmpty) {
+          return;
+        }
+        if (await _startDownloadTask(queued.first)) {
+          return;
+        }
+        // The item failed to start and was removed; try the next one.
+      }
+    } finally {
+      _downloadQueuePumping = false;
+    }
+  }
+
+  /// Returns false when the item is gone from the queue (cancelled or failed
+  /// to start) so the pump advances to the next queued item, true when it is
+  /// now running.
+  Future<bool> _startDownloadTask(DownloadTaskItem item) async {
+    final payload = await _readSessionPayloadOrUnauthenticated();
+    if (payload == null) {
+      _removeDownloadTask(item.id);
+      return false;
+    }
+    final current = _downloadTaskById(item.id);
+    if (current == null || !current.isQueued) {
+      return false;
+    }
     final gateway = ref.read(openCloudGatewayProvider);
     try {
-      await gateway.downloadTaskCancel(taskId: taskId);
-    } catch (_) {}
-    try {
-      await gateway.downloadTaskDispose(taskId: taskId);
-    } catch (_) {}
+      final resourceId = item.resourceId;
+      final response = resourceId == null
+          ? await gateway.resourceDownloadCourseStart(
+              sessionPayload: payload,
+              siteId: item.siteId,
+              siteName: item.siteName,
+              outputDir: item.outputPath,
+            )
+          : await gateway.resourceDownloadStart(
+              sessionPayload: payload,
+              resourceId: resourceId,
+              siteId: item.siteId,
+              siteName: item.siteName,
+              outputPath: item.outputPath,
+            );
+      if (_downloadTaskById(item.id) == null) {
+        // Cancelled while the start call was in flight.
+        await gateway.downloadTaskCancel(taskId: response.taskId);
+        await gateway.downloadTaskDispose(taskId: response.taskId);
+        return false;
+      }
+      await _persistUpdatedPayload(response.status.updatedSessionPayload);
+      var status = response.status;
+      if (resourceId == null &&
+          status.total == 0 &&
+          state.resources.isNotEmpty) {
+        status = _downloadTaskStatusWith(status, total: state.resources.length);
+      }
+      _updateDownloadTask(item.id, taskId: response.taskId, status: status);
+      _startDownloadPolling(response.taskId);
+      return true;
+    } on FfiAuthError catch (error) {
+      _removeDownloadTask(item.id);
+      await _handleSessionError(
+        error,
+        fallbackPhase: ClientPhase.authenticated,
+      );
+      if (state.phase == ClientPhase.authenticated) {
+        state = state.copyWith(errorMessage: '下载启动失败：${error.message}');
+      }
+      return false;
+    } catch (error) {
+      _removeDownloadTask(item.id);
+      state = state.copyWith(errorMessage: '下载启动失败：${displayErrorText(error)}');
+      return false;
+    }
   }
 
-  Future<void> _startResourceDownloadPolling(
-    String taskId,
-    int downloadGeneration,
-    OperationContext context, {
-    required bool Function() isStillCurrent,
-  }) async {
+  void _startDownloadPolling(String taskId) {
     _resourceDownloadPollTimer?.cancel();
+    final generation = ++_resourceDownloadGeneration;
     _resourceDownloadPollTimer = Timer.periodic(
       const Duration(milliseconds: 300),
-      (timer) {
-        unawaited(
-          _pollResourceDownloadTaskIfIdle(
-            taskId,
-            downloadGeneration,
-            context,
-            isStillCurrent: isStillCurrent,
-          ),
-        );
-      },
+      (_) => unawaited(_pollDownloadTaskIfIdle(taskId, generation)),
     );
-    await _pollResourceDownloadTaskIfIdle(
-      taskId,
-      downloadGeneration,
-      context,
-      isStillCurrent: isStillCurrent,
-    );
+    unawaited(_pollDownloadTaskIfIdle(taskId, generation));
   }
 
-  Future<void> _pollResourceDownloadTaskIfIdle(
-    String taskId,
-    int downloadGeneration,
-    OperationContext context, {
-    required bool Function() isStillCurrent,
-  }) async {
+  Future<void> _pollDownloadTaskIfIdle(String taskId, int generation) async {
     if (_resourceDownloadPollInFlight) {
       return;
     }
     _resourceDownloadPollInFlight = true;
     try {
-      await _pollResourceDownloadTask(
-        taskId,
-        downloadGeneration,
-        context,
-        isStillCurrent: isStillCurrent,
-      );
+      await _pollDownloadTask(taskId, generation);
     } finally {
       _resourceDownloadPollInFlight = false;
     }
   }
 
-  Future<void> _pollResourceDownloadTask(
-    String taskId,
-    int downloadGeneration,
-    OperationContext context, {
-    required bool Function() isStillCurrent,
-  }) async {
-    if (downloadGeneration != _resourceDownloadGeneration) {
+  Future<void> _pollDownloadTask(String taskId, int generation) async {
+    if (generation != _resourceDownloadGeneration) {
+      return;
+    }
+    final item = _downloadTaskByTaskId(taskId);
+    if (item == null) {
+      _resourceDownloadPollTimer?.cancel();
+      _resourceDownloadPollTimer = null;
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -1258,98 +1160,129 @@ class ClientController extends Notifier<ClientState> {
     try {
       status = await gateway.downloadTaskStatus(taskId: taskId);
     } catch (error) {
-      if (downloadGeneration != _resourceDownloadGeneration) {
+      if (generation != _resourceDownloadGeneration) {
         return;
       }
       _resourceDownloadPollTimer?.cancel();
       _resourceDownloadPollTimer = null;
-      state = state.copyWith(
-        resourceDownloading: false,
-        errorMessage: '下载状态更新失败：${displayErrorText(error)}',
-        clearResourceDownloadTask: true,
-        clearResourceDownloadCurrentFileName: true,
-      );
+      final message = '下载状态更新失败：${displayErrorText(error)}';
+      final lastKnown = item.status;
+      if (lastKnown != null) {
+        _updateDownloadTask(
+          item.id,
+          status: _downloadTaskStatusWith(
+            lastKnown,
+            state: FfiDownloadTaskState.failed,
+            errorMessage: message,
+          ),
+        );
+      }
+      state = state.copyWith(errorMessage: message);
+      try {
+        await gateway.downloadTaskCancel(taskId: taskId);
+      } catch (_) {}
+      try {
+        await gateway.downloadTaskDispose(taskId: taskId);
+      } catch (_) {}
+      unawaited(_pumpDownloadQueue());
       return;
     }
-
-    if (downloadGeneration != _resourceDownloadGeneration) {
+    if (generation != _resourceDownloadGeneration) {
       return;
     }
     await _persistUpdatedPayload(status.updatedSessionPayload);
 
-    final terminal = switch (status.state) {
-      FfiDownloadTaskState.succeeded ||
-      FfiDownloadTaskState.failed ||
-      FfiDownloadTaskState.cancelled ||
-      FfiDownloadTaskState.disposed => true,
-      _ => false,
-    };
-
-    if (!isStillCurrent()) {
-      if (terminal) {
-        await gateway.downloadTaskDispose(taskId: taskId);
-      }
+    final terminal = isTerminalDownloadState(status.state);
+    if (!terminal && _sameDownloadStatus(item.status, status)) {
+      return;
+    }
+    _updateDownloadTask(item.id, status: status);
+    if (!terminal) {
       return;
     }
 
-    if (!terminal && _matchesCurrentResourceDownloadStatus(status)) {
-      return;
-    }
-
-    state = state.copyWith(
-      resourceDownloading: !terminal,
-      downloadedPaths: status.writtenPaths,
-      resourceDownloadProgressCurrent: status.current,
-      resourceDownloadProgressTotal: status.total,
-      resourceDownloadBytes: status.bytesDownloaded.toInt(),
-      resourceDownloadCurrentFileName: status.currentFileName,
-      operationMessage:
-          terminal && status.state == FfiDownloadTaskState.succeeded
-          ? _downloadMessage(status.writtenPaths.length)
-          : terminal && status.state == FfiDownloadTaskState.cancelled
-          ? '下载已取消'
-          : null,
-      operationContext: context,
-      errorMessage: terminal && status.state == FfiDownloadTaskState.failed
-          ? status.errorMessage ?? '下载失败。'
-          : null,
-      clearResourceDownloadTask: terminal,
-      clearResourceDownloadCurrentFileName: terminal,
-    );
-
-    if (terminal) {
-      _resourceDownloadPollTimer?.cancel();
-      _resourceDownloadPollTimer = null;
+    _resourceDownloadPollTimer?.cancel();
+    _resourceDownloadPollTimer = null;
+    try {
       await gateway.downloadTaskDispose(taskId: taskId);
+    } catch (_) {}
+    if (status.state == FfiDownloadTaskState.succeeded) {
+      state = state.copyWith(
+        operationMessage: '已下载 ${status.writtenPaths.length} 个资料文件',
+      );
+    } else if (status.state == FfiDownloadTaskState.failed) {
+      state = state.copyWith(errorMessage: status.errorMessage ?? '下载失败。');
     }
+    unawaited(_pumpDownloadQueue());
   }
 
-  String _downloadMessage(int count) {
-    return '已下载 $count 个资料文件';
+  DownloadTaskItem? _downloadTaskById(String id) {
+    return state.downloadTasks.where((task) => task.id == id).firstOrNull;
   }
 
-  bool _matchesCurrentResourceDownloadStatus(FfiDownloadTaskStatus status) {
-    return state.resourceDownloading &&
-        _stringListsEqual(state.downloadedPaths, status.writtenPaths) &&
-        state.resourceDownloadProgressCurrent == status.current &&
-        state.resourceDownloadProgressTotal == status.total &&
-        state.resourceDownloadBytes == status.bytesDownloaded.toInt() &&
-        state.resourceDownloadCurrentFileName == status.currentFileName;
+  DownloadTaskItem? _downloadTaskByTaskId(String taskId) {
+    return state.downloadTasks
+        .where((task) => task.taskId == taskId)
+        .firstOrNull;
   }
 
-  bool _stringListsEqual(List<String> left, List<String> right) {
-    if (identical(left, right)) {
-      return true;
-    }
-    if (left.length != right.length) {
+  void _updateDownloadTask(
+    String id, {
+    String? taskId,
+    FfiDownloadTaskStatus? status,
+  }) {
+    state = state.copyWith(
+      downloadTasks: [
+        for (final task in state.downloadTasks)
+          if (task.id == id)
+            task.copyWith(taskId: taskId, status: status)
+          else
+            task,
+      ],
+    );
+  }
+
+  void _removeDownloadTask(String id) {
+    state = state.copyWith(
+      downloadTasks: [
+        for (final task in state.downloadTasks)
+          if (task.id != id) task,
+      ],
+    );
+  }
+
+  FfiDownloadTaskStatus _downloadTaskStatusWith(
+    FfiDownloadTaskStatus status, {
+    FfiDownloadTaskState? state,
+    int? total,
+    String? errorMessage,
+  }) {
+    return FfiDownloadTaskStatus(
+      taskId: status.taskId,
+      state: state ?? status.state,
+      current: status.current,
+      total: total ?? status.total,
+      bytesDownloaded: status.bytesDownloaded,
+      currentFileName: status.currentFileName,
+      writtenPaths: status.writtenPaths,
+      records: status.records,
+      errorMessage: errorMessage ?? status.errorMessage,
+      updatedSessionPayload: status.updatedSessionPayload,
+    );
+  }
+
+  bool _sameDownloadStatus(
+    FfiDownloadTaskStatus? current,
+    FfiDownloadTaskStatus next,
+  ) {
+    if (current == null) {
       return false;
     }
-    for (var index = 0; index < left.length; index += 1) {
-      if (left[index] != right[index]) {
-        return false;
-      }
-    }
-    return true;
+    return current.state == next.state &&
+        current.current == next.current &&
+        current.total == next.total &&
+        current.bytesDownloaded == next.bytesDownloaded &&
+        current.currentFileName == next.currentFileName;
   }
 
   Future<void> _loadCourses(
@@ -1405,7 +1338,6 @@ class ClientController extends Notifier<ClientState> {
           : courses.first.id;
       if (!keepResourceCourse) {
         _resourceListGeneration += 1;
-        unawaited(_cancelActiveResourceDownloadSilently());
       }
 
       state = state.copyWith(
@@ -1447,23 +1379,8 @@ class ClientController extends Notifier<ClientState> {
             : fallbackResourceCourseId,
         clearSelectedResourceCourse:
             !keepResourceCourse && fallbackResourceCourseId == null,
-        resourceDownloading: keepResourceCourse
-            ? state.resourceDownloading
-            : false,
-        downloadedPaths: keepResourceCourse ? state.downloadedPaths : const [],
-        resourceDownloadProgressCurrent: keepResourceCourse
-            ? state.resourceDownloadProgressCurrent
-            : 0,
-        resourceDownloadProgressTotal: keepResourceCourse
-            ? state.resourceDownloadProgressTotal
-            : 0,
-        resourceDownloadBytes: keepResourceCourse
-            ? state.resourceDownloadBytes
-            : 0,
         clearAssignmentSelection: !keepAssignmentCourse,
         clearResourceSelection: !keepResourceCourse,
-        clearResourceDownloadTask: !keepResourceCourse,
-        clearResourceDownloadCurrentFileName: !keepResourceCourse,
         clearOperationMessage: !keepAssignmentCourse || !keepResourceCourse,
         clearError: true,
       );
@@ -1524,9 +1441,11 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> _persistUpdatedPayload(String? payload) async {
-    if (payload != null) {
-      await ref.read(sessionStorageProvider).writeSessionPayload(payload);
+    if (payload == null || payload == _lastPersistedPayload) {
+      return;
     }
+    _lastPersistedPayload = payload;
+    await ref.read(sessionStorageProvider).writeSessionPayload(payload);
   }
 
   Future<void> _handleSessionError(

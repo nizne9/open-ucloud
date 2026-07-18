@@ -104,6 +104,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.parseAttendanceQrPayloadResponse,
     this.parseAttendanceQrPayloadError,
     this.sessionSummaryError,
+    this.downloadTaskStatusError,
   }) : courseResponses = List.of(courseResponses ?? []),
        assignmentDetailFutures = List.of(assignmentDetailFutures ?? []),
        resourceDetailFutures = List.of(resourceDetailFutures ?? []),
@@ -152,6 +153,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiAttendanceQrPayload? parseAttendanceQrPayloadResponse;
   final FfiAuthError? parseAttendanceQrPayloadError;
   final FfiAuthError? sessionSummaryError;
+  final Object? downloadTaskStatusError;
   bool initialized = false;
   int authStartCalls = 0;
   int coursesCalls = 0;
@@ -474,6 +476,22 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String taskId,
   }) async {
     downloadTaskStatusCalls += 1;
+    final error = downloadTaskStatusError;
+    if (error != null) {
+      throw error;
+    }
+    if (cancelledDownloadTaskIds.contains(taskId)) {
+      return FfiDownloadTaskStatus(
+        taskId: taskId,
+        state: FfiDownloadTaskState.cancelled,
+        current: 0,
+        total: 0,
+        bytesDownloaded: BigInt.zero,
+        writtenPaths: const [],
+        records: const [],
+        errorMessage: '下载已取消。',
+      );
+    }
     if (downloadTaskStatusFutures.isNotEmpty) {
       return downloadTaskStatusFutures.removeAt(0);
     }
@@ -496,7 +514,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String taskId,
   }) async {
     cancelledDownloadTaskIds.add(taskId);
-    downloadTaskStatuses.clear();
+    downloadTaskStatuses.removeWhere((status) => status.taskId == taskId);
     return FfiDownloadTaskStatus(
       taskId: taskId,
       state: FfiDownloadTaskState.cancelled,

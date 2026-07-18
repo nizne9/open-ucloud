@@ -25,22 +25,6 @@ String _selectedResourceCourseName(_ResourcesPaneState state) {
   return '当前课程';
 }
 
-String _resourceDownloadStatusText(_ResourceDownloadProgressState state) {
-  final progress = state.total == 0
-      ? '正在准备下载'
-      : '正在下载 ${state.current} / ${state.total} 个文件';
-  final fileName = state.currentFileName;
-  final bytes = state.bytes <= 0
-      ? null
-      : _formatBytes(BigInt.from(state.bytes));
-  final fileNameText = fileName?.trim();
-  final details = [
-    ?(fileNameText == null || fileNameText.isEmpty ? null : fileNameText),
-    ?bytes,
-  ];
-  return details.isEmpty ? progress : '$progress · ${details.join(' · ')}';
-}
-
 String _formatBytes(BigInt bytes) {
   final value = bytes.toDouble();
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -94,15 +78,9 @@ class _ResourcesPane extends ConsumerWidget {
                       ),
                       const SizedBox(height: 8),
                       _ResourceDetailCard(state: state),
-                      if (state.operationContext ==
-                              OperationContext.resourceDetail &&
-                          state.downloadedPaths.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        _DownloadSummary(paths: state.downloadedPaths),
-                      ],
                     ],
                   )
-                : _listView(context, ref, state, includeDownloadSummary: true),
+                : _listView(context, ref, state),
           );
         }
         return Row(
@@ -110,13 +88,7 @@ class _ResourcesPane extends ConsumerWidget {
           children: [
             SizedBox(
               width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: _listView(
-                context,
-                ref,
-                state,
-                includeDownloadSummary: true,
-                showError: !detailOpen,
-              ),
+              child: _listView(context, ref, state, showError: !detailOpen),
             ),
             const VerticalDivider(width: 1),
             Expanded(
@@ -135,12 +107,6 @@ class _ResourcesPane extends ConsumerWidget {
                     _FeedbackBanners(errorMessage: state.errorMessage),
                     _ResourceDetailCard(state: state),
                   ],
-                  if (state.operationContext ==
-                          OperationContext.resourceDetail &&
-                      state.downloadedPaths.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _DownloadSummary(paths: state.downloadedPaths),
-                  ],
                 ],
               ),
             ),
@@ -154,20 +120,13 @@ class _ResourcesPane extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     _ResourcesPaneState state, {
-    bool includeDownloadSummary = false,
     bool showError = true,
   }) {
     return RefreshIndicator(
       onRefresh: () => _refreshResources(context, ref),
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        slivers: _listSlivers(
-          context,
-          ref,
-          state,
-          includeDownloadSummary: includeDownloadSummary,
-          showError: showError,
-        ),
+        slivers: _listSlivers(context, ref, state, showError: showError),
       ),
     );
   }
@@ -176,7 +135,6 @@ class _ResourcesPane extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     _ResourcesPaneState state, {
-    required bool includeDownloadSummary,
     bool showError = true,
   }) {
     final headerChildren = _listHeaderChildren(
@@ -233,15 +191,6 @@ class _ResourcesPane extends ConsumerWidget {
                 _resourceListItem(context, ref, state, state.resources[index]),
           ),
         ),
-      if (includeDownloadSummary &&
-          state.operationContext == OperationContext.resourceList &&
-          state.downloadedPaths.isNotEmpty)
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          sliver: SliverToBoxAdapter(
-            child: _DownloadSummary(paths: state.downloadedPaths),
-          ),
-        ),
     ];
   }
 
@@ -255,6 +204,12 @@ class _ResourcesPane extends ConsumerWidget {
     final selectedCourseId =
         state.selectedResourceCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
+    final activeCourseTaskId = ref.watch(
+      clientControllerProvider.select(
+        (state) =>
+            _activeCourseDownloadTaskId(state.downloadTasks, selectedCourseId),
+      ),
+    );
     return [
       _FeedbackBanners(errorMessage: showError ? state.errorMessage : null),
       Row(
@@ -304,7 +259,7 @@ class _ResourcesPane extends ConsumerWidget {
           ),
           IconButton(
             tooltip: '下载全部',
-            onPressed: state.resourceDownloading || state.resources.isEmpty
+            onPressed: state.resources.isEmpty || activeCourseTaskId != null
                 ? null
                 : () async {
                     final ok = await _confirm(
@@ -327,14 +282,9 @@ class _ResourcesPane extends ConsumerWidget {
           ),
         ],
       ),
-      if (state.resourceDownloading &&
-          state.operationContext == OperationContext.resourceList) ...[
+      if (activeCourseTaskId != null) ...[
         const SizedBox(height: 12),
-        _ResourceDownloadProgress(
-          onCancel: () => controller.cancelActiveResourceDownload(
-            context: OperationContext.resourceList,
-          ),
-        ),
+        _ResourceDownloadProgress(itemId: activeCourseTaskId),
       ],
     ];
   }
@@ -360,9 +310,6 @@ class _ResourcesPane extends ConsumerWidget {
   }
 
   Future<void> _exitResourceDetail(BuildContext context, WidgetRef ref) async {
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
     ref.read(clientControllerProvider.notifier).clearResourceSelection();
   }
 
@@ -371,9 +318,6 @@ class _ResourcesPane extends ConsumerWidget {
     WidgetRef ref,
     String siteId,
   ) async {
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
     ref.read(clientControllerProvider.notifier).loadResourcesForCourse(siteId);
   }
 
@@ -386,17 +330,11 @@ class _ResourcesPane extends ConsumerWidget {
     if (state.selectedResourceId == resource.resourceId) {
       return;
     }
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
     await ref.read(clientControllerProvider.notifier).selectResource(resource);
   }
 }
 
 Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
-  if (!await _prepareForResourceContextChange(context, ref)) {
-    return;
-  }
   final state = ref.read(clientControllerProvider);
   final siteId =
       state.selectedResourceCourseId ??
@@ -409,14 +347,34 @@ Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
 }
 
 class _ResourceDownloadProgress extends ConsumerWidget {
-  const _ResourceDownloadProgress({required this.onCancel});
+  const _ResourceDownloadProgress({required this.itemId});
 
-  final VoidCallback onCancel;
+  final String itemId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(
-      clientControllerProvider.select(_selectResourceDownloadProgressState),
+    final progress = ref.watch(
+      clientControllerProvider.select((state) {
+        for (final item in state.downloadTasks) {
+          if (item.id == itemId) {
+            final status = item.status;
+            return (
+              queued: item.isQueued,
+              current: status?.current ?? 0,
+              total: status?.total ?? 0,
+              bytes: status?.bytesDownloaded ?? BigInt.zero,
+              fileName: status?.currentFileName,
+            );
+          }
+        }
+        return (
+          queued: false,
+          current: 0,
+          total: 0,
+          bytes: BigInt.zero,
+          fileName: null,
+        );
+      }),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -425,21 +383,35 @@ class _ResourceDownloadProgress extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(
-                _resourceDownloadStatusText(state),
+                progress.queued
+                    ? '排队等待下载'
+                    : _downloadTaskProgressText(
+                        current: progress.current,
+                        total: progress.total,
+                        bytes: progress.bytes,
+                        fileName: progress.fileName,
+                      ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
             TextButton.icon(
-              onPressed: onCancel,
+              onPressed: () => unawaited(
+                ref
+                    .read(clientControllerProvider.notifier)
+                    .cancelDownloadTask(itemId),
+              ),
               icon: const Icon(Icons.close),
               label: const Text('取消'),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        LinearProgressIndicator(
-          value: state.total == 0 ? null : state.current / state.total,
-        ),
+        if (!progress.queued)
+          LinearProgressIndicator(
+            value: progress.total == 0
+                ? null
+                : progress.current / progress.total,
+          ),
       ],
     );
   }
@@ -460,6 +432,14 @@ class _ResourceDetailCard extends ConsumerWidget {
     if (detail == null) {
       return const SizedBox.shrink();
     }
+    final activeTaskId = ref.watch(
+      clientControllerProvider.select(
+        (state) => _activeResourceDownloadTaskId(
+          state.downloadTasks,
+          detail.resourceId,
+        ),
+      ),
+    );
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -504,20 +484,15 @@ class _ResourceDetailCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _LinkValue(url: detail.downloadUrl!.trim()),
             ],
-            if (state.operationContext == OperationContext.resourceDetail &&
-                state.resourceDownloading) ...[
+            if (activeTaskId != null) ...[
               const SizedBox(height: 12),
-              _ResourceDownloadProgress(
-                onCancel: () => controller.cancelActiveResourceDownload(
-                  context: OperationContext.resourceDetail,
-                ),
-              ),
+              _ResourceDownloadProgress(itemId: activeTaskId),
             ],
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
-                onPressed: state.resourceDownloading
+                onPressed: activeTaskId != null
                     ? null
                     : () async {
                         final location = await getSaveLocation(

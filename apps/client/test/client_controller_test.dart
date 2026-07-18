@@ -281,74 +281,69 @@ void main() {
     },
   );
 
-  test(
-    'refreshCourses cancels a starting resource download when its course disappears',
-    () async {
-      final storage = MemorySessionStorage('payload');
-      final download = Completer<FfiCourseResourceDownloadResponse>();
-      final gateway = FakeOpenCloudGateway(
-        session: _session(),
-        courseResponse: const FfiCourseResponse(
-          records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
-          goingSites: [],
-        ),
-        resourcesResponse: const FfiCourseResourcesResponse(
-          records: [
-            FfiCourseResourceSummary(
-              name: '旧课件.pdf',
-              resourceId: 'resource-old',
-              siteId: 'site-old',
-              siteName: '旧课程',
-              updatedAt: '',
-            ),
-          ],
-        ),
-        resourceDownloadCourseFuture: download.future,
-      );
-      final container = _container(storage: storage, gateway: gateway);
-      final controller = container.read(clientControllerProvider.notifier);
+  test('refreshCourses keeps a starting course download running', () async {
+    final storage = MemorySessionStorage('payload');
+    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: const FfiCourseResponse(
+        records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
+        goingSites: [],
+      ),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '旧课件.pdf',
+            resourceId: 'resource-old',
+            siteId: 'site-old',
+            siteName: '旧课程',
+            updatedAt: '',
+          ),
+        ],
+      ),
+      resourceDownloadCourseFuture: download.future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
 
-      await controller.bootstrap();
-      await controller.loadResourcesForCourse('site-old');
-      final task = controller.downloadCourseResources('/tmp/downloads');
-      await Future<void>.delayed(Duration.zero);
+    await controller.bootstrap();
+    await controller.loadResourcesForCourse('site-old');
+    await controller.downloadCourseResources('/tmp/downloads');
+    await Future<void>.delayed(Duration.zero);
 
-      expect(
-        container.read(clientControllerProvider).resourceDownloading,
-        isTrue,
-      );
-      expect(
-        container.read(clientControllerProvider).resourceDownloadTaskId,
-        isNull,
-      );
+    expect(
+      container
+          .read(clientControllerProvider)
+          .downloadTasks
+          .any((task) => !task.isTerminal),
+      isTrue,
+    );
 
-      await controller.refreshCourses();
-      download.complete(
-        const FfiCourseResourceDownloadResponse(
-          records: [
-            FfiCourseResourceDetail(
-              name: '旧课件.pdf',
-              resourceId: 'resource-old',
-              siteId: 'site-old',
-              siteName: '旧课程',
-              updatedAt: '',
-            ),
-          ],
-          writtenPaths: ['/tmp/downloads/旧课件.pdf'],
-        ),
-      );
-      await task;
+    await controller.refreshCourses();
+    download.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '旧课件.pdf',
+            resourceId: 'resource-old',
+            siteId: 'site-old',
+            siteName: '旧课程',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/downloads/旧课件.pdf'],
+      ),
+    );
+    await _settleDownloads(container);
 
-      final state = container.read(clientControllerProvider);
-      expect(state.selectedResourceCourseId, 'site-new');
-      expect(state.resourceDownloading, isFalse);
-      expect(state.resourceDownloadTaskId, isNull);
-      expect(state.downloadedPaths, isEmpty);
-      expect(gateway.downloadTaskStatusCalls, 0);
-      expect(gateway.cancelledDownloadTaskIds, hasLength(1));
-      expect(gateway.disposedDownloadTaskIds, gateway.cancelledDownloadTaskIds);
-    },
-  );
+    final state = container.read(clientControllerProvider);
+    expect(state.selectedResourceCourseId, 'site-new');
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
+    expect(state.downloadTasks.single.status?.writtenPaths, [
+      '/tmp/downloads/旧课件.pdf',
+    ]);
+    expect(gateway.cancelledDownloadTaskIds, isEmpty);
+  });
 
   test(
     'refreshCourses preserves undone assignments when a stale course selection disappears',
@@ -887,13 +882,14 @@ void main() {
     await container
         .read(clientControllerProvider.notifier)
         .downloadCourseResources('/tmp/downloads');
+    await _settleDownloads(container);
 
     final state = container.read(clientControllerProvider);
-    expect(state.downloadedPaths, ['/tmp/课件.pdf']);
-    expect(state.resourceDownloadProgressCurrent, 1);
-    expect(state.resourceDownloadProgressTotal, 1);
+    expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/课件.pdf']);
+    expect(state.downloadTasks.single.status?.current, 1);
     expect(state.operationMessage, '已下载 1 个资料文件');
     expect(storage.payload, 'download-payload');
+    expect(gateway.disposedDownloadTaskIds, hasLength(1));
 
     container
         .read(clientControllerProvider.notifier)
@@ -1023,10 +1019,11 @@ void main() {
       ),
     );
     await task;
+    await _settleDownloads(container);
 
     final state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
-    expect(state.downloadedPaths, ['/tmp/课件.pdf']);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
+    expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/课件.pdf']);
     expect(state.errorMessage, isNull);
   });
 
@@ -1066,7 +1063,6 @@ void main() {
             bytesDownloaded: BigInt.zero,
             writtenPaths: const [],
             records: const [],
-            currentFileName: '课件.pdf',
           ),
           FfiDownloadTaskStatus(
             taskId: 'task',
@@ -1103,11 +1099,15 @@ void main() {
       addTearDown(subscription.close);
 
       await controller.downloadResource('/tmp/课件.pdf');
+      await Future<void>.delayed(Duration.zero);
 
       expect(gateway.downloadTaskStatusCalls, 1);
       expect(notifications, 2);
       expect(
-        container.read(clientControllerProvider).resourceDownloading,
+        container
+            .read(clientControllerProvider)
+            .downloadTasks
+            .any((task) => !task.isTerminal),
         isTrue,
       );
 
@@ -1116,20 +1116,23 @@ void main() {
       var state = container.read(clientControllerProvider);
       expect(gateway.downloadTaskStatusCalls, 2);
       expect(notifications, 3);
-      expect(state.resourceDownloadProgressCurrent, 1);
-      expect(state.resourceDownloadBytes, 2048);
+      expect(state.downloadTasks.single.status?.current, 1);
+      expect(
+        state.downloadTasks.single.status?.bytesDownloaded,
+        BigInt.from(2048),
+      );
 
       await Future<void>.delayed(const Duration(milliseconds: 350));
 
       state = container.read(clientControllerProvider);
       expect(gateway.downloadTaskStatusCalls, 3);
-      expect(state.resourceDownloading, isFalse);
-      expect(state.downloadedPaths, ['/tmp/课件.pdf']);
+      expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
+      expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/课件.pdf']);
       expect(state.operationMessage, '已下载 1 个资料文件');
     },
   );
 
-  test('single resource download ignores stale selection', () async {
+  test('single resource download survives selection change', () async {
     final storage = MemorySessionStorage('payload');
     final download = Completer<FfiCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
@@ -1158,7 +1161,7 @@ void main() {
         updatedAt: '',
       ),
     );
-    final task = controller.downloadResource('/tmp/课件.pdf');
+    await controller.downloadResource('/tmp/课件.pdf');
     await Future<void>.delayed(Duration.zero);
 
     controller.clearResourceSelection();
@@ -1177,18 +1180,87 @@ void main() {
         updatedSessionPayload: 'stale-download-payload',
       ),
     );
-    await task;
+    await _settleDownloads(container);
 
     final state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
-    expect(state.downloadedPaths, isEmpty);
-    expect(state.operationMessage, isNull);
-    expect(storage.payload, 'payload');
-    expect(gateway.cancelledDownloadTaskIds, hasLength(1));
-    expect(gateway.disposedDownloadTaskIds, gateway.cancelledDownloadTaskIds);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
+    expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/课件.pdf']);
+    expect(state.operationMessage, '已下载 1 个资料文件');
+    expect(storage.payload, 'stale-download-payload');
+    expect(gateway.cancelledDownloadTaskIds, isEmpty);
   });
 
-  test('stale single resource download keeps newer download active', () async {
+  test(
+    'download status poll failure marks task failed and advances queue',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        resourcesResponse: const FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '课件.pdf',
+              resourceId: 'resource-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+        ),
+        resourceDetailResponse: const FfiCourseResourceDetailResponse(
+          detail: FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ),
+        resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+          records: [
+            FfiCourseResourceDetail(
+              name: '课件.pdf',
+              resourceId: 'resource-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+          writtenPaths: ['/tmp/课件.pdf'],
+        ),
+        downloadTaskStatusError: Exception('network down'),
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+      controller.selectTab(ClientTab.resources);
+
+      await controller.selectResource(
+        const FfiCourseResourceSummary(
+          name: '课件.pdf',
+          resourceId: 'resource-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      );
+      await controller.downloadResource('/tmp/课件.pdf');
+      await controller.loadResourcesForCourse('site-1');
+      await controller.downloadCourseResources('/tmp/course');
+      await _settleDownloads(container);
+
+      final state = container.read(clientControllerProvider);
+      expect(state.downloadTasks, hasLength(2));
+      expect(state.downloadTasks.map((task) => task.status?.state), [
+        FfiDownloadTaskState.failed,
+        FfiDownloadTaskState.failed,
+      ]);
+      expect(state.errorMessage, contains('下载状态更新失败'));
+      expect(gateway.cancelledDownloadTaskIds, hasLength(2));
+      expect(gateway.disposedDownloadTaskIds, gateway.cancelledDownloadTaskIds);
+    },
+  );
+
+  test('cancelling a starting queued item advances to the next one', () async {
     final storage = MemorySessionStorage('payload');
     final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
     final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
@@ -1233,7 +1305,7 @@ void main() {
         updatedAt: '',
       ),
     );
-    final firstTask = controller.downloadResource('/tmp/old.pdf');
+    await controller.downloadResource('/tmp/old.pdf');
     await Future<void>.delayed(Duration.zero);
     await controller.selectResource(
       const FfiCourseResourceSummary(
@@ -1244,8 +1316,15 @@ void main() {
         updatedAt: '',
       ),
     );
-    final secondTask = controller.downloadResource('/tmp/new.pdf');
+    await controller.downloadResource('/tmp/new.pdf');
     await Future<void>.delayed(Duration.zero);
+
+    final startingId = container
+        .read(clientControllerProvider)
+        .downloadTasks
+        .first
+        .id;
+    await controller.cancelDownloadTask(startingId);
 
     firstDownload.complete(
       const FfiCourseResourceDownloadResponse(
@@ -1261,12 +1340,8 @@ void main() {
         writtenPaths: ['/tmp/old.pdf'],
       ),
     );
-    await firstTask;
-
-    var state = container.read(clientControllerProvider);
-    expect(state.selectedResourceId, 'resource-new');
-    expect(state.resourceDownloading, isTrue);
-    expect(state.downloadedPaths, isEmpty);
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
 
     secondDownload.complete(
       const FfiCourseResourceDownloadResponse(
@@ -1282,14 +1357,274 @@ void main() {
         writtenPaths: ['/tmp/new.pdf'],
       ),
     );
-    await secondTask;
+    await _settleDownloads(container);
 
-    state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
-    expect(state.downloadedPaths, ['/tmp/new.pdf']);
+    final state = container.read(clientControllerProvider);
+    expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/new.pdf']);
+    expect(gateway.cancelledDownloadTaskIds, hasLength(1));
+    expect(gateway.disposedDownloadTaskIds, hasLength(2));
   });
 
-  test('batch resource download ignores stale course', () async {
+  test(
+    'logout during an in-flight download start leaks no task or timer',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final download = Completer<FfiCourseResourceDownloadResponse>();
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        resourceDetailResponse: const FfiCourseResourceDetailResponse(
+          detail: FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ),
+        resourceDownloadFuture: download.future,
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+      controller.selectTab(ClientTab.resources);
+
+      await controller.selectResource(
+        const FfiCourseResourceSummary(
+          name: '课件.pdf',
+          resourceId: 'resource-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      );
+      await controller.downloadResource('/tmp/课件.pdf');
+      await Future<void>.delayed(Duration.zero);
+
+      await controller.logout();
+      download.complete(
+        const FfiCourseResourceDownloadResponse(
+          records: [
+            FfiCourseResourceDetail(
+              name: '课件.pdf',
+              resourceId: 'resource-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+          writtenPaths: ['/tmp/课件.pdf'],
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      expect(gateway.cancelledDownloadTaskIds, hasLength(1));
+      expect(gateway.disposedDownloadTaskIds, hasLength(1));
+      expect(gateway.downloadTaskStatusCalls, 0);
+    },
+  );
+
+  test('single resource downloads run in queue order', () async {
+    final storage = MemorySessionStorage('payload');
+    final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailFutures: [
+        Future.value(
+          const FfiCourseResourceDetailResponse(
+            detail: FfiCourseResourceDetail(
+              name: '旧课件.pdf',
+              resourceId: 'resource-old',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ),
+        ),
+        Future.value(
+          const FfiCourseResourceDetailResponse(
+            detail: FfiCourseResourceDetail(
+              name: '新课件.pdf',
+              resourceId: 'resource-new',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ),
+        ),
+      ],
+      resourceDownloadFutures: [firstDownload.future, secondDownload.future],
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+    controller.selectTab(ClientTab.resources);
+
+    await controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '旧课件.pdf',
+        resourceId: 'resource-old',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await controller.downloadResource('/tmp/old.pdf');
+    await Future<void>.delayed(Duration.zero);
+    await controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '新课件.pdf',
+        resourceId: 'resource-new',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await controller.downloadResource('/tmp/new.pdf');
+    await Future<void>.delayed(Duration.zero);
+
+    // The second download stays queued while the first has not started yet.
+    expect(
+      container.read(clientControllerProvider).downloadTasks,
+      hasLength(2),
+    );
+    expect(
+      container
+          .read(clientControllerProvider)
+          .downloadTasks
+          .every((task) => task.isQueued),
+      isTrue,
+    );
+
+    firstDownload.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '旧课件.pdf',
+            resourceId: 'resource-old',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/old.pdf'],
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    var state = container.read(clientControllerProvider);
+    expect(state.selectedResourceId, 'resource-new');
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isTrue);
+    expect(state.downloadTasks.first.status?.writtenPaths, ['/tmp/old.pdf']);
+    expect(state.downloadTasks.last.isQueued, isTrue);
+
+    secondDownload.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '新课件.pdf',
+            resourceId: 'resource-new',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/new.pdf'],
+      ),
+    );
+    await _settleDownloads(container);
+
+    state = container.read(clientControllerProvider);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
+    expect(state.downloadTasks.map((task) => task.status?.writtenPaths), [
+      ['/tmp/old.pdf'],
+      ['/tmp/new.pdf'],
+    ]);
+    expect(gateway.disposedDownloadTaskIds, hasLength(2));
+  });
+
+  test('duplicate downloads of the same resource are not enqueued', () async {
+    final storage = MemorySessionStorage('payload');
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      resourceDetailResponse: const FfiCourseResourceDetailResponse(
+        detail: FfiCourseResourceDetail(
+          name: '课件.pdf',
+          resourceId: 'resource-1',
+          siteId: 'site-1',
+          siteName: '软件测试',
+          updatedAt: '',
+        ),
+      ),
+      resourceDownloadFuture:
+          Completer<FfiCourseResourceDownloadResponse>().future,
+    );
+    final container = _container(storage: storage, gateway: gateway);
+    final controller = container.read(clientControllerProvider.notifier);
+    controller.selectTab(ClientTab.resources);
+
+    await controller.selectResource(
+      const FfiCourseResourceSummary(
+        name: '课件.pdf',
+        resourceId: 'resource-1',
+        siteId: 'site-1',
+        siteName: '软件测试',
+        updatedAt: '',
+      ),
+    );
+    await controller.downloadResource('/tmp/课件.pdf');
+    await controller.downloadResource('/tmp/课件(副本).pdf');
+
+    final state = container.read(clientControllerProvider);
+    expect(state.downloadTasks, hasLength(1));
+    expect(state.operationMessage, contains('已在下载队列中'));
+  });
+
+  test(
+    'course download falls back to the resource count for a zero total',
+    () async {
+      final storage = MemorySessionStorage('payload');
+      final gateway = FakeOpenCloudGateway(
+        session: _session(),
+        resourcesResponse: const FfiCourseResourcesResponse(
+          records: [
+            FfiCourseResourceSummary(
+              name: '课件.pdf',
+              resourceId: 'resource-1',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+            FfiCourseResourceSummary(
+              name: '讲义.pdf',
+              resourceId: 'resource-2',
+              siteId: 'site-1',
+              siteName: '软件测试',
+              updatedAt: '',
+            ),
+          ],
+        ),
+        downloadTaskStatusFutures: [Completer<FfiDownloadTaskStatus>().future],
+      );
+      final container = _container(storage: storage, gateway: gateway);
+      final controller = container.read(clientControllerProvider.notifier);
+
+      await controller.loadResourcesForCourse('site-1');
+      await controller.downloadCourseResources('/tmp/downloads');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        container
+            .read(clientControllerProvider)
+            .downloadTasks
+            .single
+            .status
+            ?.total,
+        2,
+      );
+    },
+  );
+
+  test('course download survives course switch', () async {
     final storage = MemorySessionStorage('payload');
     final download = Completer<FfiCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
@@ -1311,7 +1646,7 @@ void main() {
     final controller = container.read(clientControllerProvider.notifier);
 
     await controller.loadResourcesForCourse('site-1');
-    final task = controller.downloadCourseResources('/tmp/downloads');
+    await controller.downloadCourseResources('/tmp/downloads');
     await Future<void>.delayed(Duration.zero);
 
     await controller.loadResourcesForCourse('site-2');
@@ -1330,19 +1665,20 @@ void main() {
         updatedSessionPayload: 'stale-course-download-payload',
       ),
     );
-    await task;
+    await _settleDownloads(container);
 
     final state = container.read(clientControllerProvider);
     expect(state.selectedResourceCourseId, 'site-2');
-    expect(state.resourceDownloading, isFalse);
-    expect(state.downloadedPaths, isEmpty);
-    expect(state.operationMessage, isNull);
-    expect(storage.payload, 'payload');
-    expect(gateway.cancelledDownloadTaskIds, hasLength(1));
-    expect(gateway.disposedDownloadTaskIds, gateway.cancelledDownloadTaskIds);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
+    expect(state.downloadTasks.single.status?.writtenPaths, [
+      '/tmp/downloads/课件.pdf',
+    ]);
+    expect(state.operationMessage, '已下载 1 个资料文件');
+    expect(storage.payload, 'stale-course-download-payload');
+    expect(gateway.cancelledDownloadTaskIds, isEmpty);
   });
 
-  test('stale batch resource download keeps newer download active', () async {
+  test('course downloads run in queue order', () async {
     final storage = MemorySessionStorage('payload');
     final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
     final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
@@ -1381,10 +1717,10 @@ void main() {
     final controller = container.read(clientControllerProvider.notifier);
 
     await controller.loadResourcesForCourse('site-1');
-    final firstTask = controller.downloadCourseResources('/tmp/old');
+    await controller.downloadCourseResources('/tmp/old');
     await Future<void>.delayed(Duration.zero);
     await controller.loadResourcesForCourse('site-2');
-    final secondTask = controller.downloadCourseResources('/tmp/new');
+    await controller.downloadCourseResources('/tmp/new');
     await Future<void>.delayed(Duration.zero);
 
     firstDownload.complete(
@@ -1401,12 +1737,16 @@ void main() {
         writtenPaths: ['/tmp/old/旧课件.pdf'],
       ),
     );
-    await firstTask;
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
 
     var state = container.read(clientControllerProvider);
     expect(state.selectedResourceCourseId, 'site-2');
-    expect(state.resourceDownloading, isTrue);
-    expect(state.downloadedPaths, isEmpty);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isTrue);
+    expect(state.downloadTasks.first.status?.writtenPaths, [
+      '/tmp/old/旧课件.pdf',
+    ]);
+    expect(state.downloadTasks.last.isQueued, isTrue);
 
     secondDownload.complete(
       const FfiCourseResourceDownloadResponse(
@@ -1422,11 +1762,15 @@ void main() {
         writtenPaths: ['/tmp/new/新课件.pdf'],
       ),
     );
-    await secondTask;
+    await _settleDownloads(container);
 
     state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
-    expect(state.downloadedPaths, ['/tmp/new/新课件.pdf']);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
+    expect(state.downloadTasks.map((task) => task.status?.writtenPaths), [
+      ['/tmp/old/旧课件.pdf'],
+      ['/tmp/new/新课件.pdf'],
+    ]);
+    expect(gateway.disposedDownloadTaskIds, hasLength(2));
   });
 
   test(
@@ -2036,7 +2380,6 @@ void main() {
       final state = container.read(clientControllerProvider);
       expect(state.selectedResourceCourseId, 'site-2');
       expect(state.resources, isEmpty);
-      expect(state.downloadedPaths, isEmpty);
       expect(state.resourcesLoading, isFalse);
     },
   );
@@ -2326,6 +2669,22 @@ ProviderContainer _container({
       openCloudGatewayProvider.overrideWithValue(gateway),
     ],
   );
+}
+
+/// Flushes the download queue pump and polling microtasks until no active
+/// download tasks remain.
+Future<void> _settleDownloads(ProviderContainer container) async {
+  for (var attempt = 0; attempt < 20; attempt += 1) {
+    await Future<void>.delayed(Duration.zero);
+    final active = container
+        .read(clientControllerProvider)
+        .downloadTasks
+        .any((task) => !task.isTerminal);
+    if (!active) {
+      return;
+    }
+  }
+  fail('download tasks did not settle');
 }
 
 FfiAuthSessionResponse _session() {

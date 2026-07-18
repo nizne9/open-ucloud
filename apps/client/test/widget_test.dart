@@ -2655,9 +2655,95 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('已下载 1 个资料文件'), findsOneWidget);
-    expect(find.text('已下载 1 个文件'), findsOneWidget);
-    expect(find.text('/tmp/课件.pdf'), findsOneWidget);
     expect(find.text('返回资料列表'), findsNothing);
+
+    await tester.tap(find.byTooltip('下载中心'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('下载完成 · 1 个文件'), findsOneWidget);
+    expect(find.text('/tmp/课件.pdf'), findsOneWidget);
+  });
+
+  testWidgets('download keeps running across tab switches', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+      resourceDownloadCourseFuture: download.future,
+    );
+    final container = ProviderContainer(
+      overrides: [
+        sessionStorageProvider.overrideWithValue(
+          MemorySessionStorage('payload'),
+        ),
+        openCloudGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await container
+        .read(clientControllerProvider.notifier)
+        .downloadCourseResources('/tmp');
+    await tester.pumpAndSettle();
+
+    expect(find.text('排队等待下载'), findsWidgets);
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('总览'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.cancelledDownloadTaskIds, isEmpty);
+    expect(
+      container.read(clientControllerProvider).downloadTasks,
+      hasLength(1),
+    );
+
+    download.complete(
+      const FfiCourseResourceDownloadResponse(
+        records: [
+          FfiCourseResourceDetail(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '',
+          ),
+        ],
+        writtenPaths: ['/tmp/课件.pdf'],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('已下载 1 个资料文件'), findsOneWidget);
   });
 
   testWidgets('desktop resource list shows batch download summary', (
@@ -2723,9 +2809,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('已下载 1 个资料文件'), findsOneWidget);
-    expect(find.text('已下载 1 个文件'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('下载中心'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('下载完成 · 1 个文件'), findsOneWidget);
     expect(find.text('/tmp/课件.pdf'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('/tmp/课件.pdf')).dx, lessThan(500));
   });
 
   testWidgets('resource download progress does not rebuild the resource pane', (
@@ -2837,9 +2926,14 @@ void main() {
       debugPrint = previousDebugPrint;
       debugPrintRebuildDirtyWidgets = previousRebuildDebug;
     }
+    final itemId = container
+        .read(clientControllerProvider)
+        .downloadTasks
+        .single
+        .id;
     await container
         .read(clientControllerProvider.notifier)
-        .cancelActiveResourceDownload(context: OperationContext.resourceList);
+        .cancelDownloadTask(itemId);
     await tester.pump();
 
     expect(
@@ -2911,7 +3005,12 @@ void main() {
         .downloadCourseResources('/tmp');
     await tester.pumpAndSettle();
 
-    expect(find.text('已下载 50 个文件'), findsOneWidget);
+    expect(find.text('已下载 50 个资料文件'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('下载中心'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('下载完成 · 50 个文件'), findsOneWidget);
     expect(find.text('/tmp/资料 1.pdf'), findsNothing);
     expect(find.text('/tmp/资料 50.pdf'), findsNothing);
     expect(find.widgetWithText(TextButton, '显示文件路径'), findsOneWidget);
@@ -3127,7 +3226,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.textContaining('正在下载'), findsOneWidget);
+      expect(find.textContaining('排队等待下载'), findsOneWidget);
       expect(find.widgetWithText(TextButton, '取消'), findsOneWidget);
       expect(find.text('返回资料列表'), findsOneWidget);
 
@@ -3149,7 +3248,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('已下载 1 个资料文件'), findsOneWidget);
-      expect(find.text('已下载 1 个文件'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('下载中心'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('下载完成 · 1 个文件'), findsOneWidget);
       expect(find.text('/tmp/课件.pdf'), findsOneWidget);
       expect(find.text('返回资料列表'), findsOneWidget);
     },
@@ -3230,6 +3333,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('已下载 1 个资料文件'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('下载中心'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('下载完成 · 1 个文件'), findsOneWidget);
     expect(find.text('/tmp/课件.pdf'), findsOneWidget);
   });
 }
