@@ -980,6 +980,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
   String? _usernameError;
   String? _passwordError;
   String? _captchaError;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -1057,37 +1058,64 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            TextField(
-              controller: _usernameController,
-              enabled: !awaitingCaptcha,
-              autofillHints: const [AutofillHints.username],
-              keyboardType: TextInputType.text,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: '用户名',
-                prefixIcon: const Icon(Icons.person_outline),
-                errorText: _usernameError,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              enabled: !awaitingCaptcha,
-              obscureText: true,
-              autofillHints: const [AutofillHints.password],
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submitPrimary(controller, awaitingCaptcha),
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: '密码',
-                prefixIcon: const Icon(Icons.lock_outline),
-                errorText: _passwordError,
+            AutofillGroup(
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _usernameController,
+                    enabled: !awaitingCaptcha,
+                    autofillHints: const [AutofillHints.username],
+                    keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: '用户名',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      errorText: _usernameError,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _passwordController,
+                    enabled: !awaitingCaptcha,
+                    obscureText: _obscurePassword,
+                    autofillHints: const [AutofillHints.password],
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) =>
+                        _submitPrimary(controller, awaitingCaptcha),
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: '密码',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      errorText: _passwordError,
+                      suffixIcon: IconButton(
+                        tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (awaitingCaptcha) ...[
               const SizedBox(height: 16),
-              _CaptchaImage(dataUri: state.captchaImage),
+              Tooltip(
+                message: '点击刷新验证码',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _restartLogin(controller),
+                  child: _CaptchaImage(dataUri: state.captchaImage),
+                ),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: _captchaController,
@@ -1119,10 +1147,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
                 label: const Text('修改账号密码'),
               ),
               TextButton.icon(
-                onPressed: () => controller.startLogin(
-                  username: _usernameController.text.trim(),
-                  password: _passwordController.text,
-                ),
+                onPressed: () => _restartLogin(controller),
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('重新获取验证码'),
               ),
@@ -1137,6 +1162,13 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
           ],
         ),
       ),
+    );
+  }
+
+  void _restartLogin(ClientController controller) {
+    controller.startLogin(
+      username: _usernameController.text.trim(),
+      password: _passwordController.text,
     );
   }
 

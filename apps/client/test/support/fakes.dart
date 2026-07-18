@@ -153,6 +153,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiAuthError? parseAttendanceQrPayloadError;
   final FfiAuthError? sessionSummaryError;
   bool initialized = false;
+  int authStartCalls = 0;
   int coursesCalls = 0;
   int undoneAssignmentsCalls = 0;
   int courseAssignmentsCalls = 0;
@@ -171,6 +172,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
 
   @override
   Future<FfiAuthStartResponse> authStart(String username) async {
+    authStartCalls += 1;
     final response = authStartResponse;
     if (response != null) {
       return response;

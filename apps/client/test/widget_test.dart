@@ -492,6 +492,77 @@ void main() {
     expect(find.text('登录 Open UCloud'), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    expect(find.byType(AutofillGroup), findsOneWidget);
+  });
+
+  testWidgets('password visibility can be toggled', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
+          openCloudGatewayProvider.overrideWithValue(FakeOpenCloudGateway()),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    TextField passwordField() =>
+        tester.widget<TextField>(find.widgetWithText(TextField, '密码'));
+    expect(passwordField().obscureText, isTrue);
+
+    await tester.tap(find.byTooltip('显示密码'));
+    await tester.pump();
+    expect(passwordField().obscureText, isFalse);
+
+    await tester.tap(find.byTooltip('隐藏密码'));
+    await tester.pump();
+    expect(passwordField().obscureText, isTrue);
+  });
+
+  testWidgets('tapping the captcha image requests a fresh one', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      authStartResponse: FfiAuthStartResponse(
+        auth: const FfiAuthStartResult(
+          captchaImage:
+              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lra3NwAAAABJRU5ErkJggg==',
+          flowId: 'flow-1',
+          requiresCaptcha: true,
+        ),
+        flow: FfiLoginFlow(
+          captchaId: 'captcha-1',
+          cookie: 'cookie',
+          createdAtMs: BigInt.one,
+          execution: 'flow-1',
+          username: 'alice',
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.enterText(find.widgetWithText(TextField, '用户名'), 'alice');
+    await tester.enterText(find.widgetWithText(TextField, '密码'), 'secret');
+    await tester.tap(find.widgetWithText(FilledButton, '继续'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('验证码图片'), findsOneWidget);
+    expect(gateway.authStartCalls, 1);
+
+    await tester.tap(find.bySemanticsLabel('验证码图片'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.authStartCalls, 2);
   });
 
   testWidgets('captcha step is accessible and can return to credentials', (
