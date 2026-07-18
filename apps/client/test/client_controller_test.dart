@@ -9,6 +9,20 @@ import 'package:open_cloud_ffi/open_cloud_ffi.dart';
 import 'support/fakes.dart';
 
 void main() {
+  test('displayErrorText unwraps exception noise', () {
+    expect(displayErrorText(Exception('network down')), 'network down');
+    expect(displayErrorText('plain failure'), 'plain failure');
+    expect(
+      displayErrorText(
+        const FfiAuthError(
+          code: FfiAuthErrorCode.unknownAuthError,
+          message: '账号或密码错误',
+        ),
+      ),
+      '账号或密码错误',
+    );
+  });
+
   test('restores session and persists refreshed payload', () async {
     final storage = MemorySessionStorage('old-payload');
     final gateway = FakeOpenCloudGateway(

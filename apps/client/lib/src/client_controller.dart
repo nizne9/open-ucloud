@@ -51,7 +51,7 @@ class ClientController extends Notifier<ClientState> {
       } catch (_) {}
       state = ClientState(
         phase: ClientPhase.unauthenticated,
-        errorMessage: '无法读取安全存储：$error',
+        errorMessage: '无法读取安全存储：${displayErrorText(error)}',
       );
       return;
     }
@@ -81,7 +81,7 @@ class ClientController extends Notifier<ClientState> {
       await storage.clearSessionPayload();
       state = ClientState(
         phase: ClientPhase.unauthenticated,
-        errorMessage: '无法恢复登录会话：$error',
+        errorMessage: '无法恢复登录会话：${displayErrorText(error)}',
       );
     }
   }
@@ -125,7 +125,7 @@ class ClientController extends Notifier<ClientState> {
       _pendingPassword = null;
       state = ClientState(
         phase: ClientPhase.unauthenticated,
-        errorMessage: '登录初始化失败：$error',
+        errorMessage: '登录初始化失败：${displayErrorText(error)}',
       );
     }
   }
@@ -197,7 +197,7 @@ class ClientController extends Notifier<ClientState> {
         phase: canRetryCaptcha
             ? ClientPhase.awaitingCaptcha
             : ClientPhase.unauthenticated,
-        errorMessage: '登录失败：$error',
+        errorMessage: '登录失败：${displayErrorText(error)}',
       );
     }
   }
@@ -212,7 +212,7 @@ class ClientController extends Notifier<ClientState> {
         phase: state.session == null
             ? ClientPhase.unauthenticated
             : ClientPhase.authenticated,
-        errorMessage: '无法读取安全存储：$error',
+        errorMessage: '无法读取安全存储：${displayErrorText(error)}',
       );
       return;
     }
@@ -244,7 +244,7 @@ class ClientController extends Notifier<ClientState> {
       );
     } catch (error) {
       state = state.copyWith(
-        attendanceQrInputError: '二维码文本解析失败：$error',
+        attendanceQrInputError: '二维码文本解析失败：${displayErrorText(error)}',
         clearAttendanceQrResult: true,
       );
     }
@@ -385,7 +385,7 @@ class ClientController extends Notifier<ClientState> {
       if (!_isCurrentAssignmentListGeneration(generation)) {
         return;
       }
-      final message = '未完成作业加载失败：$error';
+      final message = '未完成作业加载失败：${displayErrorText(error)}';
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
@@ -476,7 +476,7 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
-        errorMessage: '课程作业加载失败：$error',
+        errorMessage: '课程作业加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -556,7 +556,7 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(
         assignmentDetailLoading: false,
         clearAssignmentSelection: true,
-        errorMessage: '作业详情加载失败：$error',
+        errorMessage: '作业详情加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -647,7 +647,7 @@ class ClientController extends Notifier<ClientState> {
       }
       state = state.copyWith(
         assignmentUploading: false,
-        errorMessage: '附件上传失败：$error',
+        errorMessage: '附件上传失败：${displayErrorText(error)}',
       );
     }
   }
@@ -779,7 +779,7 @@ class ClientController extends Notifier<ClientState> {
       }
       state = state.copyWith(
         assignmentSubmitting: false,
-        errorMessage: '作业提交失败：$error',
+        errorMessage: '作业提交失败：${displayErrorText(error)}',
       );
     }
   }
@@ -845,7 +845,7 @@ class ClientController extends Notifier<ClientState> {
       }
       state = state.copyWith(
         resourcesLoading: false,
-        errorMessage: '课程资料加载失败：$error',
+        errorMessage: '课程资料加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -925,7 +925,7 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(
         resourceDetailLoading: false,
         clearResourceSelection: true,
-        errorMessage: '资料详情加载失败：$error',
+        errorMessage: '资料详情加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -1033,7 +1033,7 @@ class ClientController extends Notifier<ClientState> {
         resourceDownloading: false,
         clearResourceDownloadTask: true,
         clearResourceDownloadCurrentFileName: true,
-        errorMessage: '资料下载失败：$error',
+        errorMessage: '资料下载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -1122,7 +1122,7 @@ class ClientController extends Notifier<ClientState> {
         resourceDownloading: false,
         clearResourceDownloadTask: true,
         clearResourceDownloadCurrentFileName: true,
-        errorMessage: '课程资料下载失败：$error',
+        errorMessage: '课程资料下载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -1265,7 +1265,7 @@ class ClientController extends Notifier<ClientState> {
       _resourceDownloadPollTimer = null;
       state = state.copyWith(
         resourceDownloading: false,
-        errorMessage: '下载状态更新失败：$error',
+        errorMessage: '下载状态更新失败：${displayErrorText(error)}',
         clearResourceDownloadTask: true,
         clearResourceDownloadCurrentFileName: true,
       );
@@ -1490,7 +1490,7 @@ class ClientController extends Notifier<ClientState> {
         session: session,
         capabilities: capabilities ?? state.capabilities,
         courses: state.courses,
-        errorMessage: '课程加载失败：$error',
+        errorMessage: '课程加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -1516,7 +1516,9 @@ class ClientController extends Notifier<ClientState> {
       }
       return payload;
     } catch (error) {
-      state = state.copyWith(errorMessage: '无法读取安全存储：$error');
+      state = state.copyWith(
+        errorMessage: '无法读取安全存储：${displayErrorText(error)}',
+      );
       return null;
     }
   }

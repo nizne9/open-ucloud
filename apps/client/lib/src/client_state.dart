@@ -33,6 +33,17 @@ String formatClientTimestamp(DateTime value) {
       '${twoDigits(value.hour)}:${twoDigits(value.minute)}';
 }
 
+/// Converts an arbitrary error into text suitable for display, preferring the
+/// upstream auth message over raw exception wrappers.
+String displayErrorText(Object error) {
+  if (error is FfiAuthError) {
+    return error.message;
+  }
+  final text = error.toString();
+  const prefix = 'Exception: ';
+  return text.startsWith(prefix) ? text.substring(prefix.length) : text;
+}
+
 class CourseItem {
   const CourseItem({
     required this.id,
