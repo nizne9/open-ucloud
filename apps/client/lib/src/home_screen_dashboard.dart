@@ -117,7 +117,7 @@ class _DashboardStatsCard extends ConsumerWidget {
           ],
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth < 520 ? 2 : 4;
+              final columns = constraints.maxWidth < 520 ? 2 : 3;
               return GridView.count(
                 crossAxisCount: columns,
                 shrinkWrap: true,
@@ -134,16 +134,9 @@ class _DashboardStatsCard extends ConsumerWidget {
                     label: '待提交作业',
                   ),
                   _MetricTile(
-                    value: state.resources.isEmpty
-                        ? '按课程'
-                        : '${state.resources.length}',
-                    label: '可下载资料',
-                  ),
-                  _MetricTile(
-                    value: state.capabilities.attendanceQrPayloadParsing
-                        ? '可解析'
-                        : '不可用',
-                    label: '二维码文本',
+                    value:
+                        '${state.courses.where((course) => course.going).length}',
+                    label: '签到进行中',
                   ),
                 ],
               );

@@ -134,7 +134,8 @@ void main() {
     expect(find.text('本期课程'), findsOneWidget);
     expect(find.text('1'), findsWidgets);
     expect(find.text('待提交作业'), findsWidgets);
-    expect(find.text('二维码文本'), findsOneWidget);
+    expect(find.text('签到进行中'), findsOneWidget);
+    expect(find.text('二维码文本'), findsNothing);
     expect(find.text('签到状态'), findsNothing);
     expect(find.text('实验报告'), findsWidgets);
     expect(find.text('Alice'), findsWidgets);
