@@ -657,7 +657,7 @@ class _WorkbenchFrame extends ConsumerWidget {
             onRefresh: isBusy
                 ? null
                 : () {
-                    unawaited(_refreshCoursesWithGuards(context, ref));
+                    unawaited(_refreshActiveTab(context, ref));
                   },
             onLogout: isBusy ? null : controller.logout,
           ),
@@ -730,7 +730,7 @@ class _WorkbenchTopBar extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onRefresh,
                 icon: const Icon(Icons.refresh),
-                label: const Text('同步课程'),
+                label: const Text('刷新'),
               ),
               _ThemeModeMenu(themeMode: themeMode),
               IconButton(
@@ -823,6 +823,36 @@ Future<void> _refreshCoursesWithGuards(
     return;
   }
   await ref.read(clientControllerProvider.notifier).refreshCourses();
+}
+
+/// Refreshes whatever the active tab is showing: the dashboard reloads both
+/// courses and pending assignments, the assignments/resources tabs reload
+/// their current list, and the account tab reloads courses.
+Future<void> _refreshActiveTab(BuildContext context, WidgetRef ref) async {
+  final state = ref.read(clientControllerProvider);
+  if (!await _prepareForTabDeparture(context, ref, state)) {
+    return;
+  }
+  if (!context.mounted) {
+    return;
+  }
+  final controller = ref.read(clientControllerProvider.notifier);
+  switch (state.selectedTab) {
+    case ClientTab.dashboard:
+      await controller.refreshCourses();
+      if (context.mounted) {
+        await controller.loadUndoneAssignments(
+          selectedTab: ClientTab.dashboard,
+          refresh: true,
+        );
+      }
+    case ClientTab.assignments:
+      await _refreshAssignments(context, ref);
+    case ClientTab.resources:
+      await _refreshResources(context, ref);
+    case ClientTab.account:
+      await controller.refreshCourses();
+  }
 }
 
 bool _canLeaveAssignmentDetail(ClientState state) {

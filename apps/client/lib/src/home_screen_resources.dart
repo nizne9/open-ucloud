@@ -392,21 +392,6 @@ class _ResourcesPane extends ConsumerWidget {
     ref.read(clientControllerProvider.notifier).loadResourcesForCourse(siteId);
   }
 
-  Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
-    final state = ref.read(clientControllerProvider);
-    final siteId =
-        state.selectedResourceCourseId ??
-        (state.courses.isEmpty ? null : state.courses.first.id);
-    if (siteId != null) {
-      await ref
-          .read(clientControllerProvider.notifier)
-          .loadResourcesForCourse(siteId);
-    }
-  }
-
   Future<void> _selectResourceGuarded(
     BuildContext context,
     WidgetRef ref,
@@ -420,6 +405,21 @@ class _ResourcesPane extends ConsumerWidget {
       return;
     }
     await ref.read(clientControllerProvider.notifier).selectResource(resource);
+  }
+}
+
+Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
+  if (!await _prepareForResourceContextChange(context, ref)) {
+    return;
+  }
+  final state = ref.read(clientControllerProvider);
+  final siteId =
+      state.selectedResourceCourseId ??
+      (state.courses.isEmpty ? null : state.courses.first.id);
+  if (siteId != null) {
+    await ref
+        .read(clientControllerProvider.notifier)
+        .loadResourcesForCourse(siteId);
   }
 }
 

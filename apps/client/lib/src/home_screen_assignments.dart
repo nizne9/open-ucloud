@@ -294,24 +294,6 @@ class _AssignmentsPane extends ConsumerWidget {
     }
   }
 
-  Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-    final controller = ref.read(clientControllerProvider.notifier);
-    final currentState = ref.read(clientControllerProvider);
-    if (currentState.assignmentView == AssignmentView.undone) {
-      await controller.loadUndoneAssignments(refresh: true);
-    } else {
-      final siteId =
-          currentState.selectedAssignmentCourseId ??
-          (currentState.courses.isEmpty ? null : currentState.courses.first.id);
-      if (siteId != null) {
-        await controller.loadCourseAssignments(siteId, refresh: true);
-      }
-    }
-  }
-
   Future<void> _loadCourseAssignmentsGuarded(
     BuildContext context,
     WidgetRef ref,
@@ -381,6 +363,24 @@ String _assignmentStatusText(FfiAssignmentStatus status) {
     FfiAssignmentStatus.submitted => '已提交',
     FfiAssignmentStatus.expired => '已截止',
   };
+}
+
+Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
+  if (!await _prepareForAssignmentContextChange(context, ref)) {
+    return;
+  }
+  final controller = ref.read(clientControllerProvider.notifier);
+  final currentState = ref.read(clientControllerProvider);
+  if (currentState.assignmentView == AssignmentView.undone) {
+    await controller.loadUndoneAssignments(refresh: true);
+  } else {
+    final siteId =
+        currentState.selectedAssignmentCourseId ??
+        (currentState.courses.isEmpty ? null : currentState.courses.first.id);
+    if (siteId != null) {
+      await controller.loadCourseAssignments(siteId, refresh: true);
+    }
+  }
 }
 
 class _AssignmentDetailCard extends ConsumerStatefulWidget {

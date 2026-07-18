@@ -399,7 +399,7 @@ void main() {
     expect(find.text('账户状态'), findsOneWidget);
     expect(find.text('Alice'), findsWidgets);
     expect(find.text('退出登录'), findsOneWidget);
-    expect(find.text('同步课程'), findsWidgets);
+    expect(find.text('刷新'), findsWidgets);
     expect(find.byIcon(Icons.brightness_6_outlined), findsOneWidget);
   });
 
@@ -1077,6 +1077,39 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.undoneAssignmentsCalls, 2);
+  });
+
+  testWidgets('top bar refresh reloads the active assignments list', (
+    tester,
+  ) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+    expect(gateway.coursesCalls, 1);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, '刷新'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 2);
+    expect(gateway.coursesCalls, 1);
   });
 
   testWidgets('assignment refresh uses selected course', (tester) async {
@@ -1892,7 +1925,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('未提交答案'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, '同步课程'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '刷新'));
     await tester.pumpAndSettle();
 
     expect(find.text('放弃未提交的修改？'), findsOneWidget);

@@ -59,7 +59,7 @@ class _DashboardPane extends ConsumerWidget {
           );
         }
         return RefreshIndicator(
-          onRefresh: () => _refreshDashboard(context, ref),
+          onRefresh: () => _refreshActiveTab(context, ref),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -69,16 +69,6 @@ class _DashboardPane extends ConsumerWidget {
       },
     );
   }
-}
-
-Future<void> _refreshDashboard(BuildContext context, WidgetRef ref) async {
-  await _refreshCoursesWithGuards(context, ref);
-  if (!context.mounted) {
-    return;
-  }
-  await ref
-      .read(clientControllerProvider.notifier)
-      .loadUndoneAssignments(selectedTab: ClientTab.dashboard, refresh: true);
 }
 
 class _DashboardStatsCard extends ConsumerWidget {
@@ -547,10 +537,10 @@ class _AccountPane extends ConsumerWidget {
                     onPressed: state.isBusy
                         ? null
                         : () {
-                            unawaited(_refreshCoursesWithGuards(context, ref));
+                            unawaited(_refreshActiveTab(context, ref));
                           },
                     icon: const Icon(Icons.refresh),
-                    label: const Text('同步课程'),
+                    label: const Text('刷新'),
                   ),
                   FilledButton.tonalIcon(
                     onPressed: state.isBusy
