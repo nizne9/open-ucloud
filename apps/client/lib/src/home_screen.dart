@@ -43,6 +43,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(
+      clientControllerProvider.select((state) => state.operationMessage),
+      (previous, next) {
+        if (next != null && next != previous) {
+          _showSnackBar(context, next);
+        }
+      },
+    );
     final phase = ref.watch(
       clientControllerProvider.select((state) => state.phase),
     );
@@ -138,8 +146,6 @@ typedef _AssignmentsPaneState = ({
   bool assignmentsLoading,
   List<CourseItem> courses,
   String? errorMessage,
-  OperationContext? operationContext,
-  String? operationMessage,
   FfiAssignmentDetailResponse? assignmentDetail,
   String? selectedAssignmentCourseId,
   String? selectedAssignmentId,
@@ -165,8 +171,6 @@ _AssignmentsPaneState _selectAssignmentsPaneState(ClientState state) {
     assignmentsLoading: state.assignmentsLoading,
     courses: state.courses,
     errorMessage: state.errorMessage,
-    operationContext: state.operationContext,
-    operationMessage: state.operationMessage,
     assignmentDetail: state.assignmentDetail,
     selectedAssignmentCourseId: state.selectedAssignmentCourseId,
     selectedAssignmentId: state.selectedAssignmentId,
@@ -190,7 +194,6 @@ typedef _ResourcesPaneState = ({
   List<String> downloadedPaths,
   OperationContext? operationContext,
   String? errorMessage,
-  String? operationMessage,
   FfiCourseResourceDetail? resourceDetail,
   bool resourceDetailLoading,
   bool resourceDownloading,
@@ -213,7 +216,6 @@ _ResourcesPaneState _selectResourcesPaneState(ClientState state) {
     downloadedPaths: state.downloadedPaths,
     operationContext: state.operationContext,
     errorMessage: state.errorMessage,
-    operationMessage: state.operationMessage,
     resourceDetail: state.resourceDetail,
     resourceDetailLoading: state.resourceDetailLoading,
     resourceDownloading: state.resourceDownloading,
@@ -1133,10 +1135,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
             ],
             if (state.errorMessage != null) ...[
               const SizedBox(height: 16),
-              _StatusBanner(
-                kind: _BannerKind.error,
-                message: state.errorMessage!,
-              ),
+              _StatusBanner(message: state.errorMessage!),
             ],
           ],
         ),

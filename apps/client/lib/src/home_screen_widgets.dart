@@ -80,40 +80,21 @@ class _DownloadSummaryState extends State<_DownloadSummary> {
 }
 
 class _FeedbackBanners extends StatelessWidget {
-  const _FeedbackBanners({
-    required this.errorMessage,
-    required this.operationMessage,
-    required this.activeOperationContext,
-    this.operationContext,
-  });
+  const _FeedbackBanners({required this.errorMessage});
 
   final String? errorMessage;
-  final String? operationMessage;
-  final OperationContext? activeOperationContext;
-  final OperationContext? operationContext;
 
   @override
   Widget build(BuildContext context) {
-    final visibleOperationMessage = activeOperationContext == operationContext
-        ? operationMessage
-        : null;
-    if (errorMessage == null && visibleOperationMessage == null) {
+    final errorMessage = this.errorMessage;
+    if (errorMessage == null) {
       return const SizedBox.shrink();
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (errorMessage != null) ...[
-          _StatusBanner(kind: _BannerKind.error, message: errorMessage!),
-          const SizedBox(height: 12),
-        ],
-        if (visibleOperationMessage != null) ...[
-          _StatusBanner(
-            kind: _BannerKind.info,
-            message: visibleOperationMessage,
-          ),
-          const SizedBox(height: 12),
-        ],
+        _StatusBanner(message: errorMessage),
+        const SizedBox(height: 12),
       ],
     );
   }
@@ -337,32 +318,17 @@ class _LoadingPane extends StatelessWidget {
   }
 }
 
-enum _BannerKind { error, info }
-
 class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({required this.message, required this.kind});
+  const _StatusBanner({required this.message});
 
   final String message;
-  final _BannerKind kind;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final (backgroundColor, foregroundColor, iconData) = switch (kind) {
-      _BannerKind.error => (
-        colorScheme.errorContainer,
-        colorScheme.onErrorContainer,
-        Icons.error_outline,
-      ),
-      _BannerKind.info => (
-        colorScheme.primaryContainer,
-        colorScheme.onPrimaryContainer,
-        Icons.check_circle_outline,
-      ),
-    };
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: colorScheme.errorContainer,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
@@ -370,10 +336,13 @@ class _StatusBanner extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(iconData, color: foregroundColor),
+            Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(message, style: TextStyle(color: foregroundColor)),
+              child: Text(
+                message,
+                style: TextStyle(color: colorScheme.onErrorContainer),
+              ),
             ),
           ],
         ),

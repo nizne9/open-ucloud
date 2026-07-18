@@ -2257,7 +2257,7 @@ void main() {
     expect(find.text('已上传附件 draft.pdf'), findsOneWidget);
   });
 
-  testWidgets('desktop assignment feedback appears in the detail pane', (
+  testWidgets('desktop assignment feedback appears as a snackbar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -2336,9 +2336,7 @@ void main() {
         .uploadAssignmentAttachment('/tmp/draft.pdf');
     await tester.pumpAndSettle();
 
-    final feedback = find.text('已上传附件 draft.pdf');
-    expect(feedback, findsOneWidget);
-    expect(tester.getTopLeft(feedback).dx, greaterThan(500));
+    expect(find.text('已上传附件 draft.pdf'), findsOneWidget);
   });
 
   testWidgets('assignment detail falls back to list course name', (
@@ -3157,7 +3155,7 @@ void main() {
     },
   );
 
-  testWidgets('desktop resource download feedback appears in the detail pane', (
+  testWidgets('desktop resource download feedback appears as a snackbar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -3231,9 +3229,7 @@ void main() {
         .downloadResource('/tmp/课件.pdf');
     await tester.pumpAndSettle();
 
-    final feedback = find.text('已下载 1 个资料文件');
-    expect(feedback, findsOneWidget);
-    expect(tester.getTopLeft(feedback).dx, greaterThan(500));
+    expect(find.text('已下载 1 个资料文件'), findsOneWidget);
     expect(find.text('/tmp/课件.pdf'), findsOneWidget);
   });
 }

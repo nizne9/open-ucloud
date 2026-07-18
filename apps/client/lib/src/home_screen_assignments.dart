@@ -26,12 +26,7 @@ class _AssignmentsPane extends ConsumerWidget {
                 ? ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     children: [
-                      _FeedbackBanners(
-                        errorMessage: state.errorMessage,
-                        operationMessage: state.operationMessage,
-                        activeOperationContext: state.operationContext,
-                        operationContext: OperationContext.assignmentDetail,
-                      ),
+                      _FeedbackBanners(errorMessage: state.errorMessage),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
@@ -74,12 +69,7 @@ class _AssignmentsPane extends ConsumerWidget {
                       bordered: true,
                     )
                   else ...[
-                    _FeedbackBanners(
-                      errorMessage: state.errorMessage,
-                      operationMessage: state.operationMessage,
-                      activeOperationContext: state.operationContext,
-                      operationContext: OperationContext.assignmentDetail,
-                    ),
+                    _FeedbackBanners(errorMessage: state.errorMessage),
                     const _AssignmentDetailCard(),
                   ],
                 ],
@@ -183,12 +173,7 @@ class _AssignmentsPane extends ConsumerWidget {
         state.selectedAssignmentCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
-      _FeedbackBanners(
-        errorMessage: showError ? state.errorMessage : null,
-        operationMessage: state.operationMessage,
-        activeOperationContext: state.operationContext,
-        operationContext: OperationContext.assignmentList,
-      ),
+      _FeedbackBanners(errorMessage: showError ? state.errorMessage : null),
       Row(
         children: [
           Expanded(

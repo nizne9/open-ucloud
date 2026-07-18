@@ -82,12 +82,7 @@ class _ResourcesPane extends ConsumerWidget {
                 ? ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                     children: [
-                      _FeedbackBanners(
-                        errorMessage: state.errorMessage,
-                        operationMessage: state.operationMessage,
-                        activeOperationContext: state.operationContext,
-                        operationContext: OperationContext.resourceDetail,
-                      ),
+                      _FeedbackBanners(errorMessage: state.errorMessage),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
@@ -137,12 +132,7 @@ class _ResourcesPane extends ConsumerWidget {
                       bordered: true,
                     )
                   else ...[
-                    _FeedbackBanners(
-                      errorMessage: state.errorMessage,
-                      operationMessage: state.operationMessage,
-                      activeOperationContext: state.operationContext,
-                      operationContext: OperationContext.resourceDetail,
-                    ),
+                    _FeedbackBanners(errorMessage: state.errorMessage),
                     _ResourceDetailCard(state: state),
                   ],
                   if (state.operationContext ==
@@ -266,12 +256,7 @@ class _ResourcesPane extends ConsumerWidget {
         state.selectedResourceCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
-      _FeedbackBanners(
-        errorMessage: showError ? state.errorMessage : null,
-        operationMessage: state.operationMessage,
-        activeOperationContext: state.operationContext,
-        operationContext: OperationContext.resourceList,
-      ),
+      _FeedbackBanners(errorMessage: showError ? state.errorMessage : null),
       Row(
         children: [
           Expanded(

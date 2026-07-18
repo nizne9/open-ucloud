@@ -29,8 +29,7 @@ class _DashboardPane extends ConsumerWidget {
             ? state.errorMessage
             : null;
         final primary = [
-          if (dashboardError != null)
-            _StatusBanner(kind: _BannerKind.error, message: dashboardError),
+          if (dashboardError != null) _StatusBanner(message: dashboardError),
           _DashboardStatsCard(state: state),
           _CourseContextCard(state: state),
           _PendingAssignmentsCard(state: state),
@@ -351,10 +350,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _StatusBanner(
-                  kind: _BannerKind.error,
-                  message: state.pendingAssignmentsErrorMessage!,
-                ),
+                _StatusBanner(message: state.pendingAssignmentsErrorMessage!),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
