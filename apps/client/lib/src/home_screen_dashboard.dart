@@ -58,13 +58,27 @@ class _DashboardPane extends ConsumerWidget {
             ],
           );
         }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [...primary, ...secondary],
+        return RefreshIndicator(
+          onRefresh: () => _refreshDashboard(context, ref),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [...primary, ...secondary],
+          ),
         );
       },
     );
   }
+}
+
+Future<void> _refreshDashboard(BuildContext context, WidgetRef ref) async {
+  await _refreshCoursesWithGuards(context, ref);
+  if (!context.mounted) {
+    return;
+  }
+  await ref
+      .read(clientControllerProvider.notifier)
+      .loadUndoneAssignments(selectedTab: ClientTab.dashboard);
 }
 
 class _DashboardStatsCard extends ConsumerWidget {

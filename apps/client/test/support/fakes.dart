@@ -155,6 +155,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   bool initialized = false;
   int coursesCalls = 0;
   int undoneAssignmentsCalls = 0;
+  int resourcesCalls = 0;
   String? lastCourseAssignmentsSiteId;
   String? lastResourcesSiteId;
   List<String> submittedAttachmentIds = const [];
@@ -368,6 +369,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteId,
     required String siteName,
   }) async {
+    resourcesCalls += 1;
     lastResourcesSiteId = siteId;
     if (resourcesFutures.isNotEmpty) {
       return resourcesFutures.removeAt(0);

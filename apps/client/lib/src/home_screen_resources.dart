@@ -167,13 +167,17 @@ class _ResourcesPane extends ConsumerWidget {
     bool includeDownloadSummary = false,
     bool showError = true,
   }) {
-    return CustomScrollView(
-      slivers: _listSlivers(
-        context,
-        ref,
-        state,
-        includeDownloadSummary: includeDownloadSummary,
-        showError: showError,
+    return RefreshIndicator(
+      onRefresh: () => _refreshResources(context, ref),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: _listSlivers(
+          context,
+          ref,
+          state,
+          includeDownloadSummary: includeDownloadSummary,
+          showError: showError,
+        ),
       ),
     );
   }
@@ -397,7 +401,7 @@ class _ResourcesPane extends ConsumerWidget {
         state.selectedResourceCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     if (siteId != null) {
-      ref
+      await ref
           .read(clientControllerProvider.notifier)
           .loadResourcesForCourse(siteId);
     }

@@ -762,6 +762,137 @@ void main() {
     expect(find.text('解析签到二维码内容'), findsOneWidget);
   });
 
+  testWidgets('pull to refresh reloads dashboard data', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(gateway.coursesCalls, 1);
+    expect(gateway.undoneAssignmentsCalls, 1);
+
+    await tester.fling(find.text('今天需要关注'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(gateway.coursesCalls, 2);
+    expect(gateway.undoneAssignmentsCalls, 2);
+  });
+
+  testWidgets('pull to refresh reloads undone assignments', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      undoneAssignmentsResponse: const FfiAssignmentListResponse(
+        records: [
+          FfiAssignmentSummary(
+            endTime: '2026-05-03 23:59:59',
+            id: 'work-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            source: 'undone',
+            startTime: '',
+            status: FfiAssignmentStatus.pending,
+            title: '实验报告',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+
+    await tester.fling(find.text('实验报告'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 2);
+  });
+
+  testWidgets('pull to refresh reloads course resources', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.resourcesCalls, 1);
+
+    await tester.fling(find.text('课件.pdf'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(gateway.resourcesCalls, 2);
+  });
+
   testWidgets('assignment refresh uses selected course', (tester) async {
     final gateway = FakeOpenCloudGateway(
       session: _session(),

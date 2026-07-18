@@ -97,8 +97,12 @@ class _AssignmentsPane extends ConsumerWidget {
     _AssignmentsPaneState state, {
     bool showError = true,
   }) {
-    return CustomScrollView(
-      slivers: _listSlivers(context, ref, state, showError: showError),
+    return RefreshIndicator(
+      onRefresh: () => _refreshAssignments(context, ref),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: _listSlivers(context, ref, state, showError: showError),
+      ),
     );
   }
 
@@ -291,13 +295,13 @@ class _AssignmentsPane extends ConsumerWidget {
     final controller = ref.read(clientControllerProvider.notifier);
     final currentState = ref.read(clientControllerProvider);
     if (currentState.assignmentView == AssignmentView.undone) {
-      controller.loadUndoneAssignments();
+      await controller.loadUndoneAssignments();
     } else {
       final siteId =
           currentState.selectedAssignmentCourseId ??
           (currentState.courses.isEmpty ? null : currentState.courses.first.id);
       if (siteId != null) {
-        controller.loadCourseAssignments(siteId);
+        await controller.loadCourseAssignments(siteId);
       }
     }
   }
