@@ -976,6 +976,7 @@ class ClientController extends Notifier<ClientState> {
     if (taskId == null) {
       _removeDownloadTask(itemId);
       state = state.copyWith(operationMessage: '下载已取消');
+      unawaited(_pumpDownloadQueue());
       return;
     }
     _resourceDownloadGeneration += 1;
@@ -1046,8 +1047,9 @@ class ClientController extends Notifier<ClientState> {
     }
   }
 
-  /// Returns false when the item failed to start (and was removed), true when
-  /// it is now running or vanished from the queue in the meantime.
+  /// Returns false when the item is gone from the queue (cancelled or failed
+  /// to start) so the pump advances to the next queued item, true when it is
+  /// now running.
   Future<bool> _startDownloadTask(DownloadTaskItem item) async {
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
@@ -1056,7 +1058,7 @@ class ClientController extends Notifier<ClientState> {
     }
     final current = _downloadTaskById(item.id);
     if (current == null || !current.isQueued) {
-      return true;
+      return false;
     }
     final gateway = ref.read(openCloudGatewayProvider);
     try {
@@ -1079,7 +1081,7 @@ class ClientController extends Notifier<ClientState> {
         // Cancelled while the start call was in flight.
         await gateway.downloadTaskCancel(taskId: response.taskId);
         await gateway.downloadTaskDispose(taskId: response.taskId);
-        return true;
+        return false;
       }
       await _persistUpdatedPayload(response.status.updatedSessionPayload);
       _updateDownloadTask(
@@ -1134,6 +1136,8 @@ class ClientController extends Notifier<ClientState> {
     }
     final item = _downloadTaskByTaskId(taskId);
     if (item == null) {
+      _resourceDownloadPollTimer?.cancel();
+      _resourceDownloadPollTimer = null;
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -1146,9 +1150,26 @@ class ClientController extends Notifier<ClientState> {
       }
       _resourceDownloadPollTimer?.cancel();
       _resourceDownloadPollTimer = null;
-      state = state.copyWith(
-        errorMessage: '下载状态更新失败：${displayErrorText(error)}',
-      );
+      final message = '下载状态更新失败：${displayErrorText(error)}';
+      final lastKnown = item.status;
+      if (lastKnown != null) {
+        _updateDownloadTask(
+          item.id,
+          status: _downloadTaskStatusWith(
+            lastKnown,
+            state: FfiDownloadTaskState.failed,
+            errorMessage: message,
+          ),
+        );
+      }
+      state = state.copyWith(errorMessage: message);
+      try {
+        await gateway.downloadTaskCancel(taskId: taskId);
+      } catch (_) {}
+      try {
+        await gateway.downloadTaskDispose(taskId: taskId);
+      } catch (_) {}
+      unawaited(_pumpDownloadQueue());
       return;
     }
     if (generation != _resourceDownloadGeneration) {
@@ -1228,6 +1249,26 @@ class ClientController extends Notifier<ClientState> {
         state == FfiDownloadTaskState.failed ||
         state == FfiDownloadTaskState.cancelled ||
         state == FfiDownloadTaskState.disposed;
+  }
+
+  FfiDownloadTaskStatus _downloadTaskStatusWith(
+    FfiDownloadTaskStatus status, {
+    FfiDownloadTaskState? state,
+    int? total,
+    String? errorMessage,
+  }) {
+    return FfiDownloadTaskStatus(
+      taskId: status.taskId,
+      state: state ?? status.state,
+      current: status.current,
+      total: total ?? status.total,
+      bytesDownloaded: status.bytesDownloaded,
+      currentFileName: status.currentFileName,
+      writtenPaths: status.writtenPaths,
+      records: status.records,
+      errorMessage: errorMessage ?? status.errorMessage,
+      updatedSessionPayload: status.updatedSessionPayload,
+    );
   }
 
   bool _sameDownloadStatus(
