@@ -294,16 +294,16 @@ class _ClientNavigationBar extends ConsumerWidget {
     final selectedTab = ref.watch(
       clientControllerProvider.select((state) => state.selectedTab),
     );
-    return BottomNavigationBar(
-      currentIndex: _destinationIndex(selectedTab),
-      onTap: (index) {
+    return NavigationBar(
+      selectedIndex: _destinationIndex(selectedTab),
+      onDestinationSelected: (index) {
         unawaited(
           _selectClientTab(_clientDestinations[index].tab, ref, context),
         );
       },
-      items: [
+      destinations: [
         for (final destination in _clientDestinations)
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(destination.icon),
             label: destination.label,
           ),

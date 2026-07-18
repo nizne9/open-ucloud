@@ -435,7 +435,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.text('总览'), findsWidgets);
     expect(find.text('作业'), findsWidgets);
     expect(find.text('资料'), findsWidgets);
