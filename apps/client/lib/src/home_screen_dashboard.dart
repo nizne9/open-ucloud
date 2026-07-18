@@ -277,10 +277,8 @@ class _CourseContextRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    _TooltipText(
                       course.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 2),
@@ -393,11 +391,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
                       leading: Icon(_assignmentIcon(assignment.status)),
-                      title: Text(
-                        assignment.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      title: _TooltipText(assignment.title),
                       subtitle: Text.rich(
                         TextSpan(
                           children: [

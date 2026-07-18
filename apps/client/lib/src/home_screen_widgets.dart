@@ -169,6 +169,27 @@ BoxDecoration _outlinedBoxDecoration(ColorScheme colorScheme) {
   );
 }
 
+/// Single-line text that reveals its full content via tooltip when truncated.
+class _TooltipText extends StatelessWidget {
+  const _TooltipText(this.text, {this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: text,
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.icon,

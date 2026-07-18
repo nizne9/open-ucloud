@@ -336,7 +336,7 @@ class _AssignmentsPane extends ConsumerWidget {
       child: ListTile(
         selected: state.selectedAssignmentId == assignment.id,
         leading: Icon(_assignmentIcon(assignment.status)),
-        title: Text(assignment.title),
+        title: _TooltipText(assignment.title),
         subtitle: Text.rich(
           TextSpan(
             children: [
@@ -740,7 +740,7 @@ class _AssignmentResourceList extends StatelessWidget {
               title: Text(resource.name),
               subtitle: resource.previewUrl == null
                   ? null
-                  : SelectableText(resource.previewUrl!),
+                  : SelectableText(resource.previewUrl!, maxLines: 2),
               trailing:
                   resource.previewUrl == null || resource.previewUrl!.isEmpty
                   ? null
@@ -790,7 +790,7 @@ class _LinkValue extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
-            Expanded(child: SelectableText(url)),
+            Expanded(child: SelectableText(url, maxLines: 2)),
             _LinkActions(url: url),
           ],
         ),
