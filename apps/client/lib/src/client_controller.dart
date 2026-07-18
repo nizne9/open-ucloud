@@ -22,6 +22,7 @@ final clientControllerProvider =
 
 class ClientController extends Notifier<ClientState> {
   String? _pendingPassword;
+  String? _lastPersistedPayload;
   int _assignmentListGeneration = 0;
   int _resourceListGeneration = 0;
   int _resourceDownloadGeneration = 0;
@@ -269,6 +270,7 @@ class ClientController extends Notifier<ClientState> {
 
   Future<void> logout() async {
     _pendingPassword = null;
+    _lastPersistedPayload = null;
     _assignmentListGeneration += 1;
     _resourceListGeneration += 1;
     _resourceDownloadGeneration += 1;
@@ -1190,7 +1192,7 @@ class ClientController extends Notifier<ClientState> {
     }
     await _persistUpdatedPayload(status.updatedSessionPayload);
 
-    final terminal = _isTerminalDownloadState(status.state);
+    final terminal = isTerminalDownloadState(status.state);
     if (!terminal && _sameDownloadStatus(item.status, status)) {
       return;
     }
@@ -1215,21 +1217,13 @@ class ClientController extends Notifier<ClientState> {
   }
 
   DownloadTaskItem? _downloadTaskById(String id) {
-    for (final task in state.downloadTasks) {
-      if (task.id == id) {
-        return task;
-      }
-    }
-    return null;
+    return state.downloadTasks.where((task) => task.id == id).firstOrNull;
   }
 
   DownloadTaskItem? _downloadTaskByTaskId(String taskId) {
-    for (final task in state.downloadTasks) {
-      if (task.taskId == taskId) {
-        return task;
-      }
-    }
-    return null;
+    return state.downloadTasks
+        .where((task) => task.taskId == taskId)
+        .firstOrNull;
   }
 
   void _updateDownloadTask(
@@ -1255,13 +1249,6 @@ class ClientController extends Notifier<ClientState> {
           if (task.id != id) task,
       ],
     );
-  }
-
-  bool _isTerminalDownloadState(FfiDownloadTaskState state) {
-    return state == FfiDownloadTaskState.succeeded ||
-        state == FfiDownloadTaskState.failed ||
-        state == FfiDownloadTaskState.cancelled ||
-        state == FfiDownloadTaskState.disposed;
   }
 
   FfiDownloadTaskStatus _downloadTaskStatusWith(
@@ -1454,9 +1441,11 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> _persistUpdatedPayload(String? payload) async {
-    if (payload != null) {
-      await ref.read(sessionStorageProvider).writeSessionPayload(payload);
+    if (payload == null || payload == _lastPersistedPayload) {
+      return;
     }
+    _lastPersistedPayload = payload;
+    await ref.read(sessionStorageProvider).writeSessionPayload(payload);
   }
 
   Future<void> _handleSessionError(

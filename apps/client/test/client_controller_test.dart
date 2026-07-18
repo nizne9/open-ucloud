@@ -312,7 +312,10 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(
-      container.read(clientControllerProvider).resourceDownloading,
+      container
+          .read(clientControllerProvider)
+          .downloadTasks
+          .any((task) => !task.isTerminal),
       isTrue,
     );
 
@@ -335,7 +338,7 @@ void main() {
 
     final state = container.read(clientControllerProvider);
     expect(state.selectedResourceCourseId, 'site-new');
-    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
     expect(state.downloadTasks.single.status?.writtenPaths, [
       '/tmp/downloads/旧课件.pdf',
     ]);
@@ -1019,7 +1022,7 @@ void main() {
     await _settleDownloads(container);
 
     final state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
     expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/课件.pdf']);
     expect(state.errorMessage, isNull);
   });
@@ -1101,7 +1104,10 @@ void main() {
       expect(gateway.downloadTaskStatusCalls, 1);
       expect(notifications, 2);
       expect(
-        container.read(clientControllerProvider).resourceDownloading,
+        container
+            .read(clientControllerProvider)
+            .downloadTasks
+            .any((task) => !task.isTerminal),
         isTrue,
       );
 
@@ -1120,7 +1126,7 @@ void main() {
 
       state = container.read(clientControllerProvider);
       expect(gateway.downloadTaskStatusCalls, 3);
-      expect(state.resourceDownloading, isFalse);
+      expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
       expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/课件.pdf']);
       expect(state.operationMessage, '已下载 1 个资料文件');
     },
@@ -1177,7 +1183,7 @@ void main() {
     await _settleDownloads(container);
 
     final state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
     expect(state.downloadTasks.single.status?.writtenPaths, ['/tmp/课件.pdf']);
     expect(state.operationMessage, '已下载 1 个资料文件');
     expect(storage.payload, 'stale-download-payload');
@@ -1507,7 +1513,7 @@ void main() {
 
     var state = container.read(clientControllerProvider);
     expect(state.selectedResourceId, 'resource-new');
-    expect(state.resourceDownloading, isTrue);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isTrue);
     expect(state.downloadTasks.first.status?.writtenPaths, ['/tmp/old.pdf']);
     expect(state.downloadTasks.last.isQueued, isTrue);
 
@@ -1528,7 +1534,7 @@ void main() {
     await _settleDownloads(container);
 
     state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
     expect(state.downloadTasks.map((task) => task.status?.writtenPaths), [
       ['/tmp/old.pdf'],
       ['/tmp/new.pdf'],
@@ -1663,7 +1669,7 @@ void main() {
 
     final state = container.read(clientControllerProvider);
     expect(state.selectedResourceCourseId, 'site-2');
-    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
     expect(state.downloadTasks.single.status?.writtenPaths, [
       '/tmp/downloads/课件.pdf',
     ]);
@@ -1736,7 +1742,7 @@ void main() {
 
     var state = container.read(clientControllerProvider);
     expect(state.selectedResourceCourseId, 'site-2');
-    expect(state.resourceDownloading, isTrue);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isTrue);
     expect(state.downloadTasks.first.status?.writtenPaths, [
       '/tmp/old/旧课件.pdf',
     ]);
@@ -1759,7 +1765,7 @@ void main() {
     await _settleDownloads(container);
 
     state = container.read(clientControllerProvider);
-    expect(state.resourceDownloading, isFalse);
+    expect(state.downloadTasks.any((task) => !task.isTerminal), isFalse);
     expect(state.downloadTasks.map((task) => task.status?.writtenPaths), [
       ['/tmp/old/旧课件.pdf'],
       ['/tmp/new/新课件.pdf'],

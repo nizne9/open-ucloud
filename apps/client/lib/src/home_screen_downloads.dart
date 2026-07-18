@@ -7,12 +7,13 @@ String? _activeCourseDownloadTaskId(
   if (siteId == null) {
     return null;
   }
-  for (final task in tasks) {
-    if (task.isCourseDownload && task.siteId == siteId && !task.isTerminal) {
-      return task.id;
-    }
-  }
-  return null;
+  return tasks
+      .where(
+        (task) =>
+            task.isCourseDownload && task.siteId == siteId && !task.isTerminal,
+      )
+      .firstOrNull
+      ?.id;
 }
 
 String? _activeResourceDownloadTaskId(
@@ -22,14 +23,15 @@ String? _activeResourceDownloadTaskId(
   if (resourceId == null) {
     return null;
   }
-  for (final task in tasks) {
-    if (!task.isCourseDownload &&
-        task.resourceId == resourceId &&
-        !task.isTerminal) {
-      return task.id;
-    }
-  }
-  return null;
+  return tasks
+      .where(
+        (task) =>
+            !task.isCourseDownload &&
+            task.resourceId == resourceId &&
+            !task.isTerminal,
+      )
+      .firstOrNull
+      ?.id;
 }
 
 String _downloadTaskProgressText({
@@ -92,20 +94,17 @@ class _DownloadCenterButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final counts = ref.watch(
-      clientControllerProvider.select((state) {
-        final active = state.downloadTasks
-            .where((task) => !task.isTerminal)
-            .length;
-        return (active: active, total: state.downloadTasks.length);
-      }),
+    final activeCount = ref.watch(
+      clientControllerProvider.select(
+        (state) => state.downloadTasks.where((task) => !task.isTerminal).length,
+      ),
     );
     return IconButton(
       tooltip: '下载中心',
       onPressed: () => _openDownloadCenter(context),
       icon: Badge.count(
-        count: counts.active,
-        isLabelVisible: counts.active > 0,
+        count: activeCount,
+        isLabelVisible: activeCount > 0,
         child: const Icon(Icons.download_outlined),
       ),
     );
@@ -173,10 +172,6 @@ class _DownloadTaskTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = task.status;
-    final running =
-        !task.isQueued &&
-        status != null &&
-        status.state == FfiDownloadTaskState.running;
     final writtenPaths = status?.writtenPaths ?? const <String>[];
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -218,10 +213,12 @@ class _DownloadTaskTile extends ConsumerWidget {
                   ),
               ],
             ),
-            if (running) ...[
+            if (task.isRunning) ...[
               const SizedBox(height: 8),
               LinearProgressIndicator(
-                value: status.total == 0 ? null : status.current / status.total,
+                value: status!.total == 0
+                    ? null
+                    : status.current / status.total,
               ),
             ],
             if (task.isTerminal && writtenPaths.isNotEmpty) ...[

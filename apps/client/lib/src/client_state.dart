@@ -67,6 +67,14 @@ class AssignmentAttachmentState {
   final String? errorMessage;
 }
 
+/// Whether a download task state is terminal (no further updates expected).
+bool isTerminalDownloadState(FfiDownloadTaskState state) {
+  return state == FfiDownloadTaskState.succeeded ||
+      state == FfiDownloadTaskState.failed ||
+      state == FfiDownloadTaskState.cancelled ||
+      state == FfiDownloadTaskState.disposed;
+}
+
 /// One entry in the download queue. Queued items have no [taskId] yet; the
 /// id is assigned when the Rust-side task actually starts.
 class DownloadTaskItem {
@@ -101,11 +109,11 @@ class DownloadTaskItem {
   bool get isQueued => taskId == null;
   bool get isTerminal {
     final state = status?.state;
-    return state == FfiDownloadTaskState.succeeded ||
-        state == FfiDownloadTaskState.failed ||
-        state == FfiDownloadTaskState.cancelled ||
-        state == FfiDownloadTaskState.disposed;
+    return state != null && isTerminalDownloadState(state);
   }
+
+  bool get isRunning =>
+      !isQueued && status?.state == FfiDownloadTaskState.running;
 
   DownloadTaskItem copyWith({String? taskId, FfiDownloadTaskStatus? status}) {
     return DownloadTaskItem(
@@ -202,8 +210,6 @@ class ClientState {
 
   bool get undoneAssignmentsLoaded =>
       assignmentView == AssignmentView.undone && assignmentsLoaded;
-
-  bool get resourceDownloading => downloadTasks.any((task) => !task.isTerminal);
 
   ClientState copyWith({
     ClientPhase? phase,
