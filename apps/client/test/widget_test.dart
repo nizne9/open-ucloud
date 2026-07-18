@@ -1238,6 +1238,114 @@ void main() {
     expect(find.text('返回作业列表'), findsNothing);
   });
 
+  testWidgets('system back from narrow assignment detail returns to list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                records: [
+                  FfiAssignmentSummary(
+                    endTime: '2026-05-03 23:59:59',
+                    id: 'work-1',
+                    siteId: 'site-1',
+                    siteName: '软件测试',
+                    source: 'undone',
+                    startTime: '',
+                    status: FfiAssignmentStatus.pending,
+                    title: '实验报告',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实验报告'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回作业列表'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回作业列表'), findsNothing);
+    expect(find.text('实验报告'), findsOneWidget);
+  });
+
+  testWidgets('system back from narrow resource detail returns to list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: _twoCourseResponse(),
+              resourcesResponse: const FfiCourseResourcesResponse(
+                records: [
+                  FfiCourseResourceSummary(
+                    name: '课件.pdf',
+                    resourceId: 'resource-1',
+                    siteId: 'site-1',
+                    siteName: '软件测试',
+                    updatedAt: '2026-05-02 10:00:00',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('课件.pdf'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回资料列表'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回资料列表'), findsNothing);
+    expect(find.text('课件.pdf'), findsOneWidget);
+  });
+
   testWidgets('assignment detail exposes submission metadata and attachments', (
     tester,
   ) async {

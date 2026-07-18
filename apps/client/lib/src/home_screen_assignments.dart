@@ -8,7 +8,6 @@ class _AssignmentsPane extends ConsumerWidget {
     final state = ref.watch(
       clientControllerProvider.select(_selectAssignmentsPaneState),
     );
-    final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSplit = constraints.maxWidth >= 900;
@@ -16,41 +15,43 @@ class _AssignmentsPane extends ConsumerWidget {
             state.assignmentDetail != null || state.assignmentDetailLoading;
         if (!useSplit) {
           final showDetail = detailOpen || state.selectedAssignmentId != null;
-          if (showDetail) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                _FeedbackBanners(
-                  errorMessage: state.errorMessage,
-                  operationMessage: state.operationMessage,
-                  activeOperationContext: state.operationContext,
-                  operationContext: OperationContext.assignmentDetail,
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed:
-                        state.assignmentUploading || state.assignmentSubmitting
-                        ? null
-                        : () async {
-                            if (!await _prepareForAssignmentContextChange(
-                              context,
-                              ref,
-                            )) {
-                              return;
-                            }
-                            controller.clearAssignmentSelection();
-                          },
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('返回作业列表'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const _AssignmentDetailCard(),
-              ],
-            );
-          }
-          return _listView(context, ref, state);
+          return PopScope(
+            canPop: !showDetail,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) {
+                unawaited(_exitAssignmentDetail(context, ref));
+              }
+            },
+            child: showDetail
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    children: [
+                      _FeedbackBanners(
+                        errorMessage: state.errorMessage,
+                        operationMessage: state.operationMessage,
+                        activeOperationContext: state.operationContext,
+                        operationContext: OperationContext.assignmentDetail,
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed:
+                              state.assignmentUploading ||
+                                  state.assignmentSubmitting
+                              ? null
+                              : () => unawaited(
+                                  _exitAssignmentDetail(context, ref),
+                                ),
+                          icon: const Icon(Icons.arrow_back),
+                          label: const Text('返回作业列表'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const _AssignmentDetailCard(),
+                    ],
+                  )
+                : _listView(context, ref, state),
+          );
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -254,6 +255,16 @@ class _AssignmentsPane extends ConsumerWidget {
         ),
       ],
     ];
+  }
+
+  Future<void> _exitAssignmentDetail(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
+      return;
+    }
+    ref.read(clientControllerProvider.notifier).clearAssignmentSelection();
   }
 
   Future<void> _changeAssignmentView(
