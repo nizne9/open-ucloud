@@ -83,7 +83,9 @@ class _DashboardStatsCard extends ConsumerWidget {
       title: '今天需要关注',
       subtitle: state.phase == ClientPhase.loadingCourses
           ? '正在同步课程'
-          : '最后同步完成 · 会话有效',
+          : state.coursesSyncedAt == null
+          ? '课程尚未同步'
+          : '上次同步 ${formatClientTimestamp(state.coursesSyncedAt!)}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
