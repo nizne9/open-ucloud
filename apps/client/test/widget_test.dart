@@ -41,7 +41,7 @@ void main() {
 
     expect(find.text('总览工作台'), findsWidgets);
     expect(find.text('查看课程、待交作业和资料更新。'), findsOneWidget);
-    expect(find.text('登录状态'), findsOneWidget);
+    expect(find.text('账户'), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byType(BottomNavigationBar), findsNothing);
@@ -134,7 +134,8 @@ void main() {
     expect(find.text('本期课程'), findsOneWidget);
     expect(find.text('1'), findsWidgets);
     expect(find.text('待提交作业'), findsWidgets);
-    expect(find.text('二维码文本'), findsOneWidget);
+    expect(find.text('签到进行中'), findsOneWidget);
+    expect(find.text('二维码文本'), findsNothing);
     expect(find.text('签到状态'), findsNothing);
     expect(find.text('实验报告'), findsWidgets);
     expect(find.text('Alice'), findsWidgets);
@@ -289,7 +290,7 @@ void main() {
   });
 
   testWidgets(
-    'dashboard reloads pending assignments after course assignment list',
+    'dashboard restores pending assignments after course assignment list',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1;
@@ -356,7 +357,8 @@ void main() {
       await tester.tap(find.text('总览'));
       await tester.pumpAndSettle();
 
-      expect(gateway.undoneAssignmentsCalls, 2);
+      // The undone list is restored from cache, so no second fetch happens.
+      expect(gateway.undoneAssignmentsCalls, 1);
       expect(find.text('默认待办'), findsWidgets);
       expect(find.text('课程作业'), findsNothing);
     },
@@ -397,7 +399,7 @@ void main() {
     expect(find.text('账户状态'), findsOneWidget);
     expect(find.text('Alice'), findsWidgets);
     expect(find.text('退出登录'), findsOneWidget);
-    expect(find.text('同步课程'), findsWidgets);
+    expect(find.text('刷新'), findsWidgets);
     expect(find.byIcon(Icons.brightness_6_outlined), findsOneWidget);
   });
 
@@ -433,7 +435,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.text('总览'), findsWidgets);
     expect(find.text('作业'), findsWidgets);
     expect(find.text('资料'), findsWidgets);
@@ -490,6 +492,77 @@ void main() {
     expect(find.text('登录 Open UCloud'), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    expect(find.byType(AutofillGroup), findsOneWidget);
+  });
+
+  testWidgets('password visibility can be toggled', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
+          openCloudGatewayProvider.overrideWithValue(FakeOpenCloudGateway()),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    TextField passwordField() =>
+        tester.widget<TextField>(find.widgetWithText(TextField, '密码'));
+    expect(passwordField().obscureText, isTrue);
+
+    await tester.tap(find.byTooltip('显示密码'));
+    await tester.pump();
+    expect(passwordField().obscureText, isFalse);
+
+    await tester.tap(find.byTooltip('隐藏密码'));
+    await tester.pump();
+    expect(passwordField().obscureText, isTrue);
+  });
+
+  testWidgets('tapping the captcha image requests a fresh one', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      authStartResponse: FfiAuthStartResponse(
+        auth: const FfiAuthStartResult(
+          captchaImage:
+              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lra3NwAAAABJRU5ErkJggg==',
+          flowId: 'flow-1',
+          requiresCaptcha: true,
+        ),
+        flow: FfiLoginFlow(
+          captchaId: 'captcha-1',
+          cookie: 'cookie',
+          createdAtMs: BigInt.one,
+          execution: 'flow-1',
+          username: 'alice',
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.enterText(find.widgetWithText(TextField, '用户名'), 'alice');
+    await tester.enterText(find.widgetWithText(TextField, '密码'), 'secret');
+    await tester.tap(find.widgetWithText(FilledButton, '继续'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('验证码图片'), findsOneWidget);
+    expect(gateway.authStartCalls, 1);
+
+    await tester.tap(find.bySemanticsLabel('验证码图片'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.authStartCalls, 2);
   });
 
   testWidgets('captcha step is accessible and can return to credentials', (
@@ -759,6 +832,355 @@ void main() {
 
     expect(find.text('invalid checkwork payload'), findsOneWidget);
     expect(find.text('解析签到二维码内容'), findsOneWidget);
+  });
+
+  testWidgets('pull to refresh reloads dashboard data', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(gateway.coursesCalls, 1);
+    expect(gateway.undoneAssignmentsCalls, 1);
+
+    await tester.fling(find.text('今天需要关注'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(gateway.coursesCalls, 2);
+    expect(gateway.undoneAssignmentsCalls, 2);
+  });
+
+  testWidgets('pull to refresh reloads undone assignments', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      undoneAssignmentsResponse: const FfiAssignmentListResponse(
+        records: [
+          FfiAssignmentSummary(
+            endTime: '2026-05-03 23:59:59',
+            id: 'work-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            source: 'undone',
+            startTime: '',
+            status: FfiAssignmentStatus.pending,
+            title: '实验报告',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+
+    await tester.fling(find.text('实验报告'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 2);
+  });
+
+  testWidgets('pull to refresh reloads course resources', (tester) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+      resourcesResponse: const FfiCourseResourcesResponse(
+        records: [
+          FfiCourseResourceSummary(
+            name: '课件.pdf',
+            resourceId: 'resource-1',
+            siteId: 'site-1',
+            siteName: '软件测试',
+            updatedAt: '2026-05-02 10:00:00',
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.resourcesCalls, 1);
+
+    await tester.fling(find.text('课件.pdf'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(gateway.resourcesCalls, 2);
+  });
+
+  testWidgets('pending assignments show deadline urgency labels', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    FfiAssignmentSummary assignment(String id, String title, DateTime endTime) {
+      return FfiAssignmentSummary(
+        endTime: formatClientTimestamp(endTime),
+        id: id,
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: title,
+      );
+    }
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: FfiAssignmentListResponse(
+                records: [
+                  assignment(
+                    'work-1',
+                    '紧急作业',
+                    DateTime.now().add(const Duration(hours: 25)),
+                  ),
+                  assignment(
+                    'work-2',
+                    '逾期作业',
+                    DateTime.now().subtract(const Duration(days: 1)),
+                  ),
+                  assignment(
+                    'work-3',
+                    '宽松作业',
+                    DateTime.now().add(const Duration(days: 30)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('剩 24 小时'), findsOneWidget);
+    expect(find.textContaining('已逾期'), findsOneWidget);
+    expect(find.textContaining('宽松作业'), findsOneWidget);
+    expect(find.textContaining('剩 29 天'), findsNothing);
+  });
+
+  testWidgets('assignment view switch restores the previous course', (
+    tester,
+  ) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('计算机网络').last);
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(OpenCloudApp)),
+    );
+    expect(
+      container.read(clientControllerProvider).selectedAssignmentCourseId,
+      'site-2',
+    );
+
+    await tester.tap(find.text('待提交'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.lastCourseAssignmentsSiteId, 'site-2');
+    expect(
+      container.read(clientControllerProvider).selectedAssignmentCourseId,
+      'site-2',
+    );
+  });
+
+  testWidgets('assignment view switch reuses loaded lists', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+    expect(gateway.courseAssignmentsCalls, 1);
+
+    await tester.tap(find.text('待提交'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+    expect(gateway.courseAssignmentsCalls, 1);
+  });
+
+  testWidgets('assignment refresh bypasses the cached list', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('待提交'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+
+    await tester.tap(find.byTooltip('刷新作业'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 2);
+  });
+
+  testWidgets('top bar refresh reloads the active assignments list', (
+    tester,
+  ) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+    expect(gateway.coursesCalls, 1);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, '刷新'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 2);
+    expect(gateway.coursesCalls, 1);
   });
 
   testWidgets('assignment refresh uses selected course', (tester) async {
@@ -1237,6 +1659,114 @@ void main() {
     expect(find.text('返回作业列表'), findsNothing);
   });
 
+  testWidgets('system back from narrow assignment detail returns to list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: const FfiAssignmentListResponse(
+                records: [
+                  FfiAssignmentSummary(
+                    endTime: '2026-05-03 23:59:59',
+                    id: 'work-1',
+                    siteId: 'site-1',
+                    siteName: '软件测试',
+                    source: 'undone',
+                    startTime: '',
+                    status: FfiAssignmentStatus.pending,
+                    title: '实验报告',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('实验报告'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回作业列表'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回作业列表'), findsNothing);
+    expect(find.text('实验报告'), findsOneWidget);
+  });
+
+  testWidgets('system back from narrow resource detail returns to list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              courseResponse: _twoCourseResponse(),
+              resourcesResponse: const FfiCourseResourcesResponse(
+                records: [
+                  FfiCourseResourceSummary(
+                    name: '课件.pdf',
+                    resourceId: 'resource-1',
+                    siteId: 'site-1',
+                    siteName: '软件测试',
+                    updatedAt: '2026-05-02 10:00:00',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('课件.pdf'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回资料列表'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('返回资料列表'), findsNothing);
+    expect(find.text('课件.pdf'), findsOneWidget);
+  });
+
   testWidgets('assignment detail exposes submission metadata and attachments', (
     tester,
   ) async {
@@ -1466,7 +1996,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('未提交答案'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, '同步课程'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '刷新'));
     await tester.pumpAndSettle();
 
     expect(find.text('放弃未提交的修改？'), findsOneWidget);
@@ -1727,7 +2257,7 @@ void main() {
     expect(find.text('已上传附件 draft.pdf'), findsOneWidget);
   });
 
-  testWidgets('desktop assignment feedback appears in the detail pane', (
+  testWidgets('desktop assignment feedback appears as a snackbar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -1806,9 +2336,7 @@ void main() {
         .uploadAssignmentAttachment('/tmp/draft.pdf');
     await tester.pumpAndSettle();
 
-    final feedback = find.text('已上传附件 draft.pdf');
-    expect(feedback, findsOneWidget);
-    expect(tester.getTopLeft(feedback).dx, greaterThan(500));
+    expect(find.text('已上传附件 draft.pdf'), findsOneWidget);
   });
 
   testWidgets('assignment detail falls back to list course name', (
@@ -2627,7 +3155,7 @@ void main() {
     },
   );
 
-  testWidgets('desktop resource download feedback appears in the detail pane', (
+  testWidgets('desktop resource download feedback appears as a snackbar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 800);
@@ -2701,9 +3229,7 @@ void main() {
         .downloadResource('/tmp/课件.pdf');
     await tester.pumpAndSettle();
 
-    final feedback = find.text('已下载 1 个资料文件');
-    expect(feedback, findsOneWidget);
-    expect(tester.getTopLeft(feedback).dx, greaterThan(500));
+    expect(find.text('已下载 1 个资料文件'), findsOneWidget);
     expect(find.text('/tmp/课件.pdf'), findsOneWidget);
   });
 }

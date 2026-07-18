@@ -43,6 +43,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<String?>(
+      clientControllerProvider.select((state) => state.operationMessage),
+      (previous, next) {
+        if (next != null && next != previous) {
+          _showSnackBar(context, next);
+        }
+      },
+    );
     final phase = ref.watch(
       clientControllerProvider.select((state) => state.phase),
     );
@@ -138,8 +146,6 @@ typedef _AssignmentsPaneState = ({
   bool assignmentsLoading,
   List<CourseItem> courses,
   String? errorMessage,
-  OperationContext? operationContext,
-  String? operationMessage,
   FfiAssignmentDetailResponse? assignmentDetail,
   String? selectedAssignmentCourseId,
   String? selectedAssignmentId,
@@ -165,8 +171,6 @@ _AssignmentsPaneState _selectAssignmentsPaneState(ClientState state) {
     assignmentsLoading: state.assignmentsLoading,
     courses: state.courses,
     errorMessage: state.errorMessage,
-    operationContext: state.operationContext,
-    operationMessage: state.operationMessage,
     assignmentDetail: state.assignmentDetail,
     selectedAssignmentCourseId: state.selectedAssignmentCourseId,
     selectedAssignmentId: state.selectedAssignmentId,
@@ -190,7 +194,6 @@ typedef _ResourcesPaneState = ({
   List<String> downloadedPaths,
   OperationContext? operationContext,
   String? errorMessage,
-  String? operationMessage,
   FfiCourseResourceDetail? resourceDetail,
   bool resourceDetailLoading,
   bool resourceDownloading,
@@ -213,7 +216,6 @@ _ResourcesPaneState _selectResourcesPaneState(ClientState state) {
     downloadedPaths: state.downloadedPaths,
     operationContext: state.operationContext,
     errorMessage: state.errorMessage,
-    operationMessage: state.operationMessage,
     resourceDetail: state.resourceDetail,
     resourceDetailLoading: state.resourceDetailLoading,
     resourceDownloading: state.resourceDownloading,
@@ -294,16 +296,16 @@ class _ClientNavigationBar extends ConsumerWidget {
     final selectedTab = ref.watch(
       clientControllerProvider.select((state) => state.selectedTab),
     );
-    return BottomNavigationBar(
-      currentIndex: _destinationIndex(selectedTab),
-      onTap: (index) {
+    return NavigationBar(
+      selectedIndex: _destinationIndex(selectedTab),
+      onDestinationSelected: (index) {
         unawaited(
           _selectClientTab(_clientDestinations[index].tab, ref, context),
         );
       },
-      items: [
+      destinations: [
         for (final destination in _clientDestinations)
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(destination.icon),
             label: destination.label,
           ),
@@ -417,22 +419,15 @@ class _SideNavigation extends ConsumerWidget {
             children: [
               const _BrandHeader(subtitle: '学生桌面端'),
               const SizedBox(height: 24),
-              for (var index = 0; index < _clientDestinations.length; index++)
+              for (final destination in _clientDestinations)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _SideNavigationItem(
-                    number: '${index + 1}'.padLeft(2, '0'),
-                    destination: _clientDestinations[index],
-                    selected:
-                        navigationState.selectedTab ==
-                        _clientDestinations[index].tab,
+                    destination: destination,
+                    selected: navigationState.selectedTab == destination.tab,
                     onTap: () {
                       unawaited(
-                        _selectClientTab(
-                          _clientDestinations[index].tab,
-                          ref,
-                          context,
-                        ),
+                        _selectClientTab(destination.tab, ref, context),
                       );
                     },
                   ),
@@ -488,7 +483,9 @@ class _BrandHeader extends StatelessWidget {
 }
 
 class _BrandMark extends StatelessWidget {
-  const _BrandMark();
+  const _BrandMark({this.size = 28});
+
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -500,13 +497,14 @@ class _BrandMark extends StatelessWidget {
         color: colorScheme.primaryContainer.withValues(alpha: 0.28),
       ),
       child: SizedBox(
-        width: 28,
-        height: 28,
+        width: size,
+        height: size,
         child: Center(
           child: Text(
             'OU',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: colorScheme.primary,
+              fontSize: size * 0.4,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -518,13 +516,11 @@ class _BrandMark extends StatelessWidget {
 
 class _SideNavigationItem extends StatelessWidget {
   const _SideNavigationItem({
-    required this.number,
     required this.destination,
     required this.selected,
     required this.onTap,
   });
 
-  final String number;
   final _ClientDestination destination;
   final bool selected;
   final VoidCallback onTap;
@@ -549,22 +545,11 @@ class _SideNavigationItem extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           child: Row(
             children: [
-              SizedBox(
-                width: 26,
-                child: Text(
-                  number,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
               Icon(destination.icon, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  destination.tab == ClientTab.account
-                      ? destination.title
-                      : destination.label,
+                  destination.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelLarge,
@@ -657,7 +642,7 @@ class _WorkbenchFrame extends ConsumerWidget {
             onRefresh: isBusy
                 ? null
                 : () {
-                    unawaited(_refreshCoursesWithGuards(context, ref));
+                    unawaited(_refreshActiveTab(context, ref));
                   },
             onLogout: isBusy ? null : controller.logout,
           ),
@@ -730,7 +715,7 @@ class _WorkbenchTopBar extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onRefresh,
                 icon: const Icon(Icons.refresh),
-                label: const Text('同步课程'),
+                label: const Text('刷新'),
               ),
               _ThemeModeMenu(themeMode: themeMode),
               IconButton(
@@ -823,6 +808,36 @@ Future<void> _refreshCoursesWithGuards(
     return;
   }
   await ref.read(clientControllerProvider.notifier).refreshCourses();
+}
+
+/// Refreshes whatever the active tab is showing: the dashboard reloads both
+/// courses and pending assignments, the assignments/resources tabs reload
+/// their current list, and the account tab reloads courses.
+Future<void> _refreshActiveTab(BuildContext context, WidgetRef ref) async {
+  final state = ref.read(clientControllerProvider);
+  if (!await _prepareForTabDeparture(context, ref, state)) {
+    return;
+  }
+  if (!context.mounted) {
+    return;
+  }
+  final controller = ref.read(clientControllerProvider.notifier);
+  switch (state.selectedTab) {
+    case ClientTab.dashboard:
+      await controller.refreshCourses();
+      if (context.mounted) {
+        await controller.loadUndoneAssignments(
+          selectedTab: ClientTab.dashboard,
+          refresh: true,
+        );
+      }
+    case ClientTab.assignments:
+      await _refreshAssignments(context, ref);
+    case ClientTab.resources:
+      await _refreshResources(context, ref);
+    case ClientTab.account:
+      await controller.refreshCourses();
+  }
 }
 
 bool _canLeaveAssignmentDetail(ClientState state) {
@@ -950,6 +965,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
   String? _usernameError;
   String? _passwordError;
   String? _captchaError;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -1015,11 +1031,7 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
           shrinkWrap: true,
           padding: const EdgeInsets.all(24),
           children: [
-            Icon(
-              Icons.school_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            const Center(child: _BrandMark(size: 48)),
             const SizedBox(height: 16),
             Text(
               '登录 Open UCloud',
@@ -1027,37 +1039,64 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            TextField(
-              controller: _usernameController,
-              enabled: !awaitingCaptcha,
-              autofillHints: const [AutofillHints.username],
-              keyboardType: TextInputType.text,
-              textInputAction: TextInputAction.next,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: '用户名',
-                prefixIcon: const Icon(Icons.person_outline),
-                errorText: _usernameError,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              enabled: !awaitingCaptcha,
-              obscureText: true,
-              autofillHints: const [AutofillHints.password],
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submitPrimary(controller, awaitingCaptcha),
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: '密码',
-                prefixIcon: const Icon(Icons.lock_outline),
-                errorText: _passwordError,
+            AutofillGroup(
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _usernameController,
+                    enabled: !awaitingCaptcha,
+                    autofillHints: const [AutofillHints.username],
+                    keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: '用户名',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      errorText: _usernameError,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _passwordController,
+                    enabled: !awaitingCaptcha,
+                    obscureText: _obscurePassword,
+                    autofillHints: const [AutofillHints.password],
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) =>
+                        _submitPrimary(controller, awaitingCaptcha),
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: '密码',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      errorText: _passwordError,
+                      suffixIcon: IconButton(
+                        tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (awaitingCaptcha) ...[
               const SizedBox(height: 16),
-              _CaptchaImage(dataUri: state.captchaImage),
+              Tooltip(
+                message: '点击刷新验证码',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _restartLogin(controller),
+                  child: _CaptchaImage(dataUri: state.captchaImage),
+                ),
+              ),
               const SizedBox(height: 12),
               TextField(
                 controller: _captchaController,
@@ -1089,24 +1128,25 @@ class _LoginPaneState extends ConsumerState<_LoginPane> {
                 label: const Text('修改账号密码'),
               ),
               TextButton.icon(
-                onPressed: () => controller.startLogin(
-                  username: _usernameController.text.trim(),
-                  password: _passwordController.text,
-                ),
+                onPressed: () => _restartLogin(controller),
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('重新获取验证码'),
               ),
             ],
             if (state.errorMessage != null) ...[
               const SizedBox(height: 16),
-              _StatusBanner(
-                kind: _BannerKind.error,
-                message: state.errorMessage!,
-              ),
+              _StatusBanner(message: state.errorMessage!),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  void _restartLogin(ClientController controller) {
+    controller.startLogin(
+      username: _usernameController.text.trim(),
+      password: _passwordController.text,
     );
   }
 

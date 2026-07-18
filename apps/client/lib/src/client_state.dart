@@ -26,6 +26,24 @@ const defaultClientCapabilities = FfiClientCapabilities(
   attendanceQrPayloadParsing: false,
 );
 
+/// Formats a local timestamp for display, e.g. `2026-07-18 15:04`.
+String formatClientTimestamp(DateTime value) {
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
+  return '${value.year}-${twoDigits(value.month)}-${twoDigits(value.day)} '
+      '${twoDigits(value.hour)}:${twoDigits(value.minute)}';
+}
+
+/// Converts an arbitrary error into text suitable for display, preferring the
+/// upstream auth message over raw exception wrappers.
+String displayErrorText(Object error) {
+  if (error is FfiAuthError) {
+    return error.message;
+  }
+  final text = error.toString();
+  const prefix = 'Exception: ';
+  return text.startsWith(prefix) ? text.substring(prefix.length) : text;
+}
+
 class CourseItem {
   const CourseItem({
     required this.id,
@@ -65,6 +83,7 @@ class ClientState {
     this.pendingUsername,
     this.captchaImage,
     this.courses = const [],
+    this.coursesSyncedAt,
     this.assignmentView = AssignmentView.undone,
     this.assignments = const [],
     this.assignmentsLoaded = false,
@@ -108,6 +127,7 @@ class ClientState {
   final String? pendingUsername;
   final String? captchaImage;
   final List<CourseItem> courses;
+  final DateTime? coursesSyncedAt;
   final AssignmentView assignmentView;
   final List<FfiAssignmentSummary> assignments;
   final bool assignmentsLoaded;
@@ -158,6 +178,7 @@ class ClientState {
     String? pendingUsername,
     String? captchaImage,
     List<CourseItem>? courses,
+    DateTime? coursesSyncedAt,
     AssignmentView? assignmentView,
     List<FfiAssignmentSummary>? assignments,
     bool? assignmentsLoaded,
@@ -216,6 +237,7 @@ class ClientState {
           : pendingUsername ?? this.pendingUsername,
       captchaImage: clearLogin ? null : captchaImage ?? this.captchaImage,
       courses: courses ?? this.courses,
+      coursesSyncedAt: coursesSyncedAt ?? this.coursesSyncedAt,
       assignmentView: assignmentView ?? this.assignmentView,
       assignments: assignments ?? this.assignments,
       assignmentsLoaded: assignmentsLoaded ?? this.assignmentsLoaded,

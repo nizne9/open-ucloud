@@ -71,10 +71,7 @@ class _AttendanceQrPayloadDialogState
               ),
               if (state.attendanceQrInputError != null) ...[
                 const SizedBox(height: 12),
-                _StatusBanner(
-                  kind: _BannerKind.error,
-                  message: state.attendanceQrInputError!,
-                ),
+                _StatusBanner(message: state.attendanceQrInputError!),
               ],
               if (parsed != null) ...[
                 const SizedBox(height: 16),

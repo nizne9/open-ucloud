@@ -8,57 +8,52 @@ class _AssignmentsPane extends ConsumerWidget {
     final state = ref.watch(
       clientControllerProvider.select(_selectAssignmentsPaneState),
     );
-    final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSplit = constraints.maxWidth >= 900;
+        final detailOpen =
+            state.assignmentDetail != null || state.assignmentDetailLoading;
         if (!useSplit) {
-          final showDetail =
-              state.selectedAssignmentId != null ||
-              state.assignmentDetail != null ||
-              state.assignmentDetailLoading;
-          if (showDetail) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                _FeedbackBanners(
-                  errorMessage: state.errorMessage,
-                  operationMessage: state.operationMessage,
-                  activeOperationContext: state.operationContext,
-                  operationContext: OperationContext.assignmentDetail,
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed:
-                        state.assignmentUploading || state.assignmentSubmitting
-                        ? null
-                        : () async {
-                            if (!await _prepareForAssignmentContextChange(
-                              context,
-                              ref,
-                            )) {
-                              return;
-                            }
-                            controller.clearAssignmentSelection();
-                          },
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('返回作业列表'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const _AssignmentDetailCard(),
-              ],
-            );
-          }
-          return _listView(context, ref, state);
+          final showDetail = detailOpen || state.selectedAssignmentId != null;
+          return PopScope(
+            canPop: !showDetail,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) {
+                unawaited(_exitAssignmentDetail(context, ref));
+              }
+            },
+            child: showDetail
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    children: [
+                      _FeedbackBanners(errorMessage: state.errorMessage),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed:
+                              state.assignmentUploading ||
+                                  state.assignmentSubmitting
+                              ? null
+                              : () => unawaited(
+                                  _exitAssignmentDetail(context, ref),
+                                ),
+                          icon: const Icon(Icons.arrow_back),
+                          label: const Text('返回作业列表'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const _AssignmentDetailCard(),
+                    ],
+                  )
+                : _listView(context, ref, state),
+          );
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
               width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: _listView(context, ref, state),
+              child: _listView(context, ref, state, showError: !detailOpen),
             ),
             const VerticalDivider(width: 1),
             Expanded(
@@ -74,12 +69,7 @@ class _AssignmentsPane extends ConsumerWidget {
                       bordered: true,
                     )
                   else ...[
-                    _FeedbackBanners(
-                      errorMessage: state.errorMessage,
-                      operationMessage: state.operationMessage,
-                      activeOperationContext: state.operationContext,
-                      operationContext: OperationContext.assignmentDetail,
-                    ),
+                    _FeedbackBanners(errorMessage: state.errorMessage),
                     const _AssignmentDetailCard(),
                   ],
                 ],
@@ -94,17 +84,30 @@ class _AssignmentsPane extends ConsumerWidget {
   Widget _listView(
     BuildContext context,
     WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
-    return CustomScrollView(slivers: _listSlivers(context, ref, state));
+    _AssignmentsPaneState state, {
+    bool showError = true,
+  }) {
+    return RefreshIndicator(
+      onRefresh: () => _refreshAssignments(context, ref),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: _listSlivers(context, ref, state, showError: showError),
+      ),
+    );
   }
 
   List<Widget> _listSlivers(
     BuildContext context,
     WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
-    final headerChildren = _listHeaderChildren(context, ref, state);
+    _AssignmentsPaneState state, {
+    bool showError = true,
+  }) {
+    final headerChildren = _listHeaderChildren(
+      context,
+      ref,
+      state,
+      showError: showError,
+    );
     return [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -163,18 +166,14 @@ class _AssignmentsPane extends ConsumerWidget {
   List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
+    _AssignmentsPaneState state, {
+    bool showError = true,
+  }) {
     final selectedCourseId =
         state.selectedAssignmentCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
-      _FeedbackBanners(
-        errorMessage: state.errorMessage,
-        operationMessage: state.operationMessage,
-        activeOperationContext: state.operationContext,
-        operationContext: OperationContext.assignmentList,
-      ),
+      _FeedbackBanners(errorMessage: showError ? state.errorMessage : null),
       Row(
         children: [
           Expanded(
@@ -247,6 +246,16 @@ class _AssignmentsPane extends ConsumerWidget {
     ];
   }
 
+  Future<void> _exitAssignmentDetail(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    if (!await _prepareForAssignmentContextChange(context, ref)) {
+      return;
+    }
+    ref.read(clientControllerProvider.notifier).clearAssignmentSelection();
+  }
+
   Future<void> _changeAssignmentView(
     BuildContext context,
     WidgetRef ref,
@@ -260,25 +269,13 @@ class _AssignmentsPane extends ConsumerWidget {
     if (next == AssignmentView.undone) {
       controller.loadUndoneAssignments();
     } else if (state.courses.isNotEmpty) {
-      controller.loadCourseAssignments(state.courses.first.id);
-    }
-  }
-
-  Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
-    if (!await _prepareForAssignmentContextChange(context, ref)) {
-      return;
-    }
-    final controller = ref.read(clientControllerProvider.notifier);
-    final currentState = ref.read(clientControllerProvider);
-    if (currentState.assignmentView == AssignmentView.undone) {
-      controller.loadUndoneAssignments();
-    } else {
-      final siteId =
-          currentState.selectedAssignmentCourseId ??
-          (currentState.courses.isEmpty ? null : currentState.courses.first.id);
-      if (siteId != null) {
-        controller.loadCourseAssignments(siteId);
-      }
+      final selected = state.selectedAssignmentCourseId;
+      final stillValid =
+          selected != null &&
+          state.courses.any((course) => course.id == selected);
+      controller.loadCourseAssignments(
+        stillValid ? selected : state.courses.first.id,
+      );
     }
   }
 
@@ -316,13 +313,25 @@ class _AssignmentsPane extends ConsumerWidget {
     _AssignmentsPaneState state,
     FfiAssignmentSummary assignment,
   ) {
+    final urgency = assignment.status == FfiAssignmentStatus.pending
+        ? _deadlineUrgencySpan(context, assignment.endTime)
+        : null;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         selected: state.selectedAssignmentId == assignment.id,
         leading: Icon(_assignmentIcon(assignment.status)),
-        title: Text(assignment.title),
-        subtitle: Text('${assignment.siteName}\n截止：${assignment.endTime}'),
+        title: _TooltipText(assignment.title),
+        subtitle: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '${assignment.siteName}\n截止：${assignment.endTime}',
+              ),
+              ?urgency,
+            ],
+          ),
+        ),
         isThreeLine: true,
         trailing: Text(_assignmentStatusText(assignment.status)),
         onTap: () {
@@ -339,6 +348,24 @@ String _assignmentStatusText(FfiAssignmentStatus status) {
     FfiAssignmentStatus.submitted => '已提交',
     FfiAssignmentStatus.expired => '已截止',
   };
+}
+
+Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
+  if (!await _prepareForAssignmentContextChange(context, ref)) {
+    return;
+  }
+  final controller = ref.read(clientControllerProvider.notifier);
+  final currentState = ref.read(clientControllerProvider);
+  if (currentState.assignmentView == AssignmentView.undone) {
+    await controller.loadUndoneAssignments(refresh: true);
+  } else {
+    final siteId =
+        currentState.selectedAssignmentCourseId ??
+        (currentState.courses.isEmpty ? null : currentState.courses.first.id);
+    if (siteId != null) {
+      await controller.loadCourseAssignments(siteId, refresh: true);
+    }
+  }
 }
 
 class _AssignmentDetailCard extends ConsumerStatefulWidget {
@@ -414,6 +441,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
       detail: detail,
     );
     final submittedAttachments = detail.submittedAttachments;
+    final deadlineUrgency = detail.status == FfiAssignmentStatus.pending
+        ? _deadlineUrgency(context, detail.endTime)
+        : null;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -430,7 +460,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                 if (detail.endTime.isNotEmpty)
                   _MetaChip(
                     icon: Icons.event_outlined,
-                    label: '截止 ${detail.endTime}',
+                    label: deadlineUrgency == null
+                        ? '截止 ${detail.endTime}'
+                        : '截止 ${detail.endTime} · ${deadlineUrgency.text}',
                   ),
                 _MetaChip(
                   icon: expired
@@ -693,7 +725,7 @@ class _AssignmentResourceList extends StatelessWidget {
               title: Text(resource.name),
               subtitle: resource.previewUrl == null
                   ? null
-                  : SelectableText(resource.previewUrl!),
+                  : SelectableText(resource.previewUrl!, maxLines: 2),
               trailing:
                   resource.previewUrl == null || resource.previewUrl!.isEmpty
                   ? null
@@ -743,7 +775,7 @@ class _LinkValue extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
-            Expanded(child: SelectableText(url)),
+            Expanded(child: SelectableText(url, maxLines: 2)),
             _LinkActions(url: url),
           ],
         ),

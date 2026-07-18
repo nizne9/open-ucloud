@@ -29,8 +29,7 @@ class _DashboardPane extends ConsumerWidget {
             ? state.errorMessage
             : null;
         final primary = [
-          if (dashboardError != null)
-            _StatusBanner(kind: _BannerKind.error, message: dashboardError),
+          if (dashboardError != null) _StatusBanner(message: dashboardError),
           _DashboardStatsCard(state: state),
           _CourseContextCard(state: state),
           _PendingAssignmentsCard(state: state),
@@ -58,9 +57,13 @@ class _DashboardPane extends ConsumerWidget {
             ],
           );
         }
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          children: [...primary, ...secondary],
+        return RefreshIndicator(
+          onRefresh: () => _refreshActiveTab(context, ref),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [...primary, ...secondary],
+          ),
         );
       },
     );
@@ -83,7 +86,9 @@ class _DashboardStatsCard extends ConsumerWidget {
       title: '今天需要关注',
       subtitle: state.phase == ClientPhase.loadingCourses
           ? '正在同步课程'
-          : '最后同步完成 · 会话有效',
+          : state.coursesSyncedAt == null
+          ? '课程尚未同步'
+          : '上次同步 ${formatClientTimestamp(state.coursesSyncedAt!)}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -115,7 +120,7 @@ class _DashboardStatsCard extends ConsumerWidget {
           ],
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth < 520 ? 2 : 4;
+              final columns = constraints.maxWidth < 520 ? 2 : 3;
               return GridView.count(
                 crossAxisCount: columns,
                 shrinkWrap: true,
@@ -132,16 +137,9 @@ class _DashboardStatsCard extends ConsumerWidget {
                     label: '待提交作业',
                   ),
                   _MetricTile(
-                    value: state.resources.isEmpty
-                        ? '按课程'
-                        : '${state.resources.length}',
-                    label: '可下载资料',
-                  ),
-                  _MetricTile(
-                    value: state.capabilities.attendanceQrPayloadParsing
-                        ? '可解析'
-                        : '不可用',
-                    label: '二维码文本',
+                    value:
+                        '${state.courses.where((course) => course.going).length}',
+                    label: '签到进行中',
                   ),
                 ],
               );
@@ -278,10 +276,8 @@ class _CourseContextRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    _TooltipText(
                       course.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 2),
@@ -354,16 +350,14 @@ class _PendingAssignmentsCard extends ConsumerWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _StatusBanner(
-                  kind: _BannerKind.error,
-                  message: state.pendingAssignmentsErrorMessage!,
-                ),
+                _StatusBanner(message: state.pendingAssignmentsErrorMessage!),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
                     onPressed: () => controller.loadUndoneAssignments(
                       selectedTab: ClientTab.dashboard,
+                      refresh: true,
                     ),
                     icon: const Icon(Icons.refresh),
                     label: const Text('重试待办'),
@@ -393,13 +387,22 @@ class _PendingAssignmentsCard extends ConsumerWidget {
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
                       leading: Icon(_assignmentIcon(assignment.status)),
-                      title: Text(
-                        assignment.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        '${assignment.siteName} · 截止 ${assignment.endTime}',
+                      title: _TooltipText(assignment.title),
+                      subtitle: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text:
+                                  '${assignment.siteName} · 截止 ${assignment.endTime}',
+                            ),
+                            if (assignment.status ==
+                                FfiAssignmentStatus.pending)
+                              ?_deadlineUrgencySpan(
+                                context,
+                                assignment.endTime,
+                              ),
+                          ],
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -524,10 +527,10 @@ class _AccountPane extends ConsumerWidget {
                     onPressed: state.isBusy
                         ? null
                         : () {
-                            unawaited(_refreshCoursesWithGuards(context, ref));
+                            unawaited(_refreshActiveTab(context, ref));
                           },
                     icon: const Icon(Icons.refresh),
-                    label: const Text('同步课程'),
+                    label: const Text('刷新'),
                   ),
                   FilledButton.tonalIcon(
                     onPressed: state.isBusy

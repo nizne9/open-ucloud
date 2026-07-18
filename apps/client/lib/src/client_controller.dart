@@ -27,6 +27,8 @@ class ClientController extends Notifier<ClientState> {
   int _resourceDownloadGeneration = 0;
   bool _resourceDownloadPollInFlight = false;
   Timer? _resourceDownloadPollTimer;
+  List<FfiAssignmentSummary>? _undoneAssignmentsCache;
+  final _courseAssignmentsCache = <String, List<FfiAssignmentSummary>>{};
 
   @override
   ClientState build() {
@@ -49,7 +51,7 @@ class ClientController extends Notifier<ClientState> {
       } catch (_) {}
       state = ClientState(
         phase: ClientPhase.unauthenticated,
-        errorMessage: '无法读取安全存储：$error',
+        errorMessage: '无法读取安全存储：${displayErrorText(error)}',
       );
       return;
     }
@@ -79,7 +81,7 @@ class ClientController extends Notifier<ClientState> {
       await storage.clearSessionPayload();
       state = ClientState(
         phase: ClientPhase.unauthenticated,
-        errorMessage: '无法恢复登录会话：$error',
+        errorMessage: '无法恢复登录会话：${displayErrorText(error)}',
       );
     }
   }
@@ -123,7 +125,7 @@ class ClientController extends Notifier<ClientState> {
       _pendingPassword = null;
       state = ClientState(
         phase: ClientPhase.unauthenticated,
-        errorMessage: '登录初始化失败：$error',
+        errorMessage: '登录初始化失败：${displayErrorText(error)}',
       );
     }
   }
@@ -195,7 +197,7 @@ class ClientController extends Notifier<ClientState> {
         phase: canRetryCaptcha
             ? ClientPhase.awaitingCaptcha
             : ClientPhase.unauthenticated,
-        errorMessage: '登录失败：$error',
+        errorMessage: '登录失败：${displayErrorText(error)}',
       );
     }
   }
@@ -210,7 +212,7 @@ class ClientController extends Notifier<ClientState> {
         phase: state.session == null
             ? ClientPhase.unauthenticated
             : ClientPhase.authenticated,
-        errorMessage: '无法读取安全存储：$error',
+        errorMessage: '无法读取安全存储：${displayErrorText(error)}',
       );
       return;
     }
@@ -242,7 +244,7 @@ class ClientController extends Notifier<ClientState> {
       );
     } catch (error) {
       state = state.copyWith(
-        attendanceQrInputError: '二维码文本解析失败：$error',
+        attendanceQrInputError: '二维码文本解析失败：${displayErrorText(error)}',
         clearAttendanceQrResult: true,
       );
     }
@@ -267,6 +269,8 @@ class ClientController extends Notifier<ClientState> {
     _pendingPassword = null;
     _assignmentListGeneration += 1;
     _resourceListGeneration += 1;
+    _undoneAssignmentsCache = null;
+    _courseAssignmentsCache.clear();
     await _cancelActiveResourceDownloadSilently();
     final gateway = ref.read(openCloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
@@ -303,8 +307,25 @@ class ClientController extends Notifier<ClientState> {
   Future<void> loadUndoneAssignments({
     ClientTab selectedTab = ClientTab.assignments,
     bool clearGlobalError = true,
+    bool refresh = false,
   }) async {
     final generation = ++_assignmentListGeneration;
+    final cached = _undoneAssignmentsCache;
+    if (cached != null && !refresh) {
+      state = state.copyWith(
+        selectedTab: selectedTab,
+        assignmentView: AssignmentView.undone,
+        assignments: cached,
+        assignmentsLoaded: true,
+        assignmentsLoading: false,
+        assignmentDetailLoading: false,
+        clearAssignmentSelection: true,
+        clearPendingAssignmentsError: true,
+        clearOperationMessage: true,
+        clearError: clearGlobalError,
+      );
+      return;
+    }
     state = state.copyWith(
       selectedTab: selectedTab,
       assignmentView: AssignmentView.undone,
@@ -312,7 +333,6 @@ class ClientController extends Notifier<ClientState> {
       assignmentsLoaded: false,
       assignmentsLoading: true,
       assignmentDetailLoading: false,
-      clearSelectedAssignmentCourse: true,
       clearAssignmentSelection: true,
       clearPendingAssignmentsError: true,
       clearOperationMessage: true,
@@ -341,6 +361,7 @@ class ClientController extends Notifier<ClientState> {
       if (!_isCurrentAssignmentListGeneration(generation)) {
         return;
       }
+      _undoneAssignmentsCache = response.records;
       state = state.copyWith(
         assignments: response.records,
         assignmentsLoaded: true,
@@ -364,7 +385,7 @@ class ClientController extends Notifier<ClientState> {
       if (!_isCurrentAssignmentListGeneration(generation)) {
         return;
       }
-      final message = '未完成作业加载失败：$error';
+      final message = '未完成作业加载失败：${displayErrorText(error)}';
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
@@ -374,9 +395,28 @@ class ClientController extends Notifier<ClientState> {
     }
   }
 
-  Future<void> loadCourseAssignments(String siteId) async {
+  Future<void> loadCourseAssignments(
+    String siteId, {
+    bool refresh = false,
+  }) async {
     final generation = ++_assignmentListGeneration;
     final course = _courseById(siteId);
+    final cached = _courseAssignmentsCache[siteId];
+    if (cached != null && !refresh) {
+      state = state.copyWith(
+        selectedTab: ClientTab.assignments,
+        assignmentView: AssignmentView.course,
+        selectedAssignmentCourseId: siteId,
+        assignments: cached,
+        assignmentsLoaded: true,
+        assignmentsLoading: false,
+        assignmentDetailLoading: false,
+        clearAssignmentSelection: true,
+        clearOperationMessage: true,
+        clearError: true,
+      );
+      return;
+    }
     state = state.copyWith(
       selectedTab: ClientTab.assignments,
       assignmentView: AssignmentView.course,
@@ -411,6 +451,7 @@ class ClientController extends Notifier<ClientState> {
       if (!_isCurrentAssignmentListGeneration(generation)) {
         return;
       }
+      _courseAssignmentsCache[siteId] = response.records;
       state = state.copyWith(
         assignments: response.records,
         assignmentsLoaded: true,
@@ -435,7 +476,7 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(
         assignmentsLoaded: false,
         assignmentsLoading: false,
-        errorMessage: '课程作业加载失败：$error',
+        errorMessage: '课程作业加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -515,7 +556,7 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(
         assignmentDetailLoading: false,
         clearAssignmentSelection: true,
-        errorMessage: '作业详情加载失败：$error',
+        errorMessage: '作业详情加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -606,7 +647,7 @@ class ClientController extends Notifier<ClientState> {
       }
       state = state.copyWith(
         assignmentUploading: false,
-        errorMessage: '附件上传失败：$error',
+        errorMessage: '附件上传失败：${displayErrorText(error)}',
       );
     }
   }
@@ -680,6 +721,14 @@ class ClientController extends Notifier<ClientState> {
         return;
       }
       await _persistUpdatedPayload(response.updatedSessionPayload);
+      final undoneCache = _undoneAssignmentsCache;
+      if (undoneCache != null) {
+        _undoneAssignmentsCache = [
+          for (final record in undoneCache)
+            if (record.id != detail.id) record,
+        ];
+      }
+      _courseAssignmentsCache.remove(detail.siteId);
       state = state.copyWith(
         assignmentSubmitting: false,
         assignmentDetail: FfiAssignmentDetailResponse(
@@ -694,7 +743,7 @@ class ClientController extends Notifier<ClientState> {
           siteName: detail.siteName,
           startTime: detail.startTime,
           status: FfiAssignmentStatus.submitted,
-          submittedAt: DateTime.now().toIso8601String(),
+          submittedAt: formatClientTimestamp(DateTime.now()),
           submittedAttachments: [
             for (final attachment in attachments)
               FfiAssignmentResource(
@@ -730,7 +779,7 @@ class ClientController extends Notifier<ClientState> {
       }
       state = state.copyWith(
         assignmentSubmitting: false,
-        errorMessage: '作业提交失败：$error',
+        errorMessage: '作业提交失败：${displayErrorText(error)}',
       );
     }
   }
@@ -796,7 +845,7 @@ class ClientController extends Notifier<ClientState> {
       }
       state = state.copyWith(
         resourcesLoading: false,
-        errorMessage: '课程资料加载失败：$error',
+        errorMessage: '课程资料加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -876,7 +925,7 @@ class ClientController extends Notifier<ClientState> {
       state = state.copyWith(
         resourceDetailLoading: false,
         clearResourceSelection: true,
-        errorMessage: '资料详情加载失败：$error',
+        errorMessage: '资料详情加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -984,7 +1033,7 @@ class ClientController extends Notifier<ClientState> {
         resourceDownloading: false,
         clearResourceDownloadTask: true,
         clearResourceDownloadCurrentFileName: true,
-        errorMessage: '资料下载失败：$error',
+        errorMessage: '资料下载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -1073,7 +1122,7 @@ class ClientController extends Notifier<ClientState> {
         resourceDownloading: false,
         clearResourceDownloadTask: true,
         clearResourceDownloadCurrentFileName: true,
-        errorMessage: '课程资料下载失败：$error',
+        errorMessage: '课程资料下载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -1216,7 +1265,7 @@ class ClientController extends Notifier<ClientState> {
       _resourceDownloadPollTimer = null;
       state = state.copyWith(
         resourceDownloading: false,
-        errorMessage: '下载状态更新失败：$error',
+        errorMessage: '下载状态更新失败：${displayErrorText(error)}',
         clearResourceDownloadTask: true,
         clearResourceDownloadCurrentFileName: true,
       );
@@ -1332,12 +1381,17 @@ class ClientController extends Notifier<ClientState> {
           ),
       ];
       final courseIds = {for (final course in courses) course.id};
+      _undoneAssignmentsCache = null;
+      _courseAssignmentsCache.clear();
       final nextAssignmentCourseId = state.selectedAssignmentCourseId;
       final assignmentCourseApplies =
           state.assignmentView == AssignmentView.course;
       final keepAssignmentCourse =
           !assignmentCourseApplies ||
           nextAssignmentCourseId == null ||
+          courseIds.contains(nextAssignmentCourseId);
+      final assignmentSelectionValid =
+          nextAssignmentCourseId != null &&
           courseIds.contains(nextAssignmentCourseId);
       final fallbackAssignmentCourseId = courses.isEmpty
           ? null
@@ -1359,19 +1413,20 @@ class ClientController extends Notifier<ClientState> {
         session: session,
         capabilities: capabilities ?? state.capabilities,
         courses: courses,
+        coursesSyncedAt: DateTime.now(),
         assignmentView: keepAssignmentCourse
             ? state.assignmentView
             : fallbackAssignmentCourseId == null
             ? AssignmentView.undone
             : AssignmentView.course,
-        selectedAssignmentCourseId: !assignmentCourseApplies
-            ? null
-            : keepAssignmentCourse
+        selectedAssignmentCourseId: assignmentSelectionValid
             ? state.selectedAssignmentCourseId
-            : fallbackAssignmentCourseId,
+            : assignmentCourseApplies
+            ? fallbackAssignmentCourseId
+            : null,
         clearSelectedAssignmentCourse:
-            !assignmentCourseApplies ||
-            (!keepAssignmentCourse && fallbackAssignmentCourseId == null),
+            !assignmentSelectionValid &&
+            (!assignmentCourseApplies || fallbackAssignmentCourseId == null),
         assignments: keepAssignmentCourse ? state.assignments : const [],
         assignmentsLoaded: keepAssignmentCourse
             ? state.assignmentsLoaded
@@ -1435,7 +1490,7 @@ class ClientController extends Notifier<ClientState> {
         session: session,
         capabilities: capabilities ?? state.capabilities,
         courses: state.courses,
-        errorMessage: '课程加载失败：$error',
+        errorMessage: '课程加载失败：${displayErrorText(error)}',
       );
     }
   }
@@ -1461,7 +1516,9 @@ class ClientController extends Notifier<ClientState> {
       }
       return payload;
     } catch (error) {
-      state = state.copyWith(errorMessage: '无法读取安全存储：$error');
+      state = state.copyWith(
+        errorMessage: '无法读取安全存储：${displayErrorText(error)}',
+      );
       return null;
     }
   }

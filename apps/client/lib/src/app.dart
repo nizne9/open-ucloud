@@ -49,12 +49,6 @@ class _OpenCloudAppState extends ConsumerState<OpenCloudApp> {
       brightness: brightness,
       useMaterial3: true,
       visualDensity: VisualDensity.standard,
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        type: BottomNavigationBarType.fixed,
-        showUnselectedLabels: true,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurfaceVariant,
-      ),
     );
   }
 }

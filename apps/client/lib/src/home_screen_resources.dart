@@ -64,52 +64,46 @@ class _ResourcesPane extends ConsumerWidget {
     final state = ref.watch(
       clientControllerProvider.select(_selectResourcesPaneState),
     );
-    final controller = ref.read(clientControllerProvider.notifier);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSplit = constraints.maxWidth >= 900;
+        final detailOpen =
+            state.resourceDetail != null || state.resourceDetailLoading;
         if (!useSplit) {
-          final showDetail =
-              state.selectedResourceId != null ||
-              state.resourceDetail != null ||
-              state.resourceDetailLoading;
-          if (showDetail) {
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              children: [
-                _FeedbackBanners(
-                  errorMessage: state.errorMessage,
-                  operationMessage: state.operationMessage,
-                  activeOperationContext: state.operationContext,
-                  operationContext: OperationContext.resourceDetail,
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () async {
-                      if (!await _prepareForResourceContextChange(
-                        context,
-                        ref,
-                      )) {
-                        return;
-                      }
-                      controller.clearResourceSelection();
-                    },
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('返回资料列表'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _ResourceDetailCard(state: state),
-                if (state.operationContext == OperationContext.resourceDetail &&
-                    state.downloadedPaths.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _DownloadSummary(paths: state.downloadedPaths),
-                ],
-              ],
-            );
-          }
-          return _listView(context, ref, state, includeDownloadSummary: true);
+          final showDetail = detailOpen || state.selectedResourceId != null;
+          return PopScope(
+            canPop: !showDetail,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) {
+                unawaited(_exitResourceDetail(context, ref));
+              }
+            },
+            child: showDetail
+                ? ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    children: [
+                      _FeedbackBanners(errorMessage: state.errorMessage),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () =>
+                              unawaited(_exitResourceDetail(context, ref)),
+                          icon: const Icon(Icons.arrow_back),
+                          label: const Text('返回资料列表'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _ResourceDetailCard(state: state),
+                      if (state.operationContext ==
+                              OperationContext.resourceDetail &&
+                          state.downloadedPaths.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        _DownloadSummary(paths: state.downloadedPaths),
+                      ],
+                    ],
+                  )
+                : _listView(context, ref, state, includeDownloadSummary: true),
+          );
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -121,6 +115,7 @@ class _ResourcesPane extends ConsumerWidget {
                 ref,
                 state,
                 includeDownloadSummary: true,
+                showError: !detailOpen,
               ),
             ),
             const VerticalDivider(width: 1),
@@ -137,12 +132,7 @@ class _ResourcesPane extends ConsumerWidget {
                       bordered: true,
                     )
                   else ...[
-                    _FeedbackBanners(
-                      errorMessage: state.errorMessage,
-                      operationMessage: state.operationMessage,
-                      activeOperationContext: state.operationContext,
-                      operationContext: OperationContext.resourceDetail,
-                    ),
+                    _FeedbackBanners(errorMessage: state.errorMessage),
                     _ResourceDetailCard(state: state),
                   ],
                   if (state.operationContext ==
@@ -165,13 +155,19 @@ class _ResourcesPane extends ConsumerWidget {
     WidgetRef ref,
     _ResourcesPaneState state, {
     bool includeDownloadSummary = false,
+    bool showError = true,
   }) {
-    return CustomScrollView(
-      slivers: _listSlivers(
-        context,
-        ref,
-        state,
-        includeDownloadSummary: includeDownloadSummary,
+    return RefreshIndicator(
+      onRefresh: () => _refreshResources(context, ref),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: _listSlivers(
+          context,
+          ref,
+          state,
+          includeDownloadSummary: includeDownloadSummary,
+          showError: showError,
+        ),
       ),
     );
   }
@@ -181,8 +177,14 @@ class _ResourcesPane extends ConsumerWidget {
     WidgetRef ref,
     _ResourcesPaneState state, {
     required bool includeDownloadSummary,
+    bool showError = true,
   }) {
-    final headerChildren = _listHeaderChildren(context, ref, state);
+    final headerChildren = _listHeaderChildren(
+      context,
+      ref,
+      state,
+      showError: showError,
+    );
     return [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -246,19 +248,15 @@ class _ResourcesPane extends ConsumerWidget {
   List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
-    _ResourcesPaneState state,
-  ) {
+    _ResourcesPaneState state, {
+    bool showError = true,
+  }) {
     final controller = ref.read(clientControllerProvider.notifier);
     final selectedCourseId =
         state.selectedResourceCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
-      _FeedbackBanners(
-        errorMessage: state.errorMessage,
-        operationMessage: state.operationMessage,
-        activeOperationContext: state.operationContext,
-        operationContext: OperationContext.resourceList,
-      ),
+      _FeedbackBanners(errorMessage: showError ? state.errorMessage : null),
       Row(
         children: [
           Expanded(
@@ -361,6 +359,13 @@ class _ResourcesPane extends ConsumerWidget {
     );
   }
 
+  Future<void> _exitResourceDetail(BuildContext context, WidgetRef ref) async {
+    if (!await _prepareForResourceContextChange(context, ref)) {
+      return;
+    }
+    ref.read(clientControllerProvider.notifier).clearResourceSelection();
+  }
+
   Future<void> _loadResourcesForCourseGuarded(
     BuildContext context,
     WidgetRef ref,
@@ -370,21 +375,6 @@ class _ResourcesPane extends ConsumerWidget {
       return;
     }
     ref.read(clientControllerProvider.notifier).loadResourcesForCourse(siteId);
-  }
-
-  Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
-    if (!await _prepareForResourceContextChange(context, ref)) {
-      return;
-    }
-    final state = ref.read(clientControllerProvider);
-    final siteId =
-        state.selectedResourceCourseId ??
-        (state.courses.isEmpty ? null : state.courses.first.id);
-    if (siteId != null) {
-      ref
-          .read(clientControllerProvider.notifier)
-          .loadResourcesForCourse(siteId);
-    }
   }
 
   Future<void> _selectResourceGuarded(
@@ -400,6 +390,21 @@ class _ResourcesPane extends ConsumerWidget {
       return;
     }
     await ref.read(clientControllerProvider.notifier).selectResource(resource);
+  }
+}
+
+Future<void> _refreshResources(BuildContext context, WidgetRef ref) async {
+  if (!await _prepareForResourceContextChange(context, ref)) {
+    return;
+  }
+  final state = ref.read(clientControllerProvider);
+  final siteId =
+      state.selectedResourceCourseId ??
+      (state.courses.isEmpty ? null : state.courses.first.id);
+  if (siteId != null) {
+    await ref
+        .read(clientControllerProvider.notifier)
+        .loadResourcesForCourse(siteId);
   }
 }
 

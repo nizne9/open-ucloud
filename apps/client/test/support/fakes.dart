@@ -153,8 +153,11 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiAuthError? parseAttendanceQrPayloadError;
   final FfiAuthError? sessionSummaryError;
   bool initialized = false;
+  int authStartCalls = 0;
   int coursesCalls = 0;
   int undoneAssignmentsCalls = 0;
+  int courseAssignmentsCalls = 0;
+  int resourcesCalls = 0;
   String? lastCourseAssignmentsSiteId;
   String? lastResourcesSiteId;
   List<String> submittedAttachmentIds = const [];
@@ -169,6 +172,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
 
   @override
   Future<FfiAuthStartResponse> authStart(String username) async {
+    authStartCalls += 1;
     final response = authStartResponse;
     if (response != null) {
       return response;
@@ -287,6 +291,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
     required String keyword,
   }) async {
+    courseAssignmentsCalls += 1;
     lastCourseAssignmentsSiteId = siteId;
     final future = courseAssignmentsFuture;
     if (future != null) {
@@ -368,6 +373,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteId,
     required String siteName,
   }) async {
+    resourcesCalls += 1;
     lastResourcesSiteId = siteId;
     if (resourcesFutures.isNotEmpty) {
       return resourcesFutures.removeAt(0);
