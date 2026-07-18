@@ -119,6 +119,49 @@ class _FeedbackBanners extends StatelessWidget {
   }
 }
 
+class _DeadlineUrgency {
+  const _DeadlineUrgency({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+}
+
+/// Returns a short relative label for an upcoming or missed deadline, or null
+/// when the deadline is too far away (or unparseable) to need one.
+_DeadlineUrgency? _deadlineUrgency(BuildContext context, String endTime) {
+  final end = DateTime.tryParse(endTime.trim());
+  if (end == null) {
+    return null;
+  }
+  final remaining = end.difference(DateTime.now());
+  final colorScheme = Theme.of(context).colorScheme;
+  if (remaining.isNegative) {
+    return _DeadlineUrgency(text: '已逾期', color: colorScheme.error);
+  }
+  if (remaining.inHours < 48) {
+    final hours = remaining.inHours < 1 ? 1 : remaining.inHours;
+    return _DeadlineUrgency(text: '剩 $hours 小时', color: colorScheme.error);
+  }
+  if (remaining.inDays < 7) {
+    return _DeadlineUrgency(
+      text: '剩 ${remaining.inDays} 天',
+      color: colorScheme.tertiary,
+    );
+  }
+  return null;
+}
+
+TextSpan? _deadlineUrgencySpan(BuildContext context, String endTime) {
+  final urgency = _deadlineUrgency(context, endTime);
+  if (urgency == null) {
+    return null;
+  }
+  return TextSpan(
+    text: ' · ${urgency.text}',
+    style: TextStyle(color: urgency.color, fontWeight: FontWeight.w600),
+  );
+}
+
 BoxDecoration _outlinedBoxDecoration(ColorScheme colorScheme) {
   return BoxDecoration(
     border: Border.all(color: colorScheme.outlineVariant),

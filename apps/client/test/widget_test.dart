@@ -893,6 +893,74 @@ void main() {
     expect(gateway.resourcesCalls, 2);
   });
 
+  testWidgets('pending assignments show deadline urgency labels', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    FfiAssignmentSummary assignment(String id, String title, DateTime endTime) {
+      return FfiAssignmentSummary(
+        endTime: formatClientTimestamp(endTime),
+        id: id,
+        siteId: 'site-1',
+        siteName: '软件测试',
+        source: 'undone',
+        startTime: '',
+        status: FfiAssignmentStatus.pending,
+        title: title,
+      );
+    }
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(
+            FakeOpenCloudGateway(
+              session: _session(),
+              undoneAssignmentsResponse: FfiAssignmentListResponse(
+                records: [
+                  assignment(
+                    'work-1',
+                    '紧急作业',
+                    DateTime.now().add(const Duration(hours: 25)),
+                  ),
+                  assignment(
+                    'work-2',
+                    '逾期作业',
+                    DateTime.now().subtract(const Duration(days: 1)),
+                  ),
+                  assignment(
+                    'work-3',
+                    '宽松作业',
+                    DateTime.now().add(const Duration(days: 30)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('剩 24 小时'), findsOneWidget);
+    expect(find.textContaining('已逾期'), findsOneWidget);
+    expect(find.textContaining('宽松作业'), findsOneWidget);
+    expect(find.textContaining('剩 29 天'), findsNothing);
+  });
+
   testWidgets('assignment refresh uses selected course', (tester) async {
     final gateway = FakeOpenCloudGateway(
       session: _session(),

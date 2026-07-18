@@ -407,8 +407,21 @@ class _PendingAssignmentsCard extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: Text(
-                        '${assignment.siteName} · 截止 ${assignment.endTime}',
+                      subtitle: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text:
+                                  '${assignment.siteName} · 截止 ${assignment.endTime}',
+                            ),
+                            if (assignment.status ==
+                                FfiAssignmentStatus.pending)
+                              ?_deadlineUrgencySpan(
+                                context,
+                                assignment.endTime,
+                              ),
+                          ],
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

@@ -340,13 +340,25 @@ class _AssignmentsPane extends ConsumerWidget {
     _AssignmentsPaneState state,
     FfiAssignmentSummary assignment,
   ) {
+    final urgency = assignment.status == FfiAssignmentStatus.pending
+        ? _deadlineUrgencySpan(context, assignment.endTime)
+        : null;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         selected: state.selectedAssignmentId == assignment.id,
         leading: Icon(_assignmentIcon(assignment.status)),
         title: Text(assignment.title),
-        subtitle: Text('${assignment.siteName}\n截止：${assignment.endTime}'),
+        subtitle: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '${assignment.siteName}\n截止：${assignment.endTime}',
+              ),
+              ?urgency,
+            ],
+          ),
+        ),
         isThreeLine: true,
         trailing: Text(_assignmentStatusText(assignment.status)),
         onTap: () {
@@ -438,6 +450,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
       detail: detail,
     );
     final submittedAttachments = detail.submittedAttachments;
+    final deadlineUrgency = detail.status == FfiAssignmentStatus.pending
+        ? _deadlineUrgency(context, detail.endTime)
+        : null;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -454,7 +469,9 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                 if (detail.endTime.isNotEmpty)
                   _MetaChip(
                     icon: Icons.event_outlined,
-                    label: '截止 ${detail.endTime}',
+                    label: deadlineUrgency == null
+                        ? '截止 ${detail.endTime}'
+                        : '截止 ${detail.endTime} · ${deadlineUrgency.text}',
                   ),
                 _MetaChip(
                   icon: expired
