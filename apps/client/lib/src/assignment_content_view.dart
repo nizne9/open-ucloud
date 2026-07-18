@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as html_parser;
+import 'package:url_launcher/url_launcher.dart';
 
 const _assignmentLineBreakMarker = '\u{E000}';
 const _assignmentContentCacheLimit = 12;
@@ -106,35 +108,173 @@ class _AssignmentContentBlockView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).textTheme;
-    final style = switch (block.kind) {
-      _AssignmentContentKind.heading => theme.titleMedium,
-      _AssignmentContentKind.listItem => theme.bodyMedium,
-      _AssignmentContentKind.paragraph => theme.bodyMedium,
-    };
+    switch (block.kind) {
+      case _AssignmentContentKind.image:
+        return _AssignmentImageView(alt: block.text, src: block.src ?? '');
+      case _AssignmentContentKind.table:
+        return _AssignmentTableView(rows: block.rows ?? const []);
+      case _AssignmentContentKind.heading:
+      case _AssignmentContentKind.listItem:
+      case _AssignmentContentKind.paragraph:
+        final style = switch (block.kind) {
+          _AssignmentContentKind.heading => theme.titleMedium,
+          _ => theme.bodyMedium,
+        };
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: block.kind == _AssignmentContentKind.heading ? 10 : 8,
+          ),
+          child: SelectableText(
+            block.displayText,
+            style: style?.copyWith(height: 1.45),
+          ),
+        );
+    }
+  }
+}
+
+/// Images cannot be rendered inline: upstream image URLs usually require the
+/// Rust-held session, so we surface a visible placeholder with link actions
+/// instead of silently dropping them.
+class _AssignmentImageView extends StatelessWidget {
+  const _AssignmentImageView({required this.alt, required this.src});
+
+  final String alt;
+  final String src;
+
+  String get _label {
+    if (alt.trim().isNotEmpty) {
+      return alt.trim();
+    }
+    final fileName = Uri.tryParse(src)?.pathSegments.lastWhere(
+      (segment) => segment.isNotEmpty,
+      orElse: () => '',
+    );
+    return fileName == null || fileName.isEmpty ? '图片' : fileName;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: block.kind == _AssignmentContentKind.heading ? 10 : 8,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: colorScheme.outlineVariant),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Icon(Icons.image_outlined, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(_label, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            IconButton(
+              tooltip: '打开图片',
+              onPressed: () => _openImage(context),
+              icon: const Icon(Icons.open_in_new_outlined),
+            ),
+            IconButton(
+              tooltip: '复制图片链接',
+              onPressed: () => _copyImageLink(context),
+              icon: const Icon(Icons.copy_outlined),
+            ),
+          ],
+        ),
       ),
-      child: SelectableText(
-        block.displayText,
-        style: style?.copyWith(height: 1.45),
+    );
+  }
+
+  Future<void> _openImage(BuildContext context) async {
+    final uri = Uri.tryParse(src.trim());
+    final opened =
+        uri != null &&
+        uri.hasScheme &&
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      _showImageSnackBar(context, '无法打开图片链接');
+    }
+  }
+
+  Future<void> _copyImageLink(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: src));
+    if (context.mounted) {
+      _showImageSnackBar(context, '已复制图片链接');
+    }
+  }
+
+  void _showImageSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _AssignmentTableView extends StatelessWidget {
+  const _AssignmentTableView({required this.rows});
+
+  final List<List<String>> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final columnCount = rows.fold<int>(
+      0,
+      (max, row) => row.length > max ? row.length : max,
+    );
+    if (columnCount == 0) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Table(
+        border: TableBorder.all(
+          color: Theme.of(context).colorScheme.outlineVariant,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          for (final row in rows)
+            TableRow(
+              children: [
+                for (var index = 0; index < columnCount; index += 1)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SelectableText(
+                      index < row.length ? row[index] : '',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(height: 1.45),
+                    ),
+                  ),
+              ],
+            ),
+        ],
       ),
     );
   }
 }
 
-enum _AssignmentContentKind { heading, paragraph, listItem }
+enum _AssignmentContentKind { heading, paragraph, listItem, image, table }
 
 class _AssignmentContentBlock {
   const _AssignmentContentBlock({
     required this.kind,
     required this.text,
     this.listMarker,
+    this.src,
+    this.rows,
   });
 
   final _AssignmentContentKind kind;
   final String text;
   final String? listMarker;
+  final String? src;
+  final List<List<String>>? rows;
 
   String get displayText {
     final marker = listMarker;
@@ -215,8 +355,19 @@ void _collectAssignmentBlocks(
     _addTextBlock(blocks, _AssignmentContentKind.heading, _elementText(node));
     return;
   }
+  if (tag == 'img') {
+    _addImageBlock(node, blocks);
+    return;
+  }
+  if (tag == 'table') {
+    _addTableBlock(node, blocks);
+    return;
+  }
   if (tag == 'p') {
     _addTextBlock(blocks, _AssignmentContentKind.paragraph, _elementText(node));
+    for (final image in node.querySelectorAll('img')) {
+      _addImageBlock(image, blocks);
+    }
     return;
   }
   if (tag == 'div' || tag == 'blockquote') {
@@ -277,6 +428,54 @@ void _collectListItems(
   }
 }
 
+void _addImageBlock(
+  dom.Element image,
+  List<_AssignmentContentBlockPayload> blocks,
+) {
+  final src = image.attributes['src']?.trim() ?? '';
+  if (src.isEmpty) {
+    return;
+  }
+  blocks.add(
+    _assignmentContentBlockPayload(
+      kind: _AssignmentContentKind.image,
+      text: _normalizeAssignmentText(image.attributes['alt']?.trim() ?? ''),
+      src: src,
+    ),
+  );
+}
+
+void _addTableBlock(
+  dom.Element table,
+  List<_AssignmentContentBlockPayload> blocks,
+) {
+  final rows = <List<String>>[];
+  for (final row in table.querySelectorAll('tr')) {
+    final cells = [
+      for (final cell in row.querySelectorAll('th, td'))
+        _normalizeAssignmentText(_elementText(cell)),
+    ];
+    if (cells.any((cell) => cell.isNotEmpty)) {
+      rows.add(cells);
+    }
+  }
+  if (rows.isEmpty) {
+    _addTextBlock(
+      blocks,
+      _AssignmentContentKind.paragraph,
+      _elementText(table),
+    );
+    return;
+  }
+  blocks.add(
+    _assignmentContentBlockPayload(
+      kind: _AssignmentContentKind.table,
+      text: '',
+      rows: rows,
+    ),
+  );
+}
+
 void _addTextBlock(
   List<_AssignmentContentBlockPayload> blocks,
   _AssignmentContentKind kind,
@@ -304,11 +503,15 @@ _AssignmentContentBlockPayload _assignmentContentBlockPayload({
   required _AssignmentContentKind kind,
   required String text,
   String? listMarker,
+  String? src,
+  List<List<String>>? rows,
 }) {
   return {
     'kind': kind.name,
     'text': text,
     ...?(listMarker == null ? null : {'listMarker': listMarker}),
+    ...?(src == null ? null : {'src': src}),
+    ...?(rows == null ? null : {'rows': rows}),
   };
 }
 
@@ -319,12 +522,20 @@ _AssignmentContentBlock _assignmentContentBlockFromPayload(
   final kind = switch (kindName) {
     'heading' => _AssignmentContentKind.heading,
     'listItem' => _AssignmentContentKind.listItem,
+    'image' => _AssignmentContentKind.image,
+    'table' => _AssignmentContentKind.table,
     _ => _AssignmentContentKind.paragraph,
   };
   return _AssignmentContentBlock(
     kind: kind,
     text: payload['text'] as String? ?? '',
     listMarker: payload['listMarker'] as String?,
+    src: payload['src'] as String?,
+    rows: (payload['rows'] as List?)
+        ?.map(
+          (row) => (row as List).map((cell) => cell as String? ?? '').toList(),
+        )
+        .toList(),
   );
 }
 
