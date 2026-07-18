@@ -78,7 +78,7 @@ Future<void> _refreshDashboard(BuildContext context, WidgetRef ref) async {
   }
   await ref
       .read(clientControllerProvider.notifier)
-      .loadUndoneAssignments(selectedTab: ClientTab.dashboard);
+      .loadUndoneAssignments(selectedTab: ClientTab.dashboard, refresh: true);
 }
 
 class _DashboardStatsCard extends ConsumerWidget {
@@ -373,6 +373,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
                   child: OutlinedButton.icon(
                     onPressed: () => controller.loadUndoneAssignments(
                       selectedTab: ClientTab.dashboard,
+                      refresh: true,
                     ),
                     icon: const Icon(Icons.refresh),
                     label: const Text('重试待办'),

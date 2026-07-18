@@ -155,6 +155,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   bool initialized = false;
   int coursesCalls = 0;
   int undoneAssignmentsCalls = 0;
+  int courseAssignmentsCalls = 0;
   int resourcesCalls = 0;
   String? lastCourseAssignmentsSiteId;
   String? lastResourcesSiteId;
@@ -288,6 +289,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String siteName,
     required String keyword,
   }) async {
+    courseAssignmentsCalls += 1;
     lastCourseAssignmentsSiteId = siteId;
     final future = courseAssignmentsFuture;
     if (future != null) {

@@ -27,6 +27,8 @@ class ClientController extends Notifier<ClientState> {
   int _resourceDownloadGeneration = 0;
   bool _resourceDownloadPollInFlight = false;
   Timer? _resourceDownloadPollTimer;
+  List<FfiAssignmentSummary>? _undoneAssignmentsCache;
+  final _courseAssignmentsCache = <String, List<FfiAssignmentSummary>>{};
 
   @override
   ClientState build() {
@@ -267,6 +269,8 @@ class ClientController extends Notifier<ClientState> {
     _pendingPassword = null;
     _assignmentListGeneration += 1;
     _resourceListGeneration += 1;
+    _undoneAssignmentsCache = null;
+    _courseAssignmentsCache.clear();
     await _cancelActiveResourceDownloadSilently();
     final gateway = ref.read(openCloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
@@ -303,8 +307,25 @@ class ClientController extends Notifier<ClientState> {
   Future<void> loadUndoneAssignments({
     ClientTab selectedTab = ClientTab.assignments,
     bool clearGlobalError = true,
+    bool refresh = false,
   }) async {
     final generation = ++_assignmentListGeneration;
+    final cached = _undoneAssignmentsCache;
+    if (cached != null && !refresh) {
+      state = state.copyWith(
+        selectedTab: selectedTab,
+        assignmentView: AssignmentView.undone,
+        assignments: cached,
+        assignmentsLoaded: true,
+        assignmentsLoading: false,
+        assignmentDetailLoading: false,
+        clearAssignmentSelection: true,
+        clearPendingAssignmentsError: true,
+        clearOperationMessage: true,
+        clearError: clearGlobalError,
+      );
+      return;
+    }
     state = state.copyWith(
       selectedTab: selectedTab,
       assignmentView: AssignmentView.undone,
@@ -312,7 +333,6 @@ class ClientController extends Notifier<ClientState> {
       assignmentsLoaded: false,
       assignmentsLoading: true,
       assignmentDetailLoading: false,
-      clearSelectedAssignmentCourse: true,
       clearAssignmentSelection: true,
       clearPendingAssignmentsError: true,
       clearOperationMessage: true,
@@ -341,6 +361,7 @@ class ClientController extends Notifier<ClientState> {
       if (!_isCurrentAssignmentListGeneration(generation)) {
         return;
       }
+      _undoneAssignmentsCache = response.records;
       state = state.copyWith(
         assignments: response.records,
         assignmentsLoaded: true,
@@ -374,9 +395,28 @@ class ClientController extends Notifier<ClientState> {
     }
   }
 
-  Future<void> loadCourseAssignments(String siteId) async {
+  Future<void> loadCourseAssignments(
+    String siteId, {
+    bool refresh = false,
+  }) async {
     final generation = ++_assignmentListGeneration;
     final course = _courseById(siteId);
+    final cached = _courseAssignmentsCache[siteId];
+    if (cached != null && !refresh) {
+      state = state.copyWith(
+        selectedTab: ClientTab.assignments,
+        assignmentView: AssignmentView.course,
+        selectedAssignmentCourseId: siteId,
+        assignments: cached,
+        assignmentsLoaded: true,
+        assignmentsLoading: false,
+        assignmentDetailLoading: false,
+        clearAssignmentSelection: true,
+        clearOperationMessage: true,
+        clearError: true,
+      );
+      return;
+    }
     state = state.copyWith(
       selectedTab: ClientTab.assignments,
       assignmentView: AssignmentView.course,
@@ -411,6 +451,7 @@ class ClientController extends Notifier<ClientState> {
       if (!_isCurrentAssignmentListGeneration(generation)) {
         return;
       }
+      _courseAssignmentsCache[siteId] = response.records;
       state = state.copyWith(
         assignments: response.records,
         assignmentsLoaded: true,
@@ -680,6 +721,14 @@ class ClientController extends Notifier<ClientState> {
         return;
       }
       await _persistUpdatedPayload(response.updatedSessionPayload);
+      final undoneCache = _undoneAssignmentsCache;
+      if (undoneCache != null) {
+        _undoneAssignmentsCache = [
+          for (final record in undoneCache)
+            if (record.id != detail.id) record,
+        ];
+      }
+      _courseAssignmentsCache.remove(detail.siteId);
       state = state.copyWith(
         assignmentSubmitting: false,
         assignmentDetail: FfiAssignmentDetailResponse(
@@ -1332,12 +1381,17 @@ class ClientController extends Notifier<ClientState> {
           ),
       ];
       final courseIds = {for (final course in courses) course.id};
+      _undoneAssignmentsCache = null;
+      _courseAssignmentsCache.clear();
       final nextAssignmentCourseId = state.selectedAssignmentCourseId;
       final assignmentCourseApplies =
           state.assignmentView == AssignmentView.course;
       final keepAssignmentCourse =
           !assignmentCourseApplies ||
           nextAssignmentCourseId == null ||
+          courseIds.contains(nextAssignmentCourseId);
+      final assignmentSelectionValid =
+          nextAssignmentCourseId != null &&
           courseIds.contains(nextAssignmentCourseId);
       final fallbackAssignmentCourseId = courses.isEmpty
           ? null
@@ -1365,14 +1419,14 @@ class ClientController extends Notifier<ClientState> {
             : fallbackAssignmentCourseId == null
             ? AssignmentView.undone
             : AssignmentView.course,
-        selectedAssignmentCourseId: !assignmentCourseApplies
-            ? null
-            : keepAssignmentCourse
+        selectedAssignmentCourseId: assignmentSelectionValid
             ? state.selectedAssignmentCourseId
-            : fallbackAssignmentCourseId,
+            : assignmentCourseApplies
+            ? fallbackAssignmentCourseId
+            : null,
         clearSelectedAssignmentCourse:
-            !assignmentCourseApplies ||
-            (!keepAssignmentCourse && fallbackAssignmentCourseId == null),
+            !assignmentSelectionValid &&
+            (!assignmentCourseApplies || fallbackAssignmentCourseId == null),
         assignments: keepAssignmentCourse ? state.assignments : const [],
         assignmentsLoaded: keepAssignmentCourse
             ? state.assignmentsLoaded

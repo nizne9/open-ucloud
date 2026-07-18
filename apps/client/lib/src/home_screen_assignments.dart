@@ -284,7 +284,13 @@ class _AssignmentsPane extends ConsumerWidget {
     if (next == AssignmentView.undone) {
       controller.loadUndoneAssignments();
     } else if (state.courses.isNotEmpty) {
-      controller.loadCourseAssignments(state.courses.first.id);
+      final selected = state.selectedAssignmentCourseId;
+      final stillValid =
+          selected != null &&
+          state.courses.any((course) => course.id == selected);
+      controller.loadCourseAssignments(
+        stillValid ? selected : state.courses.first.id,
+      );
     }
   }
 
@@ -295,13 +301,13 @@ class _AssignmentsPane extends ConsumerWidget {
     final controller = ref.read(clientControllerProvider.notifier);
     final currentState = ref.read(clientControllerProvider);
     if (currentState.assignmentView == AssignmentView.undone) {
-      await controller.loadUndoneAssignments();
+      await controller.loadUndoneAssignments(refresh: true);
     } else {
       final siteId =
           currentState.selectedAssignmentCourseId ??
           (currentState.courses.isEmpty ? null : currentState.courses.first.id);
       if (siteId != null) {
-        await controller.loadCourseAssignments(siteId);
+        await controller.loadCourseAssignments(siteId, refresh: true);
       }
     }
   }

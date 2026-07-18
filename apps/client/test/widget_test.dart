@@ -290,7 +290,7 @@ void main() {
   });
 
   testWidgets(
-    'dashboard reloads pending assignments after course assignment list',
+    'dashboard restores pending assignments after course assignment list',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 900);
       tester.view.devicePixelRatio = 1;
@@ -357,7 +357,8 @@ void main() {
       await tester.tap(find.text('总览'));
       await tester.pumpAndSettle();
 
-      expect(gateway.undoneAssignmentsCalls, 2);
+      // The undone list is restored from cache, so no second fetch happens.
+      expect(gateway.undoneAssignmentsCalls, 1);
       expect(find.text('默认待办'), findsWidgets);
       expect(find.text('课程作业'), findsNothing);
     },
@@ -959,6 +960,123 @@ void main() {
     expect(find.textContaining('已逾期'), findsOneWidget);
     expect(find.textContaining('宽松作业'), findsOneWidget);
     expect(find.textContaining('剩 29 天'), findsNothing);
+  });
+
+  testWidgets('assignment view switch restores the previous course', (
+    tester,
+  ) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('计算机网络').last);
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(OpenCloudApp)),
+    );
+    expect(
+      container.read(clientControllerProvider).selectedAssignmentCourseId,
+      'site-2',
+    );
+
+    await tester.tap(find.text('待提交'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.lastCourseAssignmentsSiteId, 'site-2');
+    expect(
+      container.read(clientControllerProvider).selectedAssignmentCourseId,
+      'site-2',
+    );
+  });
+
+  testWidgets('assignment view switch reuses loaded lists', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+    expect(gateway.courseAssignmentsCalls, 1);
+
+    await tester.tap(find.text('待提交'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+    expect(gateway.courseAssignmentsCalls, 1);
+  });
+
+  testWidgets('assignment refresh bypasses the cached list', (tester) async {
+    final gateway = FakeOpenCloudGateway(
+      session: _session(),
+      courseResponse: _twoCourseResponse(),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionStorageProvider.overrideWithValue(
+            MemorySessionStorage('payload'),
+          ),
+          openCloudGatewayProvider.overrideWithValue(gateway),
+        ],
+        child: const OpenCloudApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('作业'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按课程'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('待提交'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 1);
+
+    await tester.tap(find.byTooltip('刷新作业'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.undoneAssignmentsCalls, 2);
   });
 
   testWidgets('assignment refresh uses selected course', (tester) async {
