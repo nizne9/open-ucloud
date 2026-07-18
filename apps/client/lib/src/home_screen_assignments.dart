@@ -12,11 +12,10 @@ class _AssignmentsPane extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSplit = constraints.maxWidth >= 900;
+        final detailOpen =
+            state.assignmentDetail != null || state.assignmentDetailLoading;
         if (!useSplit) {
-          final showDetail =
-              state.selectedAssignmentId != null ||
-              state.assignmentDetail != null ||
-              state.assignmentDetailLoading;
+          final showDetail = detailOpen || state.selectedAssignmentId != null;
           if (showDetail) {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -58,7 +57,7 @@ class _AssignmentsPane extends ConsumerWidget {
           children: [
             SizedBox(
               width: constraints.maxWidth >= 1120 ? 440 : 380,
-              child: _listView(context, ref, state),
+              child: _listView(context, ref, state, showError: !detailOpen),
             ),
             const VerticalDivider(width: 1),
             Expanded(
@@ -94,17 +93,26 @@ class _AssignmentsPane extends ConsumerWidget {
   Widget _listView(
     BuildContext context,
     WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
-    return CustomScrollView(slivers: _listSlivers(context, ref, state));
+    _AssignmentsPaneState state, {
+    bool showError = true,
+  }) {
+    return CustomScrollView(
+      slivers: _listSlivers(context, ref, state, showError: showError),
+    );
   }
 
   List<Widget> _listSlivers(
     BuildContext context,
     WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
-    final headerChildren = _listHeaderChildren(context, ref, state);
+    _AssignmentsPaneState state, {
+    bool showError = true,
+  }) {
+    final headerChildren = _listHeaderChildren(
+      context,
+      ref,
+      state,
+      showError: showError,
+    );
     return [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -163,14 +171,15 @@ class _AssignmentsPane extends ConsumerWidget {
   List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
-    _AssignmentsPaneState state,
-  ) {
+    _AssignmentsPaneState state, {
+    bool showError = true,
+  }) {
     final selectedCourseId =
         state.selectedAssignmentCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
       _FeedbackBanners(
-        errorMessage: state.errorMessage,
+        errorMessage: showError ? state.errorMessage : null,
         operationMessage: state.operationMessage,
         activeOperationContext: state.operationContext,
         operationContext: OperationContext.assignmentList,

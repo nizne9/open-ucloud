@@ -68,11 +68,10 @@ class _ResourcesPane extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final useSplit = constraints.maxWidth >= 900;
+        final detailOpen =
+            state.resourceDetail != null || state.resourceDetailLoading;
         if (!useSplit) {
-          final showDetail =
-              state.selectedResourceId != null ||
-              state.resourceDetail != null ||
-              state.resourceDetailLoading;
+          final showDetail = detailOpen || state.selectedResourceId != null;
           if (showDetail) {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -121,6 +120,7 @@ class _ResourcesPane extends ConsumerWidget {
                 ref,
                 state,
                 includeDownloadSummary: true,
+                showError: !detailOpen,
               ),
             ),
             const VerticalDivider(width: 1),
@@ -165,6 +165,7 @@ class _ResourcesPane extends ConsumerWidget {
     WidgetRef ref,
     _ResourcesPaneState state, {
     bool includeDownloadSummary = false,
+    bool showError = true,
   }) {
     return CustomScrollView(
       slivers: _listSlivers(
@@ -172,6 +173,7 @@ class _ResourcesPane extends ConsumerWidget {
         ref,
         state,
         includeDownloadSummary: includeDownloadSummary,
+        showError: showError,
       ),
     );
   }
@@ -181,8 +183,14 @@ class _ResourcesPane extends ConsumerWidget {
     WidgetRef ref,
     _ResourcesPaneState state, {
     required bool includeDownloadSummary,
+    bool showError = true,
   }) {
-    final headerChildren = _listHeaderChildren(context, ref, state);
+    final headerChildren = _listHeaderChildren(
+      context,
+      ref,
+      state,
+      showError: showError,
+    );
     return [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -246,15 +254,16 @@ class _ResourcesPane extends ConsumerWidget {
   List<Widget> _listHeaderChildren(
     BuildContext context,
     WidgetRef ref,
-    _ResourcesPaneState state,
-  ) {
+    _ResourcesPaneState state, {
+    bool showError = true,
+  }) {
     final controller = ref.read(clientControllerProvider.notifier);
     final selectedCourseId =
         state.selectedResourceCourseId ??
         (state.courses.isEmpty ? null : state.courses.first.id);
     return [
       _FeedbackBanners(
-        errorMessage: state.errorMessage,
+        errorMessage: showError ? state.errorMessage : null,
         operationMessage: state.operationMessage,
         activeOperationContext: state.operationContext,
         operationContext: OperationContext.resourceList,
