@@ -694,7 +694,7 @@ class ClientController extends Notifier<ClientState> {
           siteName: detail.siteName,
           startTime: detail.startTime,
           status: FfiAssignmentStatus.submitted,
-          submittedAt: DateTime.now().toIso8601String(),
+          submittedAt: _formatTimestamp(DateTime.now()),
           submittedAttachments: [
             for (final attachment in attachments)
               FfiAssignmentResource(
@@ -1277,6 +1277,13 @@ class ClientController extends Notifier<ClientState> {
 
   String _downloadMessage(int count) {
     return '已下载 $count 个资料文件';
+  }
+
+  /// Matches the display style of upstream timestamps, e.g. `2026-07-18 15:04`.
+  String _formatTimestamp(DateTime value) {
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+    return '${value.year}-${twoDigits(value.month)}-${twoDigits(value.day)} '
+        '${twoDigits(value.hour)}:${twoDigits(value.minute)}';
   }
 
   bool _matchesCurrentResourceDownloadStatus(FfiDownloadTaskStatus status) {
