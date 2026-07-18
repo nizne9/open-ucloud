@@ -138,11 +138,14 @@ class _DownloadCenterDialog extends ConsumerWidget {
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: Text('暂无下载任务', textAlign: TextAlign.center),
               )
-            : ListView.builder(
-                shrinkWrap: true,
-                itemCount: tasks.length,
-                itemBuilder: (context, index) =>
-                    _DownloadTaskTile(task: tasks[index]),
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 480),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: tasks.length,
+                  itemBuilder: (context, index) =>
+                      _DownloadTaskTile(task: tasks[index]),
+                ),
               ),
       ),
       actions: [

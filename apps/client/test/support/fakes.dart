@@ -480,6 +480,18 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     if (error != null) {
       throw error;
     }
+    if (cancelledDownloadTaskIds.contains(taskId)) {
+      return FfiDownloadTaskStatus(
+        taskId: taskId,
+        state: FfiDownloadTaskState.cancelled,
+        current: 0,
+        total: 0,
+        bytesDownloaded: BigInt.zero,
+        writtenPaths: const [],
+        records: const [],
+        errorMessage: '下载已取消。',
+      );
+    }
     if (downloadTaskStatusFutures.isNotEmpty) {
       return downloadTaskStatusFutures.removeAt(0);
     }
@@ -502,7 +514,7 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     required String taskId,
   }) async {
     cancelledDownloadTaskIds.add(taskId);
-    downloadTaskStatuses.clear();
+    downloadTaskStatuses.removeWhere((status) => status.taskId == taskId);
     return FfiDownloadTaskStatus(
       taskId: taskId,
       state: FfiDownloadTaskState.cancelled,

@@ -950,6 +950,17 @@ class ClientController extends Notifier<ClientState> {
     required String outputPath,
     String? resourceId,
   }) {
+    final duplicate = state.downloadTasks.any(
+      (task) =>
+          !task.isTerminal &&
+          (resourceId == null
+              ? task.isCourseDownload && task.siteId == siteId
+              : task.resourceId == resourceId),
+    );
+    if (duplicate) {
+      state = state.copyWith(operationMessage: '已在下载队列中：$label');
+      return;
+    }
     _downloadItemSerial += 1;
     final item = DownloadTaskItem(
       id: 'download-$_downloadItemSerial',
@@ -1084,11 +1095,13 @@ class ClientController extends Notifier<ClientState> {
         return false;
       }
       await _persistUpdatedPayload(response.status.updatedSessionPayload);
-      _updateDownloadTask(
-        item.id,
-        taskId: response.taskId,
-        status: response.status,
-      );
+      var status = response.status;
+      if (resourceId == null &&
+          status.total == 0 &&
+          state.resources.isNotEmpty) {
+        status = _downloadTaskStatusWith(status, total: state.resources.length);
+      }
+      _updateDownloadTask(item.id, taskId: response.taskId, status: status);
       _startDownloadPolling(response.taskId);
       return true;
     } on FfiAuthError catch (error) {
