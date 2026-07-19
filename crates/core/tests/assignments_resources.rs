@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use open_cloud_api::{AssignmentDetailResponse, AssignmentStatus, AuthErrorCode};
+use open_cloud_api::{AssignmentDetailResponse, AssignmentSource, AssignmentStatus, AuthErrorCode};
 use open_cloud_core::{
     AuthError, DownloadCancelFlag, DownloadProgress, HttpBody, HttpClient, HttpMethod, HttpRequest,
     HttpResponse, OpenCloudClient, OpenCloudEndpoints,
@@ -302,7 +302,7 @@ async fn get_undone_assignments_keeps_only_assignment_items() {
 
     assert_eq!(result.records.len(), 1);
     assert_eq!(result.records[0].id, "2043171894306238465");
-    assert_eq!(result.records[0].source, "undone");
+    assert_eq!(result.records[0].source, AssignmentSource::Undone);
     assert_eq!(result.records[0].status, AssignmentStatus::Pending);
 
     let request = http.requests().pop().expect("undone request");
@@ -875,4 +875,45 @@ fn partial_files_for(target: &std::path::Path) -> Vec<PathBuf> {
                 })
         })
         .collect()
+}
+
+#[tokio::test]
+async fn resource_download_url_maps_missing_preview_to_none() {
+    let http = MockHttp::with(vec![response(404, "not found")]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+
+    let url = client
+        .get_resource_download_url("resource-1", "access-token")
+        .await
+        .expect("404 means no preview url");
+
+    assert_eq!(url, None);
+}
+
+#[tokio::test]
+async fn resource_download_url_propagates_upstream_failures() {
+    let http = MockHttp::with(vec![
+        response(500, "boom"),
+        response(401, "unauthorized"),
+        response(200, r#"{"success":false,"msg":"没有预览权限"}"#),
+    ]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+
+    let server_error = client
+        .get_resource_download_url("resource-1", "access-token")
+        .await
+        .expect_err("500 is an error, not a missing url");
+    assert_eq!(server_error.code, AuthErrorCode::UpstreamUnavailable);
+
+    let expired = client
+        .get_resource_download_url("resource-1", "access-token")
+        .await
+        .expect_err("401 maps to session expired");
+    assert_eq!(expired.code, AuthErrorCode::SessionExpired);
+
+    let rejected = client
+        .get_resource_download_url("resource-1", "access-token")
+        .await
+        .expect_err("success:false surfaces the upstream message");
+    assert_eq!(rejected.message, "没有预览权限");
 }

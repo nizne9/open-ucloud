@@ -1,4 +1,7 @@
-use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
+use crate::protocol::{
+    parse_ucloud_envelope, parse_ucloud_optional_envelope, value_to_string, UcloudJsonHeaders,
+    PORTAL_BASIC_AUTH,
+};
 use crate::{
     AuthError, DownloadCancelFlag, DownloadProgress, HttpClient, HttpMethod, HttpRequest,
     OpenCloudClient,
@@ -11,7 +14,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
 const MAX_DOWNLOAD_REDIRECTS: usize = 10;
 
 impl<C> OpenCloudClient<C>
@@ -88,15 +90,13 @@ where
                 body: None,
             })
             .await?;
-        if !(200..300).contains(&response.status) {
+        // Upstream answers 404 for resources that simply have no preview URL.
+        if response.status == 404 {
             return Ok(None);
         }
-        let payload: UcloudPreviewEnvelope = serde_json::from_slice(&response.body)
-            .map_err(|error| AuthError::upstream(error.to_string()))?;
-        if payload.success == Some(false) {
-            return Ok(None);
-        }
-        Ok(payload.data.and_then(|data| data.preview_url))
+        let data: Option<RawPreviewUrl> =
+            parse_ucloud_optional_envelope(response, "资料下载地址获取失败，请稍后重试。")?;
+        Ok(data.and_then(|data| data.preview_url))
     }
 
     pub async fn download_url_to_path(
@@ -335,12 +335,6 @@ pub(crate) struct RawResourceDetail {
 #[serde(rename_all = "camelCase")]
 struct RawPreviewUrl {
     preview_url: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-struct UcloudPreviewEnvelope {
-    data: Option<RawPreviewUrl>,
-    success: Option<bool>,
 }
 
 fn collect_tree_resources(node: &RawResourceTreeNode, bucket: &mut Vec<RawResourceDetail>) {

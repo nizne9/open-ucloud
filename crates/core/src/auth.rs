@@ -1,3 +1,5 @@
+use crate::protocol::{http_status_error, PORTAL_BASIC_AUTH};
+use crate::transport::multipart_boundary;
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use base64::Engine;
 use cookie::Cookie;
@@ -6,14 +8,11 @@ use scraper::{Html, Selector};
 use serde::Deserialize;
 use std::collections::HashMap;
 
-const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LoginFlow {
     pub captcha_id: Option<String>,
     pub captcha_image: Option<String>,
     pub cookie: String,
-    pub created_at_ms: u64,
     pub execution: String,
     pub username: String,
 }
@@ -83,7 +82,6 @@ where
             captcha_id,
             captcha_image,
             cookie,
-            created_at_ms: now_ms(),
             execution,
             username: username.to_string(),
         })
@@ -274,7 +272,6 @@ pub struct UserInfoPayload {
     pub access_token: String,
     pub account: String,
     pub refresh_token: String,
-    pub expires_in: u64,
     pub real_name: String,
     pub user_id: String,
     pub user_name: String,
@@ -299,10 +296,7 @@ where
     T: for<'de> Deserialize<'de>,
 {
     if !(200..300).contains(&response.status) {
-        return Err(AuthError::upstream(format!(
-            "{message} HTTP status {}.",
-            response.status
-        )));
+        return Err(http_status_error(&response, message));
     }
     serde_json::from_slice(&response.body).map_err(|error| AuthError::upstream(error.to_string()))
 }
@@ -413,11 +407,15 @@ fn form_url(value: &str) -> String {
 }
 
 fn multipart_form(fields: Vec<(String, String)>) -> (String, String) {
-    let boundary = "----open-cloud-bupt-auth-boundary";
+    let values = fields
+        .iter()
+        .map(|(_, value)| value.as_bytes())
+        .collect::<Vec<_>>();
+    let boundary = multipart_boundary(&values);
     let mut body = String::new();
     for (name, value) in fields {
         body.push_str("--");
-        body.push_str(boundary);
+        body.push_str(&boundary);
         body.push_str("\r\n");
         body.push_str("Content-Disposition: form-data; name=\"");
         body.push_str(&name);
@@ -426,14 +424,7 @@ fn multipart_form(fields: Vec<(String, String)>) -> (String, String) {
         body.push_str("\r\n");
     }
     body.push_str("--");
-    body.push_str(boundary);
+    body.push_str(&boundary);
     body.push_str("--\r\n");
     (format!("multipart/form-data; boundary={boundary}"), body)
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or_default()
 }

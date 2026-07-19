@@ -2,6 +2,8 @@ use crate::{AuthError, HttpResponse};
 use open_cloud_api::AuthErrorCode;
 use serde::Deserialize;
 
+pub(crate) const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 struct UcloudEnvelope<T> {
     data: Option<T>,
@@ -13,6 +15,7 @@ struct UcloudEnvelope<T> {
 impl<T> UcloudEnvelope<T> {
     fn upstream_message(self, fallback: &str) -> String {
         self.message
+            .filter(|message| !message.trim().is_empty())
             .or(self.msg)
             .filter(|message| !message.trim().is_empty())
             .unwrap_or_else(|| fallback.to_string())
@@ -26,6 +29,17 @@ pub(crate) fn parse_ucloud_envelope<T>(
 where
     T: for<'de> Deserialize<'de>,
 {
+    parse_ucloud_optional_envelope(response, fallback)?
+        .ok_or_else(|| AuthError::upstream(fallback.to_string()))
+}
+
+pub(crate) fn parse_ucloud_optional_envelope<T>(
+    response: HttpResponse,
+    fallback: &str,
+) -> Result<Option<T>, AuthError>
+where
+    T: for<'de> Deserialize<'de>,
+{
     if !(200..300).contains(&response.status) {
         return Err(http_status_error(&response, fallback));
     }
@@ -34,12 +48,25 @@ where
     if payload.success == Some(false) {
         return Err(AuthError::upstream(payload.upstream_message(fallback)));
     }
-    payload
-        .data
-        .ok_or_else(|| AuthError::upstream(fallback.to_string()))
+    Ok(payload.data)
 }
 
-fn http_status_error(response: &HttpResponse, fallback: &str) -> AuthError {
+pub(crate) fn parse_ucloud_empty_success(
+    response: HttpResponse,
+    fallback: &str,
+) -> Result<(), AuthError> {
+    if !(200..300).contains(&response.status) {
+        return Err(http_status_error(&response, fallback));
+    }
+    let payload: UcloudEnvelope<serde_json::Value> = serde_json::from_slice(&response.body)
+        .map_err(|error| AuthError::upstream(error.to_string()))?;
+    if payload.success == Some(true) {
+        return Ok(());
+    }
+    Err(AuthError::upstream(payload.upstream_message(fallback)))
+}
+
+pub(crate) fn http_status_error(response: &HttpResponse, fallback: &str) -> AuthError {
     let message = format!("{fallback} HTTP status {}.", response.status);
     match response.status {
         401 | 403 => AuthError::new(AuthErrorCode::SessionExpired, message),
@@ -153,6 +180,52 @@ mod tests {
 
         assert_eq!(err.code, AuthErrorCode::UpstreamUnavailable);
         assert_eq!(err.message, "msg wins");
+    }
+
+    #[test]
+    fn maps_ucloud_failure_msg_when_message_is_blank() {
+        let err = parse_ucloud_envelope::<Payload>(
+            response(200, r#"{"success":false,"message":"  ","msg":"msg wins"}"#),
+            "fallback",
+        )
+        .expect_err("blank message falls back to msg");
+
+        assert_eq!(err.message, "msg wins");
+    }
+
+    #[test]
+    fn optional_envelope_allows_missing_data() {
+        let payload: Option<Payload> =
+            parse_ucloud_optional_envelope(response(200, r#"{"success":true}"#), "fallback")
+                .expect("missing data is allowed");
+
+        assert_eq!(payload, None);
+    }
+
+    #[test]
+    fn empty_success_requires_an_explicit_true_flag() {
+        parse_ucloud_empty_success(response(200, r#"{"success":true}"#), "fallback")
+            .expect("explicit success passes");
+
+        let missing = parse_ucloud_empty_success(response(200, r#"{"data":{}}"#), "fallback")
+            .expect_err("missing success flag fails");
+        assert_eq!(missing.code, AuthErrorCode::UpstreamUnavailable);
+        assert_eq!(missing.message, "fallback");
+
+        let failed = parse_ucloud_empty_success(
+            response(200, r#"{"success":false,"msg":"upstream says no"}"#),
+            "fallback",
+        )
+        .expect_err("false success flag fails");
+        assert_eq!(failed.message, "upstream says no");
+    }
+
+    #[test]
+    fn empty_success_maps_http_status_semantics() {
+        let err = parse_ucloud_empty_success(response(401, "not json"), "fallback")
+            .expect_err("401 maps to session expired");
+
+        assert_eq!(err.code, AuthErrorCode::SessionExpired);
     }
 
     #[test]
