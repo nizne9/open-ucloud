@@ -120,6 +120,24 @@ fn default_linux_backend_is_keyutils_until_reboot() {
     assert_eq!(system_credential_persistence(), "until-reboot");
 }
 
+#[cfg(all(target_os = "linux", feature = "linux-secret-service"))]
+#[test]
+fn linux_secret_service_backend_is_labeled() {
+    assert_eq!(system_credential_backend(), "secret-service");
+}
+
+#[cfg(all(target_os = "macos", feature = "desktop-keyring"))]
+#[test]
+fn macos_desktop_backend_is_labeled() {
+    assert_eq!(system_credential_backend(), "keychain");
+}
+
+#[cfg(all(target_os = "windows", feature = "desktop-keyring"))]
+#[test]
+fn windows_desktop_backend_is_labeled() {
+    assert_eq!(system_credential_backend(), "credential-manager");
+}
+
 #[derive(Clone, Default)]
 struct RecordingCredentialBackend {
     operations: Arc<Mutex<Vec<(String, String, String)>>>,
