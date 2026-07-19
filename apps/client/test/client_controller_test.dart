@@ -283,7 +283,7 @@ void main() {
 
   test('refreshCourses keeps a starting course download running', () async {
     final storage = MemorySessionStorage('payload');
-    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final download = Completer<FakeCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
@@ -321,7 +321,7 @@ void main() {
 
     await controller.refreshCourses();
     download.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '旧课件.pdf',
@@ -859,7 +859,7 @@ void main() {
           ),
         ],
       ),
-      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+      resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -967,7 +967,7 @@ void main() {
           updatedAt: '',
         ),
       ),
-      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+      resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -1042,7 +1042,7 @@ void main() {
             updatedAt: '',
           ),
         ),
-        resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+        resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
           records: [
             FfiCourseResourceDetail(
               name: '课件.pdf',
@@ -1134,7 +1134,7 @@ void main() {
 
   test('single resource download survives selection change', () async {
     final storage = MemorySessionStorage('payload');
-    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final download = Completer<FakeCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
       session: _session(),
       resourceDetailResponse: const FfiCourseResourceDetailResponse(
@@ -1166,7 +1166,7 @@ void main() {
 
     controller.clearResourceSelection();
     download.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -1216,7 +1216,7 @@ void main() {
             updatedAt: '',
           ),
         ),
-        resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+        resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
           records: [
             FfiCourseResourceDetail(
               name: '课件.pdf',
@@ -1262,8 +1262,8 @@ void main() {
 
   test('cancelling a starting queued item advances to the next one', () async {
     final storage = MemorySessionStorage('payload');
-    final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
-    final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final firstDownload = Completer<FakeCourseResourceDownloadResponse>();
+    final secondDownload = Completer<FakeCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
       session: _session(),
       resourceDetailFutures: [
@@ -1327,7 +1327,7 @@ void main() {
     await controller.cancelDownloadTask(startingId);
 
     firstDownload.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '旧课件.pdf',
@@ -1344,7 +1344,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     secondDownload.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '新课件.pdf',
@@ -1369,7 +1369,7 @@ void main() {
     'logout during an in-flight download start leaks no task or timer',
     () async {
       final storage = MemorySessionStorage('payload');
-      final download = Completer<FfiCourseResourceDownloadResponse>();
+      final download = Completer<FakeCourseResourceDownloadResponse>();
       final gateway = FakeOpenCloudGateway(
         session: _session(),
         resourceDetailResponse: const FfiCourseResourceDetailResponse(
@@ -1401,7 +1401,7 @@ void main() {
 
       await controller.logout();
       download.complete(
-        const FfiCourseResourceDownloadResponse(
+        const FakeCourseResourceDownloadResponse(
           records: [
             FfiCourseResourceDetail(
               name: '课件.pdf',
@@ -1424,8 +1424,8 @@ void main() {
 
   test('single resource downloads run in queue order', () async {
     final storage = MemorySessionStorage('payload');
-    final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
-    final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final firstDownload = Completer<FakeCourseResourceDownloadResponse>();
+    final secondDownload = Completer<FakeCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
       session: _session(),
       resourceDetailFutures: [
@@ -1495,7 +1495,7 @@ void main() {
     );
 
     firstDownload.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '旧课件.pdf',
@@ -1518,7 +1518,7 @@ void main() {
     expect(state.downloadTasks.last.isQueued, isTrue);
 
     secondDownload.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '新课件.pdf',
@@ -1556,7 +1556,7 @@ void main() {
         ),
       ),
       resourceDownloadFuture:
-          Completer<FfiCourseResourceDownloadResponse>().future,
+          Completer<FakeCourseResourceDownloadResponse>().future,
     );
     final container = _container(storage: storage, gateway: gateway);
     final controller = container.read(clientControllerProvider.notifier);
@@ -1626,7 +1626,7 @@ void main() {
 
   test('course download survives course switch', () async {
     final storage = MemorySessionStorage('payload');
-    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final download = Completer<FakeCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
       session: _session(),
       resourcesResponse: const FfiCourseResourcesResponse(
@@ -1651,7 +1651,7 @@ void main() {
 
     await controller.loadResourcesForCourse('site-2');
     download.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -1680,8 +1680,8 @@ void main() {
 
   test('course downloads run in queue order', () async {
     final storage = MemorySessionStorage('payload');
-    final firstDownload = Completer<FfiCourseResourceDownloadResponse>();
-    final secondDownload = Completer<FfiCourseResourceDownloadResponse>();
+    final firstDownload = Completer<FakeCourseResourceDownloadResponse>();
+    final secondDownload = Completer<FakeCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
       session: _session(),
       resourcesResponses: const [
@@ -1724,7 +1724,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     firstDownload.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '旧课件.pdf',
@@ -1749,7 +1749,7 @@ void main() {
     expect(state.downloadTasks.last.isQueued, isTrue);
 
     secondDownload.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '新课件.pdf',

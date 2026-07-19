@@ -558,12 +558,15 @@ void _writeElementText(dom.Node node, StringBuffer buffer) {
     buffer.write(_assignmentLineBreakMarker);
     return;
   }
+  final linkTextStart = buffer.length;
   for (final child in node.nodes) {
     _writeElementText(child, buffer);
   }
   if (tag == 'a') {
     final href = node.attributes['href']?.trim();
-    if (href != null && href.isNotEmpty && !buffer.toString().contains(href)) {
+    // Append the href only when the link's own text does not already show it.
+    final linkText = buffer.toString().substring(linkTextStart);
+    if (href != null && href.isNotEmpty && !linkText.contains(href)) {
       buffer.write(' ($href)');
     }
   }

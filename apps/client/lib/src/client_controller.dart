@@ -486,7 +486,10 @@ class ClientController extends Notifier<ClientState> {
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
-      state = state.copyWith(assignmentDetailLoading: false);
+      state = state.copyWith(
+        assignmentDetailLoading: false,
+        clearAssignmentSelection: state.phase == ClientPhase.authenticated,
+      );
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -516,6 +519,8 @@ class ClientController extends Notifier<ClientState> {
         assignmentDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      // Session expiry is handled even when the request went stale so the
+      // persisted session is always cleared.
       if (error.code == FfiAuthErrorCode.sessionExpired) {
         await _handleSessionError(
           error,
@@ -678,7 +683,7 @@ class ClientController extends Notifier<ClientState> {
     }
     final attachmentIds = [
       for (final attachment in state.assignmentAttachments)
-        if (attachment.status == 'uploaded') attachment.resourceId,
+        attachment.resourceId,
     ];
     final draft = draftText ?? state.assignmentDraft;
     final resubmitting = detail.status == FfiAssignmentStatus.submitted;
@@ -844,7 +849,10 @@ class ClientController extends Notifier<ClientState> {
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
-      state = state.copyWith(resourceDetailLoading: false);
+      state = state.copyWith(
+        resourceDetailLoading: false,
+        clearResourceSelection: state.phase == ClientPhase.authenticated,
+      );
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -867,6 +875,8 @@ class ClientController extends Notifier<ClientState> {
         resourceDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      // Session expiry is handled even when the request went stale so the
+      // persisted session is always cleared.
       if (error.code == FfiAuthErrorCode.sessionExpired) {
         await _handleSessionError(
           error,
@@ -1091,9 +1101,14 @@ class ClientController extends Notifier<ClientState> {
               outputPath: item.outputPath,
             );
       if (_downloadTaskById(item.id) == null) {
-        // Cancelled while the start call was in flight.
-        await gateway.downloadTaskCancel(taskId: response.taskId);
-        await gateway.downloadTaskDispose(taskId: response.taskId);
+        // Cancelled while the start call was in flight. Best-effort cleanup:
+        // a failure here must not stall the rest of the queue.
+        try {
+          await gateway.downloadTaskCancel(taskId: response.taskId);
+        } catch (_) {}
+        try {
+          await gateway.downloadTaskDispose(taskId: response.taskId);
+        } catch (_) {}
         return false;
       }
       await _persistUpdatedPayload(response.status.updatedSessionPayload);
