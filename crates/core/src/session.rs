@@ -2,6 +2,20 @@ use crate::{get_token_expiration_ms, AuthError, HttpClient, OpenCloudClient};
 use open_cloud_api::{AuthErrorCode, SessionUser};
 use open_cloud_store::{AuthSession, SessionStore};
 
+/// Access tokens this close to expiry are refreshed instead of used.
+const ACCESS_TOKEN_REFRESH_SKEW_MS: u64 = 60_000;
+
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or_default()
+}
+
+fn access_token_is_fresh(session: &AuthSession, now_ms: u64) -> bool {
+    session.access_token_expires_at_ms.saturating_sub(now_ms) > ACCESS_TOKEN_REFRESH_SKEW_MS
+}
+
 #[derive(Clone)]
 pub struct SessionManager<C, S> {
     auth: OpenCloudClient<C>,
@@ -28,7 +42,7 @@ where
                 "登录会话已失效，请重新登录。",
             )
         })?;
-        if session.access_token_expires_at_ms.saturating_sub(now_ms) > 60_000 {
+        if access_token_is_fresh(&session, now_ms) {
             return Ok(session.access_token);
         }
 
@@ -49,7 +63,7 @@ pub async fn refresh_session_if_needed<C>(
 where
     C: HttpClient,
 {
-    if session.access_token_expires_at_ms.saturating_sub(now_ms) > 60_000 {
+    if access_token_is_fresh(&session, now_ms) {
         return Ok(session);
     }
 

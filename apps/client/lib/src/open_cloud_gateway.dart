@@ -96,9 +96,7 @@ abstract interface class OpenCloudGateway {
     required String taskId,
   });
 
-  Future<open_cloud_ffi.FfiLogoutResponse> downloadTaskDispose({
-    required String taskId,
-  });
+  Future<void> downloadTaskDispose({required String taskId});
 
   Future<open_cloud_ffi.FfiLogoutResponse> logout();
 }
@@ -303,9 +301,7 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiLogoutResponse> downloadTaskDispose({
-    required String taskId,
-  }) {
+  Future<void> downloadTaskDispose({required String taskId}) {
     return open_cloud_ffi.downloadTaskDispose(taskId: taskId);
   }
 

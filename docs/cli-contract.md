@@ -162,7 +162,7 @@ Assignment uploads use RFC 7578-style `multipart/form-data` with a single UTF-8 
 
 - `doctor` reports local CLI readiness and credential-store diagnostics. Network login is checked during `login --interactive`, not during `doctor`.
 - `doctor` must print stable credential diagnostics:
-  - `credential backend: keyutils|secret-service|mock|unknown`
+  - `credential backend: keyutils|secret-service|keychain|credential-manager|mock|unknown`
   - `credential persistence: until-reboot|until-delete|process-only|entry-only|unknown`
   - `credential status: available|unavailable`
   - `credential reason: <redacted reason>` only when the runtime probe fails

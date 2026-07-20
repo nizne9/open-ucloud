@@ -2,6 +2,7 @@ use crate::AuthError;
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use open_cloud_api::AuthErrorCode;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -428,12 +429,47 @@ fn multipart_file_body(
     body
 }
 
-fn multipart_quoted_string(value: &str) -> String {
+pub(crate) fn multipart_quoted_string(value: &str) -> String {
     value
         .replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\r', "%0D")
         .replace('\n', "%0A")
+}
+
+/// Picks a multipart boundary that is guaranteed not to appear in any of the
+/// given part values.
+pub(crate) fn multipart_boundary(values: &[&[u8]]) -> String {
+    let seed = multipart_boundary_seed(values);
+    let base = format!("----open-cloud-boundary-{seed:016x}");
+    for suffix in 0.. {
+        let boundary = if suffix == 0 {
+            base.clone()
+        } else {
+            format!("{base}-{suffix}")
+        };
+        let delimiter = format!("--{boundary}");
+        if values
+            .iter()
+            .all(|value| !contains_bytes(value, delimiter.as_bytes()))
+        {
+            return boundary;
+        }
+    }
+    unreachable!("unbounded boundary suffix search")
+}
+
+fn multipart_boundary_seed(values: &[&[u8]]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for value in values {
+        value.len().hash(&mut hasher);
+        value.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn contains_bytes(value: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty() && value.windows(needle.len()).any(|window| window == needle)
 }
 
 fn cancelled_error() -> AuthError {

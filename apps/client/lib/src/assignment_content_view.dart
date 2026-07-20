@@ -558,12 +558,16 @@ void _writeElementText(dom.Node node, StringBuffer buffer) {
     buffer.write(_assignmentLineBreakMarker);
     return;
   }
+  final linkTextStart = buffer.length;
   for (final child in node.nodes) {
     _writeElementText(child, buffer);
   }
   if (tag == 'a') {
     final href = node.attributes['href']?.trim();
-    if (href != null && href.isNotEmpty && !buffer.toString().contains(href)) {
+    // Append the href unless the link text already is exactly the href. A
+    // substring match could hide a destination that only looks similar.
+    final linkText = buffer.toString().substring(linkTextStart).trim();
+    if (href != null && href.isNotEmpty && linkText != href) {
       buffer.write(' ($href)');
     }
   }

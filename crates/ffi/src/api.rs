@@ -4,7 +4,7 @@ use open_cloud_api::{
     AuthErrorCode, AuthErrorResponse, CourseResourceDetail, CourseResourceSummary,
 };
 use open_cloud_core::{
-    client_capabilities, parse_attendance_qr_payload, DownloadCancelFlag, DownloadProgress,
+    client_capabilities, now_ms, parse_attendance_qr_payload, DownloadCancelFlag, DownloadProgress,
     LoginFlow, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
 };
 use open_cloud_store::AuthSession;
@@ -12,9 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::task::JoinHandle;
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
 const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
@@ -30,7 +28,6 @@ pub struct FfiLoginFlow {
     pub captcha_id: Option<String>,
     pub captcha_image: Option<String>,
     pub cookie: String,
-    pub created_at_ms: u64,
     pub execution: String,
     pub username: String,
 }
@@ -74,7 +71,7 @@ pub struct FfiRoleInfo {
     pub domain_id: String,
     pub domain_name: String,
     pub id: String,
-    pub role_aliase: String,
+    pub role_alias: String,
     pub role_id: String,
     pub role_name: FfiRoleName,
 }
@@ -272,21 +269,12 @@ pub struct FfiCourseResourceDetailResponse {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FfiCourseResourceDownloadResponse {
-    pub records: Vec<FfiCourseResourceDetail>,
-    pub written_paths: Vec<String>,
-    pub updated_session_payload: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub enum FfiDownloadTaskState {
     Queued,
     Running,
     Succeeded,
     Failed,
     Cancelled,
-    Disposed,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -359,7 +347,6 @@ impl From<AuthErrorResponse> for FfiAuthError {
 struct DownloadTask {
     status: Mutex<FfiDownloadTaskStatus>,
     cancel: DownloadCancelFlag,
-    handle: Mutex<Option<JoinHandle<()>>>,
 }
 
 struct ResourceDownloadTaskRequest {
@@ -385,6 +372,18 @@ static SHARED_CLIENT: OnceLock<OpenCloudClient<ReqwestHttpClient>> = OnceLock::n
 
 fn download_tasks() -> &'static Mutex<HashMap<String, Arc<DownloadTask>>> {
     DOWNLOAD_TASKS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+// A poisoned lock only means a worker panicked mid-update; the payloads are
+// still usable, so recover instead of panicking across the FFI boundary.
+fn download_tasks_map() -> MutexGuard<'static, HashMap<String, Arc<DownloadTask>>> {
+    lock_recover(download_tasks())
+}
+
+fn lock_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn shared_default_client() -> Result<&'static OpenCloudClient<ReqwestHttpClient>, FfiAuthError> {
@@ -418,23 +417,17 @@ fn create_download_task(total: u32) -> (String, Arc<DownloadTask>, FfiDownloadTa
     let task = Arc::new(DownloadTask {
         status: Mutex::new(status.clone()),
         cancel: DownloadCancelFlag::new(),
-        handle: Mutex::new(None),
     });
-    download_tasks()
-        .lock()
-        .expect("download task map poisoned")
-        .insert(task_id.clone(), task.clone());
+    download_tasks_map().insert(task_id.clone(), task.clone());
     (task_id, task, status)
 }
 
 fn read_download_status(task_id: &str) -> Result<FfiDownloadTaskStatus, FfiAuthError> {
-    let task = download_tasks()
-        .lock()
-        .expect("download task map poisoned")
+    let task = download_tasks_map()
         .get(task_id)
         .cloned()
         .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
-    let status = task.status.lock().expect("download task poisoned");
+    let status = lock_recover(&task.status);
     let terminal = is_terminal_download_state(&status.state);
     Ok(FfiDownloadTaskStatus {
         task_id: status.task_id.clone(),
@@ -464,12 +457,11 @@ fn is_terminal_download_state(state: &FfiDownloadTaskState) -> bool {
         FfiDownloadTaskState::Succeeded
             | FfiDownloadTaskState::Failed
             | FfiDownloadTaskState::Cancelled
-            | FfiDownloadTaskState::Disposed
     )
 }
 
 fn update_download_status(task: &DownloadTask, f: impl FnOnce(&mut FfiDownloadTaskStatus)) {
-    let mut status = task.status.lock().expect("download task poisoned");
+    let mut status = lock_recover(&task.status);
     f(&mut status);
 }
 
@@ -663,7 +655,8 @@ pub async fn resource_download_start(
     status.updated_session_payload = updated_session_payload;
     let worker_task = task.clone();
     let worker_task_id = task_id.clone();
-    let handle = tokio::spawn(async move {
+    // Dropping the JoinHandle detaches the worker; it exits via the cancel flag.
+    tokio::spawn(async move {
         let result = resource_download_task(
             client,
             worker_task.clone(),
@@ -678,7 +671,6 @@ pub async fn resource_download_start(
         .await;
         finish_download_task(worker_task, result);
     });
-    *task.handle.lock().expect("download task poisoned") = Some(handle);
     Ok(FfiDownloadTaskStartResponse {
         task_id: worker_task_id,
         status,
@@ -704,7 +696,8 @@ pub async fn resource_download_course_start(
     status.updated_session_payload = updated_session_payload;
     let worker_task = task.clone();
     let worker_task_id = task_id.clone();
-    let handle = tokio::spawn(async move {
+    // Dropping the JoinHandle detaches the worker; it exits via the cancel flag.
+    tokio::spawn(async move {
         let result = resource_download_course_task(
             client,
             worker_task.clone(),
@@ -716,7 +709,6 @@ pub async fn resource_download_course_start(
         .await;
         finish_download_task(worker_task, result);
     });
-    *task.handle.lock().expect("download task poisoned") = Some(handle);
     Ok(FfiDownloadTaskStartResponse {
         task_id: worker_task_id,
         status,
@@ -728,9 +720,7 @@ pub fn download_task_status(task_id: String) -> Result<FfiDownloadTaskStatus, Ff
 }
 
 pub fn download_task_cancel(task_id: String) -> Result<FfiDownloadTaskStatus, FfiAuthError> {
-    let task = download_tasks()
-        .lock()
-        .expect("download task map poisoned")
+    let task = download_tasks_map()
         .get(&task_id)
         .cloned()
         .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
@@ -747,16 +737,14 @@ pub fn download_task_cancel(task_id: String) -> Result<FfiDownloadTaskStatus, Ff
     read_download_status(&task_id)
 }
 
-pub fn download_task_dispose(task_id: String) -> Result<FfiLogoutResponse, FfiAuthError> {
-    let task = download_tasks()
-        .lock()
-        .expect("download task map poisoned")
+pub fn download_task_dispose(task_id: String) -> Result<(), FfiAuthError> {
+    let task = download_tasks_map()
         .remove(&task_id)
         .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
+    // Only signal cancellation: the worker notices at its next checkpoint and
+    // runs its own partial-file cleanup. Aborting the handle would skip it.
     task.cancel.cancel();
-    Ok(FfiLogoutResponse {
-        clear_session: false,
-    })
+    Ok(())
 }
 
 pub async fn logout() -> FfiLogoutResponse {
@@ -1059,11 +1047,11 @@ async fn resource_download_with_client<C>(
     client: &OpenCloudClient<C>,
     coordinator: &SessionCoordinator,
     request: TestResourceDownloadRequest,
-) -> Result<FfiCourseResourceDownloadResponse, FfiAuthError>
+) -> Result<Vec<String>, FfiAuthError>
 where
     C: open_cloud_core::HttpClient,
 {
-    let (session, updated_session_payload) =
+    let (session, _) =
         refreshed_session(client, coordinator, request.session_payload, request.now_ms).await?;
     let detail = client
         .get_resource_detail(
@@ -1082,11 +1070,7 @@ where
         DownloadCancelFlag::default(),
     )
     .await?;
-    Ok(FfiCourseResourceDownloadResponse {
-        records: vec![detail.into()],
-        written_paths: vec![written_path.display().to_string()],
-        updated_session_payload,
-    })
+    Ok(vec![written_path.display().to_string()])
 }
 
 #[cfg(test)]
@@ -1098,12 +1082,11 @@ async fn resource_download_course_with_client<C>(
     site_name: String,
     output_dir: String,
     now_ms: u64,
-) -> Result<FfiCourseResourceDownloadResponse, FfiAuthError>
+) -> Result<Vec<String>, FfiAuthError>
 where
     C: open_cloud_core::HttpClient,
 {
-    let (session, updated_session_payload) =
-        refreshed_session(client, coordinator, session_payload, now_ms).await?;
+    let (session, _) = refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let list = client
         .get_course_resources(
             &site_id,
@@ -1126,19 +1109,10 @@ where
     let targets = course_download_targets(Path::new(&output_dir), details)?;
     let downloads =
         download_course_targets(client, targets, DownloadCancelFlag::default(), None).await?;
-    let records = downloads
-        .iter()
-        .map(|(detail, _)| detail.clone().into())
-        .collect();
-    let written_paths = downloads
+    Ok(downloads
         .into_iter()
         .map(|(_, path)| path.display().to_string())
-        .collect();
-    Ok(FfiCourseResourceDownloadResponse {
-        records,
-        written_paths,
-        updated_session_payload,
-    })
+        .collect())
 }
 
 async fn resource_download_task(
@@ -1559,20 +1533,12 @@ fn error(code: AuthErrorCode, message: impl Into<String>) -> FfiAuthError {
     }
 }
 
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock before unix epoch")
-        .as_millis() as u64
-}
-
 impl From<LoginFlow> for FfiLoginFlow {
     fn from(value: LoginFlow) -> Self {
         Self {
             captcha_id: value.captcha_id,
             captcha_image: value.captcha_image,
             cookie: value.cookie,
-            created_at_ms: value.created_at_ms,
             execution: value.execution,
             username: value.username,
         }
@@ -1585,7 +1551,6 @@ impl From<FfiLoginFlow> for LoginFlow {
             captcha_id: value.captcha_id,
             captcha_image: value.captcha_image,
             cookie: value.cookie,
-            created_at_ms: value.created_at_ms,
             execution: value.execution,
             username: value.username,
         }
@@ -1643,7 +1608,7 @@ impl From<open_cloud_api::RoleInfo> for FfiRoleInfo {
             domain_id: value.domain_id,
             domain_name: value.domain_name,
             id: value.id,
-            role_aliase: value.role_aliase,
+            role_alias: value.role_alias,
             role_id: value.role_id,
             role_name: value.role_name.into(),
         }
@@ -1716,7 +1681,7 @@ impl From<open_cloud_api::AssignmentSummary> for FfiAssignmentSummary {
             id: value.id,
             site_id: value.site_id,
             site_name: value.site_name,
-            source: value.source,
+            source: value.source.as_str().to_string(),
             start_time: value.start_time,
             status: value.status.into(),
             title: value.title,
@@ -2103,7 +2068,6 @@ mod tests {
                 captcha_id: None,
                 captcha_image: None,
                 cookie: "JSESSIONID=abc".to_string(),
-                created_at_ms: 1,
                 execution: "e1".to_string(),
                 username: "2024000000".to_string(),
             },
@@ -2375,11 +2339,8 @@ mod tests {
         .expect("resource downloads");
 
         assert_eq!(std::fs::read(&existing).expect("existing"), b"old");
-        assert_eq!(
-            std::fs::read(&result.written_paths[0]).expect("new"),
-            b"new bytes"
-        );
-        assert!(result.written_paths[0].ends_with("课件 (1).pdf"));
+        assert_eq!(std::fs::read(&result[0]).expect("new"), b"new bytes");
+        assert!(result[0].ends_with("课件 (1).pdf"));
     }
 
     #[tokio::test]
@@ -2428,14 +2389,14 @@ mod tests {
 
         assert!(!outside.exists());
         assert_eq!(
-            result.written_paths,
+            result,
             vec![base
                 .join(".._outside-from-ffi-test.pdf")
                 .display()
                 .to_string()]
         );
         assert_eq!(
-            std::fs::read(&result.written_paths[0]).expect("sanitized file"),
+            std::fs::read(&result[0]).expect("sanitized file"),
             b"new bytes"
         );
     }
@@ -2487,7 +2448,7 @@ mod tests {
         .await
         .expect("course resources download");
 
-        assert_eq!(result.written_paths.len(), 2);
+        assert_eq!(result.len(), 2);
         assert!(
             http.max_active_downloads() >= 2,
             "expected overlapping downloads, max active was {}",

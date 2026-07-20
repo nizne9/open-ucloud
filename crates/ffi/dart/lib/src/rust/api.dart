@@ -6,9 +6,9 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `assignment_detail_with_client`, `assignment_submit_with_client`, `assignment_upload_with_client`, `assignments_for_course_with_client`, `assignments_undone_with_client`, `auth_finish_with_client`, `auth_start_with_client`, `course_download_targets`, `courses_with_client`, `create_download_task`, `decode_session_payload`, `download_course_targets`, `download_resource_to_path`, `download_tasks`, `encode_session_payload`, `error`, `fetch_course_resource_details`, `finish_download_task`, `fs_error`, `is_terminal_download_state`, `next_download_path_reserved`, `next_download_path`, `now_ms`, `read_download_status`, `refreshed_session`, `resource_detail_with_client`, `resource_download_course_task`, `resource_download_task`, `resources_for_course_with_client`, `sanitize_file_name`, `shared_default_client`, `to_ffi_error`, `update_download_status`, `validate_upload_file_metadata`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadTask`, `FfiCourseResourceDownloadResponse`, `ResourceDownloadTaskRequest`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `assignment_detail_with_client`, `assignment_submit_with_client`, `assignment_upload_with_client`, `assignments_for_course_with_client`, `assignments_undone_with_client`, `auth_finish_with_client`, `auth_start_with_client`, `course_download_targets`, `courses_with_client`, `create_download_task`, `decode_session_payload`, `download_course_targets`, `download_resource_to_path`, `download_tasks_map`, `download_tasks`, `encode_session_payload`, `error`, `fetch_course_resource_details`, `finish_download_task`, `fs_error`, `is_terminal_download_state`, `lock_recover`, `next_download_path_reserved`, `next_download_path`, `read_download_status`, `refreshed_session`, `resource_detail_with_client`, `resource_download_course_task`, `resource_download_task`, `resources_for_course_with_client`, `sanitize_file_name`, `shared_default_client`, `to_ffi_error`, `update_download_status`, `validate_upload_file_metadata`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DownloadTask`, `ResourceDownloadTaskRequest`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 Future<FfiAuthStartResponse> authStart({required String username}) =>
     RustLib.instance.api.crateApiAuthStart(username: username);
@@ -122,7 +122,7 @@ Future<FfiDownloadTaskStatus> downloadTaskStatus({required String taskId}) =>
 Future<FfiDownloadTaskStatus> downloadTaskCancel({required String taskId}) =>
     RustLib.instance.api.crateApiDownloadTaskCancel(taskId: taskId);
 
-Future<FfiLogoutResponse> downloadTaskDispose({required String taskId}) =>
+Future<void> downloadTaskDispose({required String taskId}) =>
     RustLib.instance.api.crateApiDownloadTaskDispose(taskId: taskId);
 
 Future<FfiLogoutResponse> logout() => RustLib.instance.api.crateApiLogout();
@@ -840,7 +840,6 @@ enum FfiDownloadTaskState {
   succeeded,
   failed,
   cancelled,
-  disposed,
   ;
 }
 
@@ -924,7 +923,6 @@ class FfiLoginFlow {
   final String? captchaId;
   final String? captchaImage;
   final String cookie;
-  final BigInt createdAtMs;
   final String execution;
   final String username;
 
@@ -932,7 +930,6 @@ class FfiLoginFlow {
     this.captchaId,
     this.captchaImage,
     required this.cookie,
-    required this.createdAtMs,
     required this.execution,
     required this.username,
   });
@@ -942,7 +939,6 @@ class FfiLoginFlow {
       captchaId.hashCode ^
       captchaImage.hashCode ^
       cookie.hashCode ^
-      createdAtMs.hashCode ^
       execution.hashCode ^
       username.hashCode;
 
@@ -954,7 +950,6 @@ class FfiLoginFlow {
           captchaId == other.captchaId &&
           captchaImage == other.captchaImage &&
           cookie == other.cookie &&
-          createdAtMs == other.createdAtMs &&
           execution == other.execution &&
           username == other.username;
 }
@@ -981,7 +976,7 @@ class FfiRoleInfo {
   final String domainId;
   final String domainName;
   final String id;
-  final String roleAliase;
+  final String roleAlias;
   final String roleId;
   final FfiRoleName roleName;
 
@@ -989,7 +984,7 @@ class FfiRoleInfo {
     required this.domainId,
     required this.domainName,
     required this.id,
-    required this.roleAliase,
+    required this.roleAlias,
     required this.roleId,
     required this.roleName,
   });
@@ -999,7 +994,7 @@ class FfiRoleInfo {
       domainId.hashCode ^
       domainName.hashCode ^
       id.hashCode ^
-      roleAliase.hashCode ^
+      roleAlias.hashCode ^
       roleId.hashCode ^
       roleName.hashCode;
 
@@ -1011,7 +1006,7 @@ class FfiRoleInfo {
           domainId == other.domainId &&
           domainName == other.domainName &&
           id == other.id &&
-          roleAliase == other.roleAliase &&
+          roleAlias == other.roleAlias &&
           roleId == other.roleId &&
           roleName == other.roleName;
 }

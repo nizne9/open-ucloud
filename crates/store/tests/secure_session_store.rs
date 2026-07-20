@@ -101,7 +101,7 @@ fn corrupt_current_session_returns_decode_error_without_secret_text() {
 fn system_credential_backend_uses_stable_release_label() {
     assert!(matches!(
         system_credential_backend(),
-        "keyutils" | "secret-service" | "mock" | "unknown"
+        "keyutils" | "secret-service" | "keychain" | "credential-manager" | "mock" | "unknown"
     ));
 }
 
@@ -118,6 +118,24 @@ fn system_credential_persistence_uses_stable_release_label() {
 fn default_linux_backend_is_keyutils_until_reboot() {
     assert_eq!(system_credential_backend(), "keyutils");
     assert_eq!(system_credential_persistence(), "until-reboot");
+}
+
+#[cfg(all(target_os = "linux", feature = "linux-secret-service"))]
+#[test]
+fn linux_secret_service_backend_is_labeled() {
+    assert_eq!(system_credential_backend(), "secret-service");
+}
+
+#[cfg(all(target_os = "macos", feature = "desktop-keyring"))]
+#[test]
+fn macos_desktop_backend_is_labeled() {
+    assert_eq!(system_credential_backend(), "keychain");
+}
+
+#[cfg(all(target_os = "windows", feature = "desktop-keyring"))]
+#[test]
+fn windows_desktop_backend_is_labeled() {
+    assert_eq!(system_credential_backend(), "credential-manager");
 }
 
 #[derive(Clone, Default)]

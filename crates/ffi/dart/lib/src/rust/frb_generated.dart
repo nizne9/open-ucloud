@@ -116,8 +116,7 @@ abstract class RustLibApi extends BaseApi {
   Future<FfiDownloadTaskStatus> crateApiDownloadTaskCancel(
       {required String taskId});
 
-  Future<FfiLogoutResponse> crateApiDownloadTaskDispose(
-      {required String taskId});
+  Future<void> crateApiDownloadTaskDispose({required String taskId});
 
   Future<FfiDownloadTaskStatus> crateApiDownloadTaskStatus(
       {required String taskId});
@@ -436,8 +435,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<FfiLogoutResponse> crateApiDownloadTaskDispose(
-      {required String taskId}) {
+  Future<void> crateApiDownloadTaskDispose({required String taskId}) {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
         final serializer = SseSerializer(generalizedFrbRustBinding);
@@ -446,7 +444,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             funcId: 11, port: port_);
       },
       codec: SseCodec(
-        decodeSuccessData: sse_decode_ffi_logout_response,
+        decodeSuccessData: sse_decode_unit,
         decodeErrorData: sse_decode_ffi_auth_error,
       ),
       constMeta: kCrateApiDownloadTaskDisposeConstMeta,
@@ -1116,15 +1114,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   FfiLoginFlow dco_decode_ffi_login_flow(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return FfiLoginFlow(
       captchaId: dco_decode_opt_String(arr[0]),
       captchaImage: dco_decode_opt_String(arr[1]),
       cookie: dco_decode_String(arr[2]),
-      createdAtMs: dco_decode_u_64(arr[3]),
-      execution: dco_decode_String(arr[4]),
-      username: dco_decode_String(arr[5]),
+      execution: dco_decode_String(arr[3]),
+      username: dco_decode_String(arr[4]),
     );
   }
 
@@ -1149,7 +1146,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       domainId: dco_decode_String(arr[0]),
       domainName: dco_decode_String(arr[1]),
       id: dco_decode_String(arr[2]),
-      roleAliase: dco_decode_String(arr[3]),
+      roleAlias: dco_decode_String(arr[3]),
       roleId: dco_decode_String(arr[4]),
       roleName: dco_decode_ffi_role_name(arr[5]),
     );
@@ -1741,14 +1738,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_captchaId = sse_decode_opt_String(deserializer);
     var var_captchaImage = sse_decode_opt_String(deserializer);
     var var_cookie = sse_decode_String(deserializer);
-    var var_createdAtMs = sse_decode_u_64(deserializer);
     var var_execution = sse_decode_String(deserializer);
     var var_username = sse_decode_String(deserializer);
     return FfiLoginFlow(
         captchaId: var_captchaId,
         captchaImage: var_captchaImage,
         cookie: var_cookie,
-        createdAtMs: var_createdAtMs,
         execution: var_execution,
         username: var_username);
   }
@@ -1767,14 +1762,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_domainId = sse_decode_String(deserializer);
     var var_domainName = sse_decode_String(deserializer);
     var var_id = sse_decode_String(deserializer);
-    var var_roleAliase = sse_decode_String(deserializer);
+    var var_roleAlias = sse_decode_String(deserializer);
     var var_roleId = sse_decode_String(deserializer);
     var var_roleName = sse_decode_ffi_role_name(deserializer);
     return FfiRoleInfo(
         domainId: var_domainId,
         domainName: var_domainName,
         id: var_id,
-        roleAliase: var_roleAliase,
+        roleAlias: var_roleAlias,
         roleId: var_roleId,
         roleName: var_roleName);
   }
@@ -2311,7 +2306,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.captchaId, serializer);
     sse_encode_opt_String(self.captchaImage, serializer);
     sse_encode_String(self.cookie, serializer);
-    sse_encode_u_64(self.createdAtMs, serializer);
     sse_encode_String(self.execution, serializer);
     sse_encode_String(self.username, serializer);
   }
@@ -2329,7 +2323,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.domainId, serializer);
     sse_encode_String(self.domainName, serializer);
     sse_encode_String(self.id, serializer);
-    sse_encode_String(self.roleAliase, serializer);
+    sse_encode_String(self.roleAlias, serializer);
     sse_encode_String(self.roleId, serializer);
     sse_encode_ffi_role_name(self.roleName, serializer);
   }
