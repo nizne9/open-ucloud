@@ -429,7 +429,7 @@ fn multipart_file_body(
     body
 }
 
-fn multipart_quoted_string(value: &str) -> String {
+pub(crate) fn multipart_quoted_string(value: &str) -> String {
     value
         .replace('\\', "\\\\")
         .replace('"', "\\\"")

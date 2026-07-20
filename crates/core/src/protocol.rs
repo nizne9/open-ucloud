@@ -40,11 +40,7 @@ pub(crate) fn parse_ucloud_optional_envelope<T>(
 where
     T: for<'de> Deserialize<'de>,
 {
-    if !(200..300).contains(&response.status) {
-        return Err(http_status_error(&response, fallback));
-    }
-    let payload: UcloudEnvelope<T> = serde_json::from_slice(&response.body)
-        .map_err(|error| AuthError::upstream(error.to_string()))?;
+    let payload: UcloudEnvelope<T> = parse_ucloud_response(response, fallback)?;
     if payload.success == Some(false) {
         return Err(AuthError::upstream(payload.upstream_message(fallback)));
     }
@@ -55,27 +51,34 @@ pub(crate) fn parse_ucloud_empty_success(
     response: HttpResponse,
     fallback: &str,
 ) -> Result<(), AuthError> {
-    if !(200..300).contains(&response.status) {
-        return Err(http_status_error(&response, fallback));
-    }
-    let payload: UcloudEnvelope<serde_json::Value> = serde_json::from_slice(&response.body)
-        .map_err(|error| AuthError::upstream(error.to_string()))?;
+    let payload: UcloudEnvelope<serde_json::Value> = parse_ucloud_response(response, fallback)?;
     if payload.success == Some(true) {
         return Ok(());
     }
     Err(AuthError::upstream(payload.upstream_message(fallback)))
 }
 
-pub(crate) fn http_status_error(response: &HttpResponse, fallback: &str) -> AuthError {
-    let message = format!("{fallback} HTTP status {}.", response.status);
-    match response.status {
+fn parse_ucloud_response<T>(response: HttpResponse, fallback: &str) -> Result<UcloudEnvelope<T>, AuthError>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    if !(200..300).contains(&response.status) {
+        return Err(http_status_error(
+            response.status,
+            response.header("retry-after"),
+            fallback,
+        ));
+    }
+    serde_json::from_slice(&response.body).map_err(|error| AuthError::upstream(error.to_string()))
+}
+
+pub(crate) fn http_status_error(status: u16, retry_after: Option<&str>, fallback: &str) -> AuthError {
+    let message = format!("{fallback} HTTP status {status}.");
+    match status {
         401 | 403 => AuthError::new(AuthErrorCode::SessionExpired, message),
         404 => AuthError::new(AuthErrorCode::NotFound, message),
-        429 => AuthError::new(AuthErrorCode::RateLimited, message).with_retry_after(
-            response
-                .header("retry-after")
-                .and_then(|value| value.trim().parse().ok()),
-        ),
+        429 => AuthError::new(AuthErrorCode::RateLimited, message)
+            .with_retry_after(retry_after.and_then(|value| value.trim().parse().ok())),
         _ => AuthError::upstream(message),
     }
 }

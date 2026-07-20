@@ -1,6 +1,6 @@
 use crate::protocol::{
-    parse_ucloud_envelope, parse_ucloud_optional_envelope, value_to_string, UcloudJsonHeaders,
-    PORTAL_BASIC_AUTH,
+    http_status_error, parse_ucloud_envelope, parse_ucloud_optional_envelope, value_to_string,
+    UcloudJsonHeaders, PORTAL_BASIC_AUTH,
 };
 use crate::{
     AuthError, DownloadCancelFlag, DownloadProgress, HttpClient, HttpMethod, HttpRequest,
@@ -90,13 +90,18 @@ where
                 body: None,
             })
             .await?;
-        // Upstream answers 404 for resources that simply have no preview URL.
+        // Preview URLs are best-effort enrichment: 404 means the resource has
+        // no preview, and soft upstream failures degrade to `None` so one bad
+        // response cannot fail the whole detail load. Only an expired session
+        // still surfaces, keeping the re-login flow intact.
         if response.status == 404 {
             return Ok(None);
         }
-        let data: Option<RawPreviewUrl> =
-            parse_ucloud_optional_envelope(response, "资料下载地址获取失败，请稍后重试。")?;
-        Ok(data.and_then(|data| data.preview_url))
+        match parse_ucloud_optional_envelope(response, "资料下载地址获取失败，请稍后重试。") {
+            Ok(data) => Ok(data.and_then(|data: RawPreviewUrl| data.preview_url)),
+            Err(error) if error.code == AuthErrorCode::SessionExpired => Err(error),
+            Err(_) => Ok(None),
+        }
     }
 
     pub async fn download_url_to_path(
@@ -155,10 +160,11 @@ where
                 next_url = resolve_download_redirect(&next_url, &location)?;
                 continue;
             }
-            return Err(AuthError::upstream(format!(
-                "资料下载失败。 HTTP status {}.",
-                response.status
-            )));
+            return Err(http_status_error(
+                response.status,
+                response.header("retry-after"),
+                "资料下载失败。",
+            ));
         }
         cleanup_partial(&partial_path).await;
         Err(AuthError::upstream("资料下载重定向次数过多。"))

@@ -13,7 +13,6 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
-use tokio::task::JoinHandle;
 
 const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
 const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
@@ -348,7 +347,6 @@ impl From<AuthErrorResponse> for FfiAuthError {
 struct DownloadTask {
     status: Mutex<FfiDownloadTaskStatus>,
     cancel: DownloadCancelFlag,
-    handle: Mutex<Option<JoinHandle<()>>>,
 }
 
 struct ResourceDownloadTaskRequest {
@@ -379,9 +377,7 @@ fn download_tasks() -> &'static Mutex<HashMap<String, Arc<DownloadTask>>> {
 // A poisoned lock only means a worker panicked mid-update; the payloads are
 // still usable, so recover instead of panicking across the FFI boundary.
 fn download_tasks_map() -> MutexGuard<'static, HashMap<String, Arc<DownloadTask>>> {
-    download_tasks()
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+    lock_recover(download_tasks())
 }
 
 fn lock_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -421,7 +417,6 @@ fn create_download_task(total: u32) -> (String, Arc<DownloadTask>, FfiDownloadTa
     let task = Arc::new(DownloadTask {
         status: Mutex::new(status.clone()),
         cancel: DownloadCancelFlag::new(),
-        handle: Mutex::new(None),
     });
     download_tasks_map().insert(task_id.clone(), task.clone());
     (task_id, task, status)
@@ -660,7 +655,8 @@ pub async fn resource_download_start(
     status.updated_session_payload = updated_session_payload;
     let worker_task = task.clone();
     let worker_task_id = task_id.clone();
-    let handle = tokio::spawn(async move {
+    // Dropping the JoinHandle detaches the worker; it exits via the cancel flag.
+    tokio::spawn(async move {
         let result = resource_download_task(
             client,
             worker_task.clone(),
@@ -675,7 +671,6 @@ pub async fn resource_download_start(
         .await;
         finish_download_task(worker_task, result);
     });
-    *lock_recover(&task.handle) = Some(handle);
     Ok(FfiDownloadTaskStartResponse {
         task_id: worker_task_id,
         status,
@@ -701,7 +696,8 @@ pub async fn resource_download_course_start(
     status.updated_session_payload = updated_session_payload;
     let worker_task = task.clone();
     let worker_task_id = task_id.clone();
-    let handle = tokio::spawn(async move {
+    // Dropping the JoinHandle detaches the worker; it exits via the cancel flag.
+    tokio::spawn(async move {
         let result = resource_download_course_task(
             client,
             worker_task.clone(),
@@ -713,7 +709,6 @@ pub async fn resource_download_course_start(
         .await;
         finish_download_task(worker_task, result);
     });
-    *lock_recover(&task.handle) = Some(handle);
     Ok(FfiDownloadTaskStartResponse {
         task_id: worker_task_id,
         status,
@@ -746,10 +741,9 @@ pub fn download_task_dispose(task_id: String) -> Result<(), FfiAuthError> {
     let task = download_tasks_map()
         .remove(&task_id)
         .ok_or_else(|| error(AuthErrorCode::NotFound, "下载任务不存在。"))?;
+    // Only signal cancellation: the worker notices at its next checkpoint and
+    // runs its own partial-file cleanup. Aborting the handle would skip it.
     task.cancel.cancel();
-    if let Some(handle) = lock_recover(&task.handle).take() {
-        handle.abort();
-    }
     Ok(())
 }
 

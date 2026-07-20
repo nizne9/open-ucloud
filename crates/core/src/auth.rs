@@ -296,7 +296,11 @@ where
     T: for<'de> Deserialize<'de>,
 {
     if !(200..300).contains(&response.status) {
-        return Err(http_status_error(&response, message));
+        return Err(http_status_error(
+            response.status,
+            response.header("retry-after"),
+            message,
+        ));
     }
     serde_json::from_slice(&response.body).map_err(|error| AuthError::upstream(error.to_string()))
 }

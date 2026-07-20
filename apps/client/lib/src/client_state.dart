@@ -56,13 +56,11 @@ class AssignmentAttachmentState {
     required this.name,
     required this.resourceId,
     this.previewUrl,
-    this.errorMessage,
   });
 
   final String name;
   final String resourceId;
   final String? previewUrl;
-  final String? errorMessage;
 }
 
 /// Whether a download task state is terminal (no further updates expected).

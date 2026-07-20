@@ -1014,9 +1014,7 @@ class ClientController extends Notifier<ClientState> {
     } catch (_) {
       _removeDownloadTask(itemId);
     } finally {
-      try {
-        await gateway.downloadTaskDispose(taskId: taskId);
-      } catch (_) {}
+      await _disposeDownloadTaskQuietly(gateway, taskId);
     }
     unawaited(_pumpDownloadQueue());
   }
@@ -1037,13 +1035,29 @@ class ClientController extends Notifier<ClientState> {
       if (taskId == null) {
         continue;
       }
-      try {
-        await gateway.downloadTaskCancel(taskId: taskId);
-      } catch (_) {}
-      try {
-        await gateway.downloadTaskDispose(taskId: taskId);
-      } catch (_) {}
+      await _teardownDownloadTask(gateway, taskId);
     }
+  }
+
+  /// Best-effort teardown of a Rust-side download task: cancel, then dispose.
+  /// Failures are ignored so cleanup never stalls the queue.
+  Future<void> _teardownDownloadTask(
+    OpenCloudGateway gateway,
+    String taskId,
+  ) async {
+    try {
+      await gateway.downloadTaskCancel(taskId: taskId);
+    } catch (_) {}
+    await _disposeDownloadTaskQuietly(gateway, taskId);
+  }
+
+  Future<void> _disposeDownloadTaskQuietly(
+    OpenCloudGateway gateway,
+    String taskId,
+  ) async {
+    try {
+      await gateway.downloadTaskDispose(taskId: taskId);
+    } catch (_) {}
   }
 
   /// Serial queue: starts the next queued item when nothing is running.
@@ -1101,14 +1115,8 @@ class ClientController extends Notifier<ClientState> {
               outputPath: item.outputPath,
             );
       if (_downloadTaskById(item.id) == null) {
-        // Cancelled while the start call was in flight. Best-effort cleanup:
-        // a failure here must not stall the rest of the queue.
-        try {
-          await gateway.downloadTaskCancel(taskId: response.taskId);
-        } catch (_) {}
-        try {
-          await gateway.downloadTaskDispose(taskId: response.taskId);
-        } catch (_) {}
+        // Cancelled while the start call was in flight.
+        await _teardownDownloadTask(gateway, response.taskId);
         return false;
       }
       await _persistUpdatedPayload(response.status.updatedSessionPayload);
@@ -1193,12 +1201,7 @@ class ClientController extends Notifier<ClientState> {
         );
       }
       state = state.copyWith(errorMessage: message);
-      try {
-        await gateway.downloadTaskCancel(taskId: taskId);
-      } catch (_) {}
-      try {
-        await gateway.downloadTaskDispose(taskId: taskId);
-      } catch (_) {}
+      await _teardownDownloadTask(gateway, taskId);
       unawaited(_pumpDownloadQueue());
       return;
     }
@@ -1218,9 +1221,7 @@ class ClientController extends Notifier<ClientState> {
 
     _resourceDownloadPollTimer?.cancel();
     _resourceDownloadPollTimer = null;
-    try {
-      await gateway.downloadTaskDispose(taskId: taskId);
-    } catch (_) {}
+    await _disposeDownloadTaskQuietly(gateway, taskId);
     if (status.state == FfiDownloadTaskState.succeeded) {
       state = state.copyWith(
         operationMessage: '已下载 ${status.writtenPaths.length} 个资料文件',

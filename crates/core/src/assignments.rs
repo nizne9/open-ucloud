@@ -2,7 +2,7 @@ use crate::protocol::{
     parse_ucloud_empty_success, parse_ucloud_envelope, value_to_string, PORTAL_BASIC_AUTH,
 };
 use crate::resources::{portal_json_headers, raw_resource_id, RawResourceDetail};
-use crate::transport::multipart_boundary;
+use crate::transport::{multipart_boundary, multipart_quoted_string};
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use futures_util::stream::{self, StreamExt};
 use open_cloud_api::{
@@ -648,20 +648,6 @@ fn push_field(body: &mut Vec<u8>, boundary: &str, name: &str, value: &[u8]) {
     );
     body.extend_from_slice(value);
     body.extend_from_slice(b"\r\n");
-}
-
-// Unlike the transport quoting helper, CR/LF never reaches this point:
-// upload file names containing them are rejected before the request is built.
-fn multipart_quoted_string(value: &str) -> String {
-    let mut output = String::new();
-    for ch in value.chars() {
-        match ch {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            other => output.push(other),
-        }
-    }
-    output
 }
 
 fn value_to_string_opt(value: Option<serde_json::Value>) -> Option<String> {

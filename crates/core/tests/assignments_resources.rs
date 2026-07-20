@@ -891,29 +891,31 @@ async fn resource_download_url_maps_missing_preview_to_none() {
 }
 
 #[tokio::test]
-async fn resource_download_url_propagates_upstream_failures() {
+async fn resource_download_url_degrades_soft_failures_to_none() {
     let http = MockHttp::with(vec![
         response(500, "boom"),
-        response(401, "unauthorized"),
         response(200, r#"{"success":false,"msg":"没有预览权限"}"#),
+        response(200, "not json"),
     ]);
     let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
-    let server_error = client
-        .get_resource_download_url("resource-1", "access-token")
-        .await
-        .expect_err("500 is an error, not a missing url");
-    assert_eq!(server_error.code, AuthErrorCode::UpstreamUnavailable);
+    for case in ["500", "success:false", "invalid json"] {
+        let url = client
+            .get_resource_download_url("resource-1", "access-token")
+            .await
+            .unwrap_or_else(|error| panic!("{case} must not fail the preview lookup: {error}"));
+        assert_eq!(url, None, "{case} degrades to no preview");
+    }
+}
+
+#[tokio::test]
+async fn resource_download_url_propagates_session_expiry() {
+    let http = MockHttp::with(vec![response(401, "unauthorized")]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
 
     let expired = client
         .get_resource_download_url("resource-1", "access-token")
         .await
         .expect_err("401 maps to session expired");
     assert_eq!(expired.code, AuthErrorCode::SessionExpired);
-
-    let rejected = client
-        .get_resource_download_url("resource-1", "access-token")
-        .await
-        .expect_err("success:false surfaces the upstream message");
-    assert_eq!(rejected.message, "没有预览权限");
 }

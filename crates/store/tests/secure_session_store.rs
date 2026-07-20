@@ -101,7 +101,7 @@ fn corrupt_current_session_returns_decode_error_without_secret_text() {
 fn system_credential_backend_uses_stable_release_label() {
     assert!(matches!(
         system_credential_backend(),
-        "keyutils" | "secret-service" | "mock" | "unknown"
+        "keyutils" | "secret-service" | "keychain" | "credential-manager" | "mock" | "unknown"
     ));
 }
 
