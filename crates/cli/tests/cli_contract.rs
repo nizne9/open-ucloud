@@ -1,9 +1,9 @@
 use clap::{CommandFactory, Parser};
-use open_cloud_api::{AuthErrorCode, RoleName, SessionUser};
-use open_cloud_cli::{Cli, Commands};
-use open_cloud_store::{
+use open_ucloud_api::{AuthErrorCode, RoleName, SessionUser};
+use open_ucloud_cli::{Cli, Commands};
+use open_ucloud_store::{
     AuthSession, CredentialBackend, CredentialProbe, SecureSessionStore, StoreError,
-    OPEN_CLOUD_KEYRING_ACCOUNT, OPEN_CLOUD_KEYRING_SERVICE,
+    OPEN_UCLOUD_KEYRING_ACCOUNT, OPEN_UCLOUD_KEYRING_SERVICE,
 };
 use std::sync::{Arc, Mutex};
 
@@ -12,38 +12,38 @@ fn exposes_documented_commands() {
     let mut command = Cli::command();
 
     command
-        .try_get_matches_from_mut(["open-cloud", "doctor"])
+        .try_get_matches_from_mut(["open-ucloud", "doctor"])
         .expect("doctor parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "doctor", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "doctor", "--json"])
         .expect("doctor json parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "login", "--interactive", "--role", "学生"])
+        .try_get_matches_from_mut(["open-ucloud", "login", "--interactive", "--role", "学生"])
         .expect("login parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "session", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "session", "--json"])
         .expect("session parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "capabilities", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "capabilities", "--json"])
         .expect("capabilities json parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "courses", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "courses", "--json"])
         .expect("courses json parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "courses", "--json", "--with-going"])
+        .try_get_matches_from_mut(["open-ucloud", "courses", "--json", "--with-going"])
         .expect("courses with going status parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "courses"])
+        .try_get_matches_from_mut(["open-ucloud", "courses"])
         .expect("courses parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "course", "site-1", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "course", "site-1", "--json"])
         .expect("course detail parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "attendance", "--site", "site-1", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "attendance", "--site", "site-1", "--json"])
         .expect("attendance status parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "assignments",
             "list",
             "--site",
@@ -56,14 +56,14 @@ fn exposes_documented_commands() {
         ])
         .expect("assignment list parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "assignments", "undone", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "assignments", "undone", "--json"])
         .expect("undone assignments parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "assignments", "detail", "work-1", "--json"])
+        .try_get_matches_from_mut(["open-ucloud", "assignments", "detail", "work-1", "--json"])
         .expect("assignment detail parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "assignments",
             "upload",
             "work-1",
@@ -75,7 +75,7 @@ fn exposes_documented_commands() {
         .expect("assignment upload parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "assignments",
             "submit",
             "work-1",
@@ -89,7 +89,7 @@ fn exposes_documented_commands() {
         .expect("assignment submit parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "assignments",
             "submit",
             "work-1",
@@ -105,7 +105,7 @@ fn exposes_documented_commands() {
         .expect("assignment submit content file parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "resources",
             "list",
             "--site",
@@ -117,7 +117,7 @@ fn exposes_documented_commands() {
         .expect("resource list parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "resources",
             "detail",
             "resource-1",
@@ -130,7 +130,7 @@ fn exposes_documented_commands() {
         .expect("resource detail parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "resources",
             "download",
             "resource-1",
@@ -145,7 +145,7 @@ fn exposes_documented_commands() {
         .expect("resource download parses");
     command
         .try_get_matches_from_mut([
-            "open-cloud",
+            "open-ucloud",
             "resources",
             "download-course",
             "--site",
@@ -159,35 +159,35 @@ fn exposes_documented_commands() {
         ])
         .expect("resource course download parses");
     command
-        .try_get_matches_from_mut(["open-cloud", "logout", "--yes"])
+        .try_get_matches_from_mut(["open-ucloud", "logout", "--yes"])
         .expect("logout parses");
 }
 
 #[test]
 fn logout_requires_explicit_yes() {
-    let cli = Cli::try_parse_from(["open-cloud", "logout"]).expect("logout parses");
+    let cli = Cli::try_parse_from(["open-ucloud", "logout"]).expect("logout parses");
 
     assert!(matches!(cli.command, Commands::Logout { yes: false }));
 }
 
 #[test]
 fn doctor_json_flag_is_explicit() {
-    let cli = Cli::try_parse_from(["open-cloud", "doctor", "--json"]).expect("doctor parses");
+    let cli = Cli::try_parse_from(["open-ucloud", "doctor", "--json"]).expect("doctor parses");
 
     assert!(matches!(cli.command, Commands::Doctor { json: true }));
 }
 
 #[test]
 fn capabilities_json_flag_is_explicit() {
-    let cli =
-        Cli::try_parse_from(["open-cloud", "capabilities", "--json"]).expect("capabilities parses");
+    let cli = Cli::try_parse_from(["open-ucloud", "capabilities", "--json"])
+        .expect("capabilities parses");
 
     assert!(matches!(cli.command, Commands::Capabilities { json: true }));
 }
 
 #[test]
 fn capabilities_json_declares_qr_parsing_without_self_attendance() {
-    let json = open_cloud_cli::capabilities_report_json().expect("capabilities json serializes");
+    let json = open_ucloud_cli::capabilities_report_json().expect("capabilities json serializes");
     let value: serde_json::Value = serde_json::from_str(&json).expect("valid json");
 
     assert_eq!(value["selfAttendance"], false);
@@ -198,7 +198,7 @@ fn capabilities_json_declares_qr_parsing_without_self_attendance() {
 
 #[test]
 fn courses_json_flag_is_explicit() {
-    let cli = Cli::try_parse_from(["open-cloud", "courses", "--json"]).expect("courses parses");
+    let cli = Cli::try_parse_from(["open-ucloud", "courses", "--json"]).expect("courses parses");
 
     assert!(matches!(cli.command, Commands::Courses { json: true, .. }));
 }
@@ -206,7 +206,7 @@ fn courses_json_flag_is_explicit() {
 #[test]
 fn courses_with_going_flag_is_explicit() {
     let cli =
-        Cli::try_parse_from(["open-cloud", "courses", "--with-going"]).expect("courses parses");
+        Cli::try_parse_from(["open-ucloud", "courses", "--with-going"]).expect("courses parses");
 
     assert!(matches!(
         cli.command,
@@ -220,7 +220,7 @@ fn courses_with_going_flag_is_explicit() {
 #[test]
 fn course_detail_command_captures_site_id() {
     let cli =
-        Cli::try_parse_from(["open-cloud", "course", "site-1", "--json"]).expect("course parses");
+        Cli::try_parse_from(["open-ucloud", "course", "site-1", "--json"]).expect("course parses");
 
     assert!(matches!(
         cli.command,
@@ -233,7 +233,7 @@ fn course_detail_command_captures_site_id() {
 
 #[test]
 fn attendance_status_command_captures_site_id() {
-    let cli = Cli::try_parse_from(["open-cloud", "attendance", "--site", "site-1", "--json"])
+    let cli = Cli::try_parse_from(["open-ucloud", "attendance", "--site", "site-1", "--json"])
         .expect("attendance parses");
 
     assert!(matches!(
@@ -247,10 +247,10 @@ fn attendance_status_command_captures_site_id() {
 
 #[tokio::test]
 async fn courses_json_returns_failure_when_session_is_missing() {
-    let cli = Cli::try_parse_from(["open-cloud", "courses", "--json"]).expect("courses parses");
+    let cli = Cli::try_parse_from(["open-ucloud", "courses", "--json"]).expect("courses parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
-    let err = open_cloud_cli::run_cli_with_store(cli, store)
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
         .await
         .expect_err("missing session fails");
 
@@ -260,11 +260,11 @@ async fn courses_json_returns_failure_when_session_is_missing() {
 
 #[tokio::test]
 async fn attendance_json_returns_failure_when_session_is_missing() {
-    let cli = Cli::try_parse_from(["open-cloud", "attendance", "--site", "site-1", "--json"])
+    let cli = Cli::try_parse_from(["open-ucloud", "attendance", "--site", "site-1", "--json"])
         .expect("attendance parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
-    let err = open_cloud_cli::run_cli_with_store(cli, store)
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
         .await
         .expect_err("missing session fails");
 
@@ -274,11 +274,11 @@ async fn attendance_json_returns_failure_when_session_is_missing() {
 
 #[tokio::test]
 async fn assignments_json_returns_failure_when_session_is_missing() {
-    let cli = Cli::try_parse_from(["open-cloud", "assignments", "undone", "--json"])
+    let cli = Cli::try_parse_from(["open-ucloud", "assignments", "undone", "--json"])
         .expect("assignments parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
-    let err = open_cloud_cli::run_cli_with_store(cli, store)
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
         .await
         .expect_err("missing session fails");
 
@@ -289,7 +289,7 @@ async fn assignments_json_returns_failure_when_session_is_missing() {
 #[tokio::test]
 async fn assignment_writes_require_yes_before_session_load() {
     let cli = Cli::try_parse_from([
-        "open-cloud",
+        "open-ucloud",
         "assignments",
         "submit",
         "work-1",
@@ -299,7 +299,7 @@ async fn assignment_writes_require_yes_before_session_load() {
     .expect("submit parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
-    let err = open_cloud_cli::run_cli_with_store(cli, store)
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
         .await
         .expect_err("missing yes fails");
 
@@ -310,7 +310,7 @@ async fn assignment_writes_require_yes_before_session_load() {
 #[tokio::test]
 async fn assignment_writes_preserve_json_errors_for_missing_yes() {
     let cli = Cli::try_parse_from([
-        "open-cloud",
+        "open-ucloud",
         "assignments",
         "submit",
         "work-1",
@@ -321,7 +321,7 @@ async fn assignment_writes_preserve_json_errors_for_missing_yes() {
     .expect("submit parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
-    let err = open_cloud_cli::run_cli_with_store(cli, store)
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
         .await
         .expect_err("missing yes fails");
 
@@ -333,7 +333,7 @@ async fn assignment_writes_preserve_json_errors_for_missing_yes() {
 #[tokio::test]
 async fn resource_batch_writes_preserve_json_errors_for_missing_yes() {
     let cli = Cli::try_parse_from([
-        "open-cloud",
+        "open-ucloud",
         "resources",
         "download-course",
         "--site",
@@ -345,7 +345,7 @@ async fn resource_batch_writes_preserve_json_errors_for_missing_yes() {
     .expect("download-course parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
-    let err = open_cloud_cli::run_cli_with_store(cli, store)
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
         .await
         .expect_err("missing yes fails");
 
@@ -356,13 +356,13 @@ async fn resource_batch_writes_preserve_json_errors_for_missing_yes() {
 
 #[test]
 fn allocates_non_overwriting_download_paths() {
-    let dir = std::env::temp_dir().join(format!("open-cloud-cli-test-{}", uuid::Uuid::new_v4()));
+    let dir = std::env::temp_dir().join(format!("open-ucloud-cli-test-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&dir).expect("temp dir creates");
     std::fs::write(dir.join("课件.pdf"), b"existing").expect("existing file writes");
 
-    let first = open_cloud_cli::next_download_path(&dir, "课件.pdf").expect("path allocates");
+    let first = open_ucloud_cli::next_download_path(&dir, "课件.pdf").expect("path allocates");
     std::fs::write(&first, b"new").expect("new file writes");
-    let second = open_cloud_cli::next_download_path(&dir, "课件.pdf").expect("path allocates");
+    let second = open_ucloud_cli::next_download_path(&dir, "课件.pdf").expect("path allocates");
 
     assert_eq!(
         first.file_name().and_then(|name| name.to_str()),
@@ -378,10 +378,10 @@ fn allocates_non_overwriting_download_paths() {
 
 #[tokio::test]
 async fn session_json_returns_failure_when_session_is_missing() {
-    let cli = Cli::try_parse_from(["open-cloud", "session", "--json"]).expect("session parses");
+    let cli = Cli::try_parse_from(["open-ucloud", "session", "--json"]).expect("session parses");
     let store = SecureSessionStore::new(MockCredentialBackend::default());
 
-    let err = open_cloud_cli::run_cli_with_store(cli, store)
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
         .await
         .expect_err("missing session fails");
 
@@ -398,8 +398,8 @@ struct MockCredentialBackend {
 
 impl CredentialBackend for MockCredentialBackend {
     fn get_password(&self, service: &str, account: &str) -> Result<Option<String>, StoreError> {
-        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
-        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        assert_eq!(service, OPEN_UCLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_UCLOUD_KEYRING_ACCOUNT);
         if let Some(error) = &self.fail {
             return Err(error.clone());
         }
@@ -407,16 +407,16 @@ impl CredentialBackend for MockCredentialBackend {
     }
 
     fn set_password(&self, service: &str, account: &str, password: &str) -> Result<(), StoreError> {
-        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
-        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        assert_eq!(service, OPEN_UCLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_UCLOUD_KEYRING_ACCOUNT);
         *self.set_count.lock().expect("set count lock") += 1;
         *self.value.lock().expect("mock lock") = Some(password.to_string());
         Ok(())
     }
 
     fn delete_password(&self, service: &str, account: &str) -> Result<(), StoreError> {
-        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
-        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        assert_eq!(service, OPEN_UCLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_UCLOUD_KEYRING_ACCOUNT);
         *self.value.lock().expect("mock lock") = None;
         Ok(())
     }
@@ -446,12 +446,12 @@ async fn load_access_session_does_not_rewrite_unexpired_session() {
     *backend.value.lock().expect("mock lock") =
         Some(serde_json::to_string(&current).expect("session serializes"));
     let store = SecureSessionStore::new(backend.clone());
-    let client = open_cloud_core::OpenCloudClient::new(
-        open_cloud_core::ReqwestHttpClient::new().expect("http client creates"),
-        open_cloud_core::OpenCloudEndpoints::default(),
+    let client = open_ucloud_core::OpenUcloudClient::new(
+        open_ucloud_core::ReqwestHttpClient::new().expect("http client creates"),
+        open_ucloud_core::OpenUcloudEndpoints::default(),
     );
 
-    let response = open_cloud_cli::load_access_session(&store, &client, 4_000)
+    let response = open_ucloud_cli::load_access_session(&store, &client, 4_000)
         .await
         .expect("session loads");
 
@@ -464,7 +464,7 @@ fn reads_persisted_session_profile_without_tokens() {
     let store = SecureSessionStore::new(MockCredentialBackend::default());
     store.save_current(&session()).expect("session saves");
 
-    let response = open_cloud_cli::load_persisted_session(&store, 4_000)
+    let response = open_ucloud_cli::load_persisted_session(&store, 4_000)
         .expect("session loads")
         .expect("session exists");
     let json = serde_json::to_value(response).expect("session serializes");
@@ -484,7 +484,7 @@ fn maps_secure_storage_failures_to_stable_error_code() {
     });
 
     let err =
-        open_cloud_cli::load_persisted_session(&store, 4_000).expect_err("secure storage fails");
+        open_ucloud_cli::load_persisted_session(&store, 4_000).expect_err("secure storage fails");
 
     assert_eq!(err.code, AuthErrorCode::SecureStorageUnavailable);
     assert!(err.message.contains("secure storage is unavailable"));
@@ -492,7 +492,7 @@ fn maps_secure_storage_failures_to_stable_error_code() {
 
 #[test]
 fn serializes_auth_errors_for_json_output() {
-    let payload = open_cloud_cli::json_error(AuthErrorCode::SecureStorageUnavailable, "locked")
+    let payload = open_ucloud_cli::json_error(AuthErrorCode::SecureStorageUnavailable, "locked")
         .expect("json error serializes");
 
     assert!(payload.contains("\"code\": \"SECURE_STORAGE_UNAVAILABLE\""));
@@ -502,60 +502,60 @@ fn serializes_auth_errors_for_json_output() {
 #[test]
 fn formats_course_list_with_going_status() {
     let courses = vec![
-        open_cloud_api::CourseSite {
+        open_ucloud_api::CourseSite {
             id: "site-1".to_string(),
             site_name: "软件测试".to_string(),
         },
-        open_cloud_api::CourseSite {
+        open_ucloud_api::CourseSite {
             id: "site-2".to_string(),
             site_name: "操作系统".to_string(),
         },
     ];
-    let going_sites = vec![open_cloud_api::GoingSite {
+    let going_sites = vec![open_ucloud_api::GoingSite {
         group_id: "group-1".to_string(),
         site_id: "site-2".to_string(),
     }];
 
-    let output = open_cloud_cli::format_course_list_with_going(&courses, &going_sites);
+    let output = open_ucloud_cli::format_course_list_with_going(&courses, &going_sites);
 
     assert_eq!(output, "site-1\t软件测试\tidle\nsite-2\t操作系统\tgoing\n");
 }
 
 #[test]
 fn formats_course_detail_with_going_site() {
-    let detail = open_cloud_api::CourseDetailResponse {
-        course: open_cloud_api::CourseSite {
+    let detail = open_ucloud_api::CourseDetailResponse {
+        course: open_ucloud_api::CourseSite {
             id: "site-1".to_string(),
             site_name: "软件测试".to_string(),
         },
-        going_site: Some(open_cloud_api::GoingSite {
+        going_site: Some(open_ucloud_api::GoingSite {
             group_id: "group-1".to_string(),
             site_id: "site-1".to_string(),
         }),
     };
 
-    let output = open_cloud_cli::format_course_detail(&detail);
+    let output = open_ucloud_cli::format_course_detail(&detail);
 
     assert_eq!(output, "site-1\t软件测试\tgoing\tgroup-1\n");
 }
 
 #[test]
 fn formats_attendance_status_without_group_id() {
-    let status = open_cloud_api::AttendanceStatusResponse {
+    let status = open_ucloud_api::AttendanceStatusResponse {
         site_id: "site-1".to_string(),
         site_name: "软件测试".to_string(),
         going: false,
         group_id: None,
     };
 
-    let output = open_cloud_cli::format_attendance_status(&status);
+    let output = open_ucloud_cli::format_attendance_status(&status);
 
     assert_eq!(output, "site-1\t软件测试\tidle\n");
 }
 
 #[test]
 fn doctor_report_exposes_credential_backend_and_persistence() {
-    let report = open_cloud_cli::doctor_report();
+    let report = open_ucloud_cli::doctor_report();
 
     assert!(report.contains("credential backend: "));
     assert!(report.contains("credential persistence: "));
@@ -563,7 +563,7 @@ fn doctor_report_exposes_credential_backend_and_persistence() {
 
 #[test]
 fn doctor_report_exposes_runtime_credential_status() {
-    let report = open_cloud_cli::doctor_report_from(
+    let report = open_ucloud_cli::doctor_report_from(
         "keyutils",
         "until-reboot",
         CredentialProbe::available(),
@@ -574,20 +574,20 @@ fn doctor_report_exposes_runtime_credential_status() {
 
 #[test]
 fn doctor_report_exposes_unavailable_runtime_reason_without_probe_secret() {
-    let report = open_cloud_cli::doctor_report_from(
+    let report = open_ucloud_cli::doctor_report_from(
         "secret-service",
         "until-delete",
-        CredentialProbe::unavailable("backend locked\nopen-cloud-doctor-probe"),
+        CredentialProbe::unavailable("backend locked\nopen-ucloud-doctor-probe"),
     );
 
     assert!(report.contains("credential status: unavailable"));
     assert!(report.contains("credential reason: backend locked"));
-    assert!(!report.contains("open-cloud-doctor-probe"));
+    assert!(!report.contains("open-ucloud-doctor-probe"));
 }
 
 #[test]
 fn doctor_json_exposes_stable_credential_fields() {
-    let payload = open_cloud_cli::doctor_report_json_from(
+    let payload = open_ucloud_cli::doctor_report_json_from(
         "keyutils",
         "until-reboot",
         CredentialProbe::available(),
@@ -605,15 +605,15 @@ fn doctor_json_exposes_stable_credential_fields() {
 
 #[test]
 fn doctor_json_includes_unavailable_reason_without_probe_secret() {
-    let payload = open_cloud_cli::doctor_report_json_from(
+    let payload = open_ucloud_cli::doctor_report_json_from(
         "secret-service",
         "until-delete",
-        CredentialProbe::unavailable("backend locked\nopen-cloud-doctor-probe"),
+        CredentialProbe::unavailable("backend locked\nopen-ucloud-doctor-probe"),
     )
     .expect("doctor json serializes");
     let json: serde_json::Value = serde_json::from_str(&payload).expect("doctor json parses");
 
     assert_eq!(json["credentialStatus"], "unavailable");
     assert_eq!(json["credentialReason"], "backend locked [redacted]");
-    assert!(!payload.contains("open-cloud-doctor-probe"));
+    assert!(!payload.contains("open-ucloud-doctor-probe"));
 }

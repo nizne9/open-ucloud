@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:open_cloud_client/src/open_cloud_gateway.dart';
-import 'package:open_cloud_ffi/open_cloud_ffi.dart';
+import 'package:open_ucloud_client/src/open_ucloud_gateway.dart';
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart';
 
-class MemorySessionStorage implements OpenCloudSessionStorage {
+class MemorySessionStorage implements OpenUcloudSessionStorage {
   MemorySessionStorage([this.payload, this.readError]);
 
   String? payload;
@@ -56,8 +56,8 @@ class FakeCourseResourceDownloadResponse {
   final String? updatedSessionPayload;
 }
 
-class FakeOpenCloudGateway implements OpenCloudGateway {
-  FakeOpenCloudGateway({
+class FakeOpenUcloudGateway implements OpenUcloudGateway {
+  FakeOpenUcloudGateway({
     this.authStartResponse,
     this.session,
     this.courseResponse = const FfiCourseResponse(records: [], goingSites: []),

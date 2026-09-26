@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:open_cloud_client/src/app.dart';
-import 'package:open_cloud_client/src/client_controller.dart';
-import 'package:open_cloud_ffi/open_cloud_ffi.dart';
+import 'package:open_ucloud_client/src/app.dart';
+import 'package:open_ucloud_client/src/client_controller.dart';
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart';
 
 import 'support/fakes.dart';
 
@@ -24,8 +24,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: const FfiCourseResponse(
                 records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -34,7 +34,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -61,8 +61,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: const FfiCourseResponse(
                 records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -71,7 +71,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -92,7 +92,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [
@@ -122,9 +122,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -152,7 +152,7 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         courseResponse: const FfiCourseResponse(
           records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -167,9 +167,9 @@ void main() {
             sessionStorageProvider.overrideWithValue(
               MemorySessionStorage('payload'),
             ),
-            openCloudGatewayProvider.overrideWithValue(gateway),
+            openUcloudGatewayProvider.overrideWithValue(gateway),
           ],
-          child: const OpenCloudApp(),
+          child: const OpenUcloudApp(),
         ),
       );
 
@@ -179,7 +179,7 @@ void main() {
 
       expect(gateway.undoneAssignmentsCalls, 1);
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(OpenCloudApp)),
+        tester.element(find.byType(OpenUcloudApp)),
       );
       expect(
         container.read(clientControllerProvider).errorMessage,
@@ -200,7 +200,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseError: Exception('courses down'),
       undoneAssignmentsResponse: const FfiAssignmentListResponse(
@@ -225,9 +225,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -250,7 +250,7 @@ void main() {
     });
 
     final pendingAssignments = Completer<FfiAssignmentListResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -265,9 +265,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
 
@@ -299,7 +299,7 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         courseResponse: const FfiCourseResponse(
           records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -340,9 +340,9 @@ void main() {
             sessionStorageProvider.overrideWithValue(
               MemorySessionStorage('payload'),
             ),
-            openCloudGatewayProvider.overrideWithValue(gateway),
+            openUcloudGatewayProvider.overrideWithValue(gateway),
           ],
-          child: const OpenCloudApp(),
+          child: const OpenUcloudApp(),
         ),
       );
       await tester.pumpAndSettle();
@@ -378,8 +378,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: const FfiCourseResponse(
                 records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -388,7 +388,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -419,8 +419,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: const FfiCourseResponse(
                 records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -429,7 +429,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -456,8 +456,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: const FfiCourseResponse(
                 records: [FfiCourseSite(id: 'site-1', siteName: '软件测试课程实践')],
@@ -466,7 +466,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -481,9 +481,9 @@ void main() {
       ProviderScope(
         overrides: [
           sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
-          openCloudGatewayProvider.overrideWithValue(FakeOpenCloudGateway()),
+          openUcloudGatewayProvider.overrideWithValue(FakeOpenUcloudGateway()),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pump();
@@ -500,9 +500,9 @@ void main() {
       ProviderScope(
         overrides: [
           sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
-          openCloudGatewayProvider.overrideWithValue(FakeOpenCloudGateway()),
+          openUcloudGatewayProvider.overrideWithValue(FakeOpenUcloudGateway()),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pump();
@@ -522,7 +522,7 @@ void main() {
   });
 
   testWidgets('tapping the captcha image requests a fresh one', (tester) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       authStartResponse: FfiAuthStartResponse(
         auth: const FfiAuthStartResult(
           captchaImage:
@@ -542,9 +542,9 @@ void main() {
       ProviderScope(
         overrides: [
           sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pump();
@@ -571,8 +571,8 @@ void main() {
       ProviderScope(
         overrides: [
           sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               authStartResponse: FfiAuthStartResponse(
                 auth: const FfiAuthStartResult(
                   captchaImage:
@@ -590,7 +590,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pump();
@@ -634,8 +634,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: const FfiAuthSessionResponse(
                 selectedRole: FfiRoleName.student,
                 user: FfiSessionUser(
@@ -654,7 +654,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pump();
@@ -677,8 +677,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               capabilitiesResponse: const FfiClientCapabilities(
                 selfAttendance: false,
                 attendanceQrPayloadParsing: true,
@@ -691,7 +691,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -708,8 +708,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               capabilitiesResponse: const FfiClientCapabilities(
                 selfAttendance: false,
                 attendanceQrPayloadParsing: true,
@@ -722,7 +722,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -738,8 +738,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               capabilitiesResponse: const FfiClientCapabilities(
                 selfAttendance: false,
                 attendanceQrPayloadParsing: true,
@@ -760,7 +760,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -799,8 +799,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               capabilitiesResponse: const FfiClientCapabilities(
                 selfAttendance: false,
                 attendanceQrPayloadParsing: true,
@@ -817,7 +817,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -840,7 +840,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
     );
@@ -850,9 +850,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -875,7 +875,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       undoneAssignmentsResponse: const FfiAssignmentListResponse(
         records: [
@@ -898,9 +898,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -924,7 +924,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
       resourcesResponse: const FfiCourseResourcesResponse(
@@ -945,9 +945,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -992,8 +992,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: FfiAssignmentListResponse(
                 records: [
@@ -1017,7 +1017,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1034,7 +1034,7 @@ void main() {
   testWidgets('assignment view switch restores the previous course', (
     tester,
   ) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
     );
@@ -1044,9 +1044,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1061,7 +1061,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(
-      tester.element(find.byType(OpenCloudApp)),
+      tester.element(find.byType(OpenUcloudApp)),
     );
     expect(
       container.read(clientControllerProvider).selectedAssignmentCourseId,
@@ -1081,7 +1081,7 @@ void main() {
   });
 
   testWidgets('assignment view switch reuses loaded lists', (tester) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
     );
@@ -1091,9 +1091,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1116,7 +1116,7 @@ void main() {
   });
 
   testWidgets('assignment refresh bypasses the cached list', (tester) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
     );
@@ -1126,9 +1126,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1151,7 +1151,7 @@ void main() {
   testWidgets('top bar refresh reloads the active assignments list', (
     tester,
   ) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
     );
@@ -1161,9 +1161,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1182,7 +1182,7 @@ void main() {
   });
 
   testWidgets('assignment refresh uses selected course', (tester) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
     );
@@ -1192,9 +1192,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1216,7 +1216,7 @@ void main() {
   testWidgets('assignment course picker resets after course refresh fallback', (
     tester,
   ) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponses: const [
         FfiCourseResponse(
@@ -1238,9 +1238,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1255,7 +1255,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(
-      tester.element(find.byType(OpenCloudApp)),
+      tester.element(find.byType(OpenUcloudApp)),
     );
     expect(
       container.read(clientControllerProvider).selectedAssignmentCourseId,
@@ -1282,8 +1282,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
                 records: [
@@ -1329,7 +1329,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1383,8 +1383,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: _twoCourseResponse(),
               undoneAssignmentsResponse: FfiAssignmentListResponse(
@@ -1410,7 +1410,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1443,8 +1443,8 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(
-          FakeOpenCloudGateway(
+        openUcloudGatewayProvider.overrideWithValue(
+          FakeOpenUcloudGateway(
             session: _session(),
             undoneAssignmentsResponse: const FfiAssignmentListResponse(
               records: [
@@ -1487,7 +1487,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1528,8 +1528,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
                 records: [
@@ -1565,7 +1565,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1617,8 +1617,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
                 records: [
@@ -1637,7 +1637,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1673,8 +1673,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
                 records: [
@@ -1693,7 +1693,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1728,8 +1728,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: _twoCourseResponse(),
               resourcesResponse: const FfiCourseResourcesResponse(
@@ -1746,7 +1746,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1774,8 +1774,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
                 records: [
@@ -1824,7 +1824,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1864,8 +1864,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
                 records: [
@@ -1901,7 +1901,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -1936,8 +1936,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: _twoCourseResponse(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
@@ -1974,7 +1974,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2024,8 +2024,8 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(
-          FakeOpenCloudGateway(
+        openUcloudGatewayProvider.overrideWithValue(
+          FakeOpenUcloudGateway(
             session: _session(),
             undoneAssignmentsResponse: const FfiAssignmentListResponse(
               records: [
@@ -2074,7 +2074,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2101,8 +2101,8 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(
-          FakeOpenCloudGateway(
+        openUcloudGatewayProvider.overrideWithValue(
+          FakeOpenUcloudGateway(
             session: _session(),
             undoneAssignmentsResponse: const FfiAssignmentListResponse(
               records: [
@@ -2152,7 +2152,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2187,8 +2187,8 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(
-          FakeOpenCloudGateway(
+        openUcloudGatewayProvider.overrideWithValue(
+          FakeOpenUcloudGateway(
             session: _session(),
             undoneAssignmentsResponse: const FfiAssignmentListResponse(
               records: [
@@ -2237,7 +2237,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2270,8 +2270,8 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(
-          FakeOpenCloudGateway(
+        openUcloudGatewayProvider.overrideWithValue(
+          FakeOpenUcloudGateway(
             session: _session(),
             undoneAssignmentsResponse: const FfiAssignmentListResponse(
               records: [
@@ -2320,7 +2320,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2346,8 +2346,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               undoneAssignmentsResponse: const FfiAssignmentListResponse(
                 records: [
@@ -2383,7 +2383,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2406,8 +2406,8 @@ void main() {
             sessionStorageProvider.overrideWithValue(
               MemorySessionStorage('payload'),
             ),
-            openCloudGatewayProvider.overrideWithValue(
-              FakeOpenCloudGateway(
+            openUcloudGatewayProvider.overrideWithValue(
+              FakeOpenUcloudGateway(
                 session: _session(),
                 courseResponse: const FfiCourseResponse(
                   records: [
@@ -2449,7 +2449,7 @@ void main() {
               ),
             ),
           ],
-          child: const OpenCloudApp(),
+          child: const OpenUcloudApp(),
         ),
       );
       await tester.pumpAndSettle();
@@ -2465,7 +2465,7 @@ void main() {
   );
 
   testWidgets('resource refresh uses selected course', (tester) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
     );
@@ -2475,9 +2475,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2497,7 +2497,7 @@ void main() {
   testWidgets('resource course picker resets after course refresh fallback', (
     tester,
   ) async {
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponses: const [
         FfiCourseResponse(
@@ -2519,9 +2519,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2534,7 +2534,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(
-      tester.element(find.byType(OpenCloudApp)),
+      tester.element(find.byType(OpenUcloudApp)),
     );
     expect(
       container.read(clientControllerProvider).selectedResourceCourseId,
@@ -2562,7 +2562,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [
@@ -2577,9 +2577,9 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(gateway),
+          openUcloudGatewayProvider.overrideWithValue(gateway),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2600,7 +2600,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
       resourcesResponse: const FfiCourseResourcesResponse(
@@ -2632,7 +2632,7 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(gateway),
+        openUcloudGatewayProvider.overrideWithValue(gateway),
       ],
     );
     addTearDown(container.dispose);
@@ -2640,7 +2640,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2671,7 +2671,7 @@ void main() {
     });
 
     final download = Completer<FakeCourseResourceDownloadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
       resourcesResponse: const FfiCourseResourcesResponse(
@@ -2692,7 +2692,7 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(gateway),
+        openUcloudGatewayProvider.overrideWithValue(gateway),
       ],
     );
     addTearDown(container.dispose);
@@ -2700,7 +2700,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2754,7 +2754,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
       resourcesResponse: const FfiCourseResourcesResponse(
@@ -2786,7 +2786,7 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(gateway),
+        openUcloudGatewayProvider.overrideWithValue(gateway),
       ],
     );
     addTearDown(container.dispose);
@@ -2794,7 +2794,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2827,7 +2827,7 @@ void main() {
 
     final firstStatus = Completer<FfiDownloadTaskStatus>();
     final secondStatus = Completer<FfiDownloadTaskStatus>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
       resourcesResponse: const FfiCourseResourcesResponse(
@@ -2860,7 +2860,7 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(gateway),
+        openUcloudGatewayProvider.overrideWithValue(gateway),
       ],
     );
     addTearDown(container.dispose);
@@ -2868,7 +2868,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -2951,7 +2951,7 @@ void main() {
     });
 
     final paths = List.generate(50, (index) => '/tmp/资料 ${index + 1}.pdf');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
       resourcesResponse: const FfiCourseResourcesResponse(
@@ -2984,7 +2984,7 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(gateway),
+        openUcloudGatewayProvider.overrideWithValue(gateway),
       ],
     );
     addTearDown(container.dispose);
@@ -2992,7 +2992,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -3044,8 +3044,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: _twoCourseResponse(),
               resourcesResponse: FfiCourseResourcesResponse(records: resources),
@@ -3063,7 +3063,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -3099,8 +3099,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: _twoCourseResponse(),
               resourcesResponse: FfiCourseResourcesResponse(
@@ -3132,7 +3132,7 @@ void main() {
             ),
           ),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -3174,8 +3174,8 @@ void main() {
           sessionStorageProvider.overrideWithValue(
             MemorySessionStorage('payload'),
           ),
-          openCloudGatewayProvider.overrideWithValue(
-            FakeOpenCloudGateway(
+          openUcloudGatewayProvider.overrideWithValue(
+            FakeOpenUcloudGateway(
               session: _session(),
               courseResponse: _twoCourseResponse(),
               resourcesResponse: const FfiCourseResourcesResponse(
@@ -3208,7 +3208,7 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const OpenCloudApp(),
+          child: const OpenUcloudApp(),
         ),
       );
       await tester.pumpAndSettle();
@@ -3271,8 +3271,8 @@ void main() {
         sessionStorageProvider.overrideWithValue(
           MemorySessionStorage('payload'),
         ),
-        openCloudGatewayProvider.overrideWithValue(
-          FakeOpenCloudGateway(
+        openUcloudGatewayProvider.overrideWithValue(
+          FakeOpenUcloudGateway(
             session: _session(),
             courseResponse: _twoCourseResponse(),
             resourcesResponse: const FfiCourseResourcesResponse(
@@ -3316,7 +3316,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();

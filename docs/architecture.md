@@ -23,7 +23,7 @@ polling cannot overwrite secure storage with an older payload.
 
 `crates/core/src/lib.rs` is a public facade only. Keep implementation details in focused modules:
 
-- `client.rs`: `OpenCloudClient` and endpoint configuration shared by core operations.
+- `client.rs`: `OpenUcloudClient` and endpoint configuration shared by core operations.
 - `transport.rs`: HTTP request/response abstractions and the reqwest adapter.
 - `error.rs`: core error type and stable API error-code mapping.
 - `auth.rs`: login, ticket exchange, role lookup, and token refresh protocol.

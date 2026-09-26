@@ -3,9 +3,9 @@ use crate::protocol::{
 };
 use crate::resources::{portal_json_headers, raw_resource_id, RawResourceDetail};
 use crate::transport::{multipart_boundary, multipart_quoted_string};
-use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
+use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
 use futures_util::stream::{self, StreamExt};
-use open_cloud_api::{
+use open_ucloud_api::{
     AssignmentDetailResponse, AssignmentListResponse, AssignmentResource, AssignmentSource,
     AssignmentStatus, AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse,
     AuthErrorCode,
@@ -24,7 +24,7 @@ const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
     "vbe", "vbs", "ws", "wsc", "wsf", "wsh",
 ];
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {

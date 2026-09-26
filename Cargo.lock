@@ -1661,7 +1661,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
-name = "open-cloud-api"
+name = "open-ucloud-api"
 version = "0.2.0"
 dependencies = [
  "serde",
@@ -1669,14 +1669,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "open-cloud-cli"
+name = "open-ucloud-cli"
 version = "0.2.0"
 dependencies = [
  "async-trait",
  "clap",
- "open-cloud-api",
- "open-cloud-core",
- "open-cloud-store",
+ "open-ucloud-api",
+ "open-ucloud-core",
+ "open-ucloud-store",
  "rpassword",
  "serde",
  "serde_json",
@@ -1685,7 +1685,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "open-cloud-core"
+name = "open-ucloud-core"
 version = "0.2.0"
 dependencies = [
  "async-trait",
@@ -1693,8 +1693,8 @@ dependencies = [
  "chrono",
  "cookie",
  "futures-util",
- "open-cloud-api",
- "open-cloud-store",
+ "open-ucloud-api",
+ "open-ucloud-store",
  "reqwest",
  "scraper",
  "serde",
@@ -1706,16 +1706,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "open-cloud-ffi"
+name = "open-ucloud-ffi"
 version = "0.2.0"
 dependencies = [
  "async-trait",
  "base64",
  "flutter_rust_bridge",
  "futures-util",
- "open-cloud-api",
- "open-cloud-core",
- "open-cloud-store",
+ "open-ucloud-api",
+ "open-ucloud-core",
+ "open-ucloud-store",
  "serde",
  "serde_json",
  "tokio",
@@ -1723,12 +1723,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "open-cloud-store"
+name = "open-ucloud-store"
 version = "0.2.0"
 dependencies = [
  "async-trait",
  "keyring",
- "open-cloud-api",
+ "open-ucloud-api",
  "serde",
  "serde_json",
  "thiserror",

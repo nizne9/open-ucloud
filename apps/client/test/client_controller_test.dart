@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:open_cloud_client/src/client_controller.dart';
-import 'package:open_cloud_client/src/open_cloud_gateway.dart';
-import 'package:open_cloud_ffi/open_cloud_ffi.dart';
+import 'package:open_ucloud_client/src/client_controller.dart';
+import 'package:open_ucloud_client/src/open_ucloud_gateway.dart';
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart';
 
 import 'support/fakes.dart';
 
@@ -25,7 +25,7 @@ void main() {
 
   test('restores session and persists refreshed payload', () async {
     final storage = MemorySessionStorage('old-payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       capabilitiesResponse: const FfiClientCapabilities(
         selfAttendance: false,
         attendanceQrPayloadParsing: true,
@@ -52,7 +52,7 @@ void main() {
     'capability failures fall back to disabled flags and load courses',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         capabilitiesError: Exception('not available'),
         session: _session(),
         courseResponse: const FfiCourseResponse(
@@ -74,7 +74,7 @@ void main() {
 
   test('clears storage when persisted session is expired', () async {
     final storage = MemorySessionStorage('expired-payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       sessionSummaryError: const FfiAuthError(
         code: FfiAuthErrorCode.sessionExpired,
         message: 'expired',
@@ -92,7 +92,7 @@ void main() {
 
   test('storage read failures return to unauthenticated state', () async {
     final storage = MemorySessionStorage('payload', Exception('locked'));
-    final gateway = FakeOpenCloudGateway(session: _session());
+    final gateway = FakeOpenUcloudGateway(session: _session());
     final container = _container(storage: storage, gateway: gateway);
 
     await container.read(clientControllerProvider.notifier).bootstrap();
@@ -106,7 +106,7 @@ void main() {
 
   test('refresh storage read failures keep existing courses visible', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -130,7 +130,7 @@ void main() {
     'refreshCourses preserves current tab, assignment draft, attachments, and resource detail',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         courseResponse: const FfiCourseResponse(
           records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -229,7 +229,7 @@ void main() {
     'refreshCourses falls back when selected assignment and resource course disappears',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         courseResponse: const FfiCourseResponse(
           records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
@@ -284,7 +284,7 @@ void main() {
   test('refreshCourses keeps a starting course download running', () async {
     final storage = MemorySessionStorage('payload');
     final download = Completer<FakeCourseResourceDownloadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
@@ -349,7 +349,7 @@ void main() {
     'refreshCourses preserves undone assignments when a stale course selection disappears',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         courseResponse: const FfiCourseResponse(
           records: [FfiCourseSite(id: 'site-new', siteName: '新课程')],
@@ -405,7 +405,7 @@ void main() {
     final storage = MemorySessionStorage('payload');
     final container = _container(
       storage: storage,
-      gateway: FakeOpenCloudGateway(session: _session()),
+      gateway: FakeOpenUcloudGateway(session: _session()),
     );
 
     await container.read(clientControllerProvider.notifier).logout();
@@ -422,7 +422,7 @@ void main() {
     final pendingAssignments = Completer<FfiAssignmentListResponse>();
     final container = _container(
       storage: storage,
-      gateway: FakeOpenCloudGateway(
+      gateway: FakeOpenUcloudGateway(
         session: _session(),
         undoneAssignmentsFuture: pendingAssignments.future,
       ),
@@ -462,7 +462,7 @@ void main() {
     final pendingAssignments = Completer<FfiAssignmentListResponse>();
     final container = _container(
       storage: storage,
-      gateway: FakeOpenCloudGateway(
+      gateway: FakeOpenUcloudGateway(
         session: _session(),
         undoneAssignmentsFuture: pendingAssignments.future,
       ),
@@ -502,7 +502,7 @@ void main() {
     final courseAssignments = Completer<FfiAssignmentListResponse>();
     final container = _container(
       storage: storage,
-      gateway: FakeOpenCloudGateway(
+      gateway: FakeOpenUcloudGateway(
         session: _session(),
         courseAssignmentsFuture: courseAssignments.future,
       ),
@@ -537,7 +537,7 @@ void main() {
 
   test('parses attendance QR payload and preserves plus signs', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -570,7 +570,7 @@ void main() {
 
   test('parse attendance QR failures keep courses visible', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       courseResponse: const FfiCourseResponse(
         records: [FfiCourseSite(id: 'site-1', siteName: '软件测试')],
@@ -596,7 +596,7 @@ void main() {
 
   test('failed pending assignment loads remain retryable', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       undoneAssignmentsError: Exception('network down'),
     );
@@ -620,7 +620,7 @@ void main() {
     'loads assignment detail, uploads attachment, and submits draft',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         undoneAssignmentsResponse: const FfiAssignmentListResponse(
           records: [
@@ -704,7 +704,7 @@ void main() {
 
   test('removes uploaded attachment from pending submission', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       undoneAssignmentsResponse: const FfiAssignmentListResponse(
         records: [
@@ -753,7 +753,7 @@ void main() {
   test('assignment selection cannot be cleared while uploading', () async {
     final storage = MemorySessionStorage('payload');
     final upload = Completer<FfiAssignmentUploadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       assignmentUploadFuture: upload.future,
     );
@@ -803,7 +803,7 @@ void main() {
   test('assignment selection cannot be cleared while submitting', () async {
     final storage = MemorySessionStorage('payload');
     final submit = Completer<FfiAssignmentSubmitResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       assignmentSubmitFuture: submit.future,
     );
@@ -846,7 +846,7 @@ void main() {
 
   test('downloads all resources and persists refreshed payload', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourcesResponse: const FfiCourseResourcesResponse(
         records: [
@@ -902,7 +902,7 @@ void main() {
     final storage = MemorySessionStorage('payload');
     final firstLoad = Completer<FfiCourseResourcesResponse>();
     final secondLoad = Completer<FfiCourseResourcesResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourcesFutures: [firstLoad.future, secondLoad.future],
     );
@@ -956,7 +956,7 @@ void main() {
   test('does not overlap slow download status polls', () async {
     final storage = MemorySessionStorage('payload');
     final firstStatus = Completer<FfiDownloadTaskStatus>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailResponse: const FfiCourseResourceDetailResponse(
         detail: FfiCourseResourceDetail(
@@ -1031,7 +1031,7 @@ void main() {
     'skips repeated download progress state with no visible change',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         resourceDetailResponse: const FfiCourseResourceDetailResponse(
           detail: FfiCourseResourceDetail(
@@ -1135,7 +1135,7 @@ void main() {
   test('single resource download survives selection change', () async {
     final storage = MemorySessionStorage('payload');
     final download = Completer<FakeCourseResourceDownloadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailResponse: const FfiCourseResourceDetailResponse(
         detail: FfiCourseResourceDetail(
@@ -1194,7 +1194,7 @@ void main() {
     'download status poll failure marks task failed and advances queue',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         resourcesResponse: const FfiCourseResourcesResponse(
           records: [
@@ -1264,7 +1264,7 @@ void main() {
     final storage = MemorySessionStorage('payload');
     final firstDownload = Completer<FakeCourseResourceDownloadResponse>();
     final secondDownload = Completer<FakeCourseResourceDownloadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailFutures: [
         Future.value(
@@ -1370,7 +1370,7 @@ void main() {
     () async {
       final storage = MemorySessionStorage('payload');
       final download = Completer<FakeCourseResourceDownloadResponse>();
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         resourceDetailResponse: const FfiCourseResourceDetailResponse(
           detail: FfiCourseResourceDetail(
@@ -1426,7 +1426,7 @@ void main() {
     final storage = MemorySessionStorage('payload');
     final firstDownload = Completer<FakeCourseResourceDownloadResponse>();
     final secondDownload = Completer<FakeCourseResourceDownloadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailFutures: [
         Future.value(
@@ -1544,7 +1544,7 @@ void main() {
 
   test('duplicate downloads of the same resource are not enqueued', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailResponse: const FfiCourseResourceDetailResponse(
         detail: FfiCourseResourceDetail(
@@ -1583,7 +1583,7 @@ void main() {
     'course download falls back to the resource count for a zero total',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         resourcesResponse: const FfiCourseResourcesResponse(
           records: [
@@ -1627,7 +1627,7 @@ void main() {
   test('course download survives course switch', () async {
     final storage = MemorySessionStorage('payload');
     final download = Completer<FakeCourseResourceDownloadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourcesResponse: const FfiCourseResourcesResponse(
         records: [
@@ -1682,7 +1682,7 @@ void main() {
     final storage = MemorySessionStorage('payload');
     final firstDownload = Completer<FakeCourseResourceDownloadResponse>();
     final secondDownload = Completer<FakeCourseResourceDownloadResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourcesResponses: const [
         FfiCourseResourcesResponse(
@@ -1777,7 +1777,7 @@ void main() {
     'clears success message when selecting another assignment detail',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         assignmentDetailResponse: const FfiAssignmentDetailResponse(
           className: '',
@@ -1849,7 +1849,7 @@ void main() {
     final storage = MemorySessionStorage('payload', Exception('locked'));
     final container = _container(
       storage: storage,
-      gateway: FakeOpenCloudGateway(session: _session()),
+      gateway: FakeOpenUcloudGateway(session: _session()),
     );
 
     await container
@@ -1865,7 +1865,7 @@ void main() {
     final storage = MemorySessionStorage('payload', Exception('locked'));
     final container = _container(
       storage: storage,
-      gateway: FakeOpenCloudGateway(session: _session()),
+      gateway: FakeOpenUcloudGateway(session: _session()),
     );
 
     await container
@@ -1881,7 +1881,7 @@ void main() {
     final storage = MemorySessionStorage('payload', Exception('locked'));
     final container = _container(
       storage: storage,
-      gateway: FakeOpenCloudGateway(session: _session()),
+      gateway: FakeOpenUcloudGateway(session: _session()),
     );
 
     await container
@@ -1905,7 +1905,7 @@ void main() {
     'clears stale assignments when switching lists and session read fails',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         undoneAssignmentsResponse: const FfiAssignmentListResponse(
           records: [
@@ -1945,7 +1945,7 @@ void main() {
     () async {
       final storage = MemorySessionStorage('payload');
       final pendingAssignments = Completer<FfiAssignmentListResponse>();
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         undoneAssignmentsFuture: pendingAssignments.future,
         courseAssignmentsResponse: const FfiAssignmentListResponse(
@@ -2012,7 +2012,7 @@ void main() {
     'clears stale assignment detail when selecting another assignment fails',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         assignmentDetailResponse: const FfiAssignmentDetailResponse(
           className: '',
@@ -2076,7 +2076,7 @@ void main() {
   test('clearing assignment selection ignores late detail responses', () async {
     final storage = MemorySessionStorage('payload');
     final completer = Completer<FfiAssignmentDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       assignmentDetailFuture: completer.future,
     );
@@ -2145,7 +2145,7 @@ void main() {
   test('assignment refresh clears stale detail loading', () async {
     final storage = MemorySessionStorage('payload');
     final completer = Completer<FfiAssignmentDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       assignmentDetailFuture: completer.future,
     );
@@ -2203,7 +2203,7 @@ void main() {
   test('stale assignment session expiry clears persisted session', () async {
     final storage = MemorySessionStorage('payload');
     final completer = Completer<FfiAssignmentDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       assignmentDetailFuture: completer.future,
     );
@@ -2243,7 +2243,7 @@ void main() {
     'assignment detail failures clear selection and preserve error',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         assignmentDetailFuture: Future<FfiAssignmentDetailResponse>.delayed(
           Duration.zero,
@@ -2280,7 +2280,7 @@ void main() {
     final storage = MemorySessionStorage('payload');
     final first = Completer<FfiAssignmentDetailResponse>();
     final second = Completer<FfiAssignmentDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       assignmentDetailFutures: [first.future, second.future],
     );
@@ -2353,7 +2353,7 @@ void main() {
     'clears stale resources when switching courses and session read fails',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         resourcesResponse: const FfiCourseResourcesResponse(
           records: [
@@ -2388,7 +2388,7 @@ void main() {
     'clears stale resource detail when selecting another resource fails',
     () async {
       final storage = MemorySessionStorage('payload');
-      final gateway = FakeOpenCloudGateway(
+      final gateway = FakeOpenUcloudGateway(
         session: _session(),
         resourceDetailResponse: const FfiCourseResourceDetailResponse(
           detail: FfiCourseResourceDetail(
@@ -2436,7 +2436,7 @@ void main() {
   test('clearing resource selection ignores late detail responses', () async {
     final storage = MemorySessionStorage('payload');
     final completer = Completer<FfiCourseResourceDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailFuture: completer.future,
     );
@@ -2490,7 +2490,7 @@ void main() {
   test('resource refresh clears stale detail loading', () async {
     final storage = MemorySessionStorage('payload');
     final completer = Completer<FfiCourseResourceDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailFuture: completer.future,
     );
@@ -2536,7 +2536,7 @@ void main() {
   test('stale resource session expiry clears persisted session', () async {
     final storage = MemorySessionStorage('payload');
     final completer = Completer<FfiCourseResourceDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailFuture: completer.future,
     );
@@ -2571,7 +2571,7 @@ void main() {
 
   test('resource detail failures clear selection and preserve error', () async {
     final storage = MemorySessionStorage('payload');
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailFuture: Future<FfiCourseResourceDetailResponse>.delayed(
         Duration.zero,
@@ -2604,7 +2604,7 @@ void main() {
     final storage = MemorySessionStorage('payload');
     final first = Completer<FfiCourseResourceDetailResponse>();
     final second = Completer<FfiCourseResourceDetailResponse>();
-    final gateway = FakeOpenCloudGateway(
+    final gateway = FakeOpenUcloudGateway(
       session: _session(),
       resourceDetailFutures: [first.future, second.future],
     );
@@ -2661,12 +2661,12 @@ void main() {
 
 ProviderContainer _container({
   required MemorySessionStorage storage,
-  required OpenCloudGateway gateway,
+  required OpenUcloudGateway gateway,
 }) {
   return ProviderContainer(
     overrides: [
       sessionStorageProvider.overrideWithValue(storage),
-      openCloudGatewayProvider.overrideWithValue(gateway),
+      openUcloudGatewayProvider.overrideWithValue(gateway),
     ],
   );
 }

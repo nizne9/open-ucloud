@@ -21,10 +21,10 @@ jobs:
       matrix:
         include:
           - backend: keyutils
-            artifact: open-cloud-cli-linux-x64-keyutils
+            artifact: open-ucloud-cli-linux-x64-keyutils
             cargo_features: ""
           - backend: secret-service
-            artifact: open-cloud-cli-linux-x64-secret-service
+            artifact: open-ucloud-cli-linux-x64-secret-service
             cargo_features: "--features linux-secret-service"
 
     steps:
@@ -51,12 +51,12 @@ jobs:
             cargo-${{ runner.os }}-${{ github.workflow }}-${{ matrix.backend }}-
 
       - name: Build CLI
-        run: cargo build --release -p open-cloud-cli ${{ matrix.cargo_features }}
+        run: cargo build --release -p open-ucloud-cli ${{ matrix.cargo_features }}
 
       - name: Archive CLI
         run: |
           mkdir -p dist/${{ matrix.artifact }}
-          cp target/release/open-cloud dist/${{ matrix.artifact }}/open-cloud
+          cp target/release/open-ucloud dist/${{ matrix.artifact }}/open-ucloud
           tar -C dist -czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
 
       - name: Upload CLI artifact
@@ -89,20 +89,20 @@ jobs:
             cargo-${{ runner.os }}-${{ github.workflow }}-cli-
 
       - name: Build CLI
-        run: cargo build --release -p open-cloud-cli
+        run: cargo build --release -p open-ucloud-cli
 
       - name: Archive CLI
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist/open-cloud-cli-windows-x64 | Out-Null
-          Copy-Item target/release/open-cloud.exe dist/open-cloud-cli-windows-x64/open-cloud.exe
-          Compress-Archive -Path dist/open-cloud-cli-windows-x64/* -DestinationPath open-cloud-cli-windows-x64.zip -Force
+          New-Item -ItemType Directory -Force -Path dist/open-ucloud-cli-windows-x64 | Out-Null
+          Copy-Item target/release/open-ucloud.exe dist/open-ucloud-cli-windows-x64/open-ucloud.exe
+          Compress-Archive -Path dist/open-ucloud-cli-windows-x64/* -DestinationPath open-ucloud-cli-windows-x64.zip -Force
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: open-cloud-cli-windows-x64
-          path: open-cloud-cli-windows-x64.zip
+          name: open-ucloud-cli-windows-x64
+          path: open-ucloud-cli-windows-x64.zip
           retention-days: 14
 
   cli-macos:
@@ -131,21 +131,21 @@ jobs:
 
       - name: Build universal CLI
         run: |
-          cargo build --release --target x86_64-apple-darwin -p open-cloud-cli
-          cargo build --release --target aarch64-apple-darwin -p open-cloud-cli
-          mkdir -p dist/open-cloud-cli-macos-universal
+          cargo build --release --target x86_64-apple-darwin -p open-ucloud-cli
+          cargo build --release --target aarch64-apple-darwin -p open-ucloud-cli
+          mkdir -p dist/open-ucloud-cli-macos-universal
           lipo -create \
-            target/x86_64-apple-darwin/release/open-cloud \
-            target/aarch64-apple-darwin/release/open-cloud \
-            -output dist/open-cloud-cli-macos-universal/open-cloud
-          chmod +x dist/open-cloud-cli-macos-universal/open-cloud
-          tar -C dist -czf open-cloud-cli-macos-universal.tar.gz open-cloud-cli-macos-universal
+            target/x86_64-apple-darwin/release/open-ucloud \
+            target/aarch64-apple-darwin/release/open-ucloud \
+            -output dist/open-ucloud-cli-macos-universal/open-ucloud
+          chmod +x dist/open-ucloud-cli-macos-universal/open-ucloud
+          tar -C dist -czf open-ucloud-cli-macos-universal.tar.gz open-ucloud-cli-macos-universal
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: open-cloud-cli-macos-universal
-          path: open-cloud-cli-macos-universal.tar.gz
+          name: open-ucloud-cli-macos-universal
+          path: open-ucloud-cli-macos-universal.tar.gz
           retention-days: 14
 
   client-linux:
@@ -182,7 +182,7 @@ jobs:
           cache: true
 
       - name: Build Rust FFI library
-        run: cargo build --release -p open-cloud-ffi
+        run: cargo build --release -p open-ucloud-ffi
 
       - name: Build Linux client
         working-directory: apps/client
@@ -192,7 +192,7 @@ jobs:
           flutter build linux --release
 
       - name: Verify Linux bundle
-        run: test -f apps/client/build/linux/x64/release/bundle/lib/libopen_cloud_ffi.so
+        run: test -f apps/client/build/linux/x64/release/bundle/lib/libopen_ucloud_ffi.so
 
       - name: Archive Linux client
         run: |
@@ -235,7 +235,7 @@ jobs:
           cache: true
 
       - name: Build Rust FFI library
-        run: cargo build --release -p open-cloud-ffi
+        run: cargo build --release -p open-ucloud-ffi
 
       - name: Build Windows client
         working-directory: apps/client
@@ -248,8 +248,8 @@ jobs:
         shell: pwsh
         run: |
           $bundle = "apps/client/build/windows/x64/runner/Release"
-          if (!(Test-Path "$bundle/open_cloud_ffi.dll")) {
-            throw "Missing $bundle/open_cloud_ffi.dll"
+          if (!(Test-Path "$bundle/open_ucloud_ffi.dll")) {
+            throw "Missing $bundle/open_ucloud_ffi.dll"
           }
           Compress-Archive -Path "$bundle/*" -DestinationPath open-ucloud-client-windows-x64.zip -Force
 
@@ -298,12 +298,12 @@ jobs:
           flutter build macos --release
 
       - name: Verify macOS bundle
-        run: test -f apps/client/build/macos/Build/Products/Release/open_cloud_client.app/Contents/Frameworks/libopen_cloud_ffi.dylib
+        run: test -f apps/client/build/macos/Build/Products/Release/open_ucloud_client.app/Contents/Frameworks/libopen_ucloud_ffi.dylib
 
       - name: Archive macOS client
         run: |
           ditto -c -k --sequesterRsrc --keepParent \
-            apps/client/build/macos/Build/Products/Release/open_cloud_client.app \
+            apps/client/build/macos/Build/Products/Release/open_ucloud_client.app \
             open-ucloud-client-macos-universal.zip
 
       - name: Upload macOS client artifact
@@ -357,9 +357,9 @@ jobs:
 
       - name: Verify Android FFI libraries
         run: |
-          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/arm64-v8a/libopen_cloud_ffi.so'
-          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/armeabi-v7a/libopen_cloud_ffi.so'
-          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/x86_64/libopen_cloud_ffi.so'
+          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/arm64-v8a/libopen_ucloud_ffi.so'
+          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/armeabi-v7a/libopen_ucloud_ffi.so'
+          unzip -l apps/client/build/app/outputs/flutter-apk/app-debug.apk | grep 'lib/x86_64/libopen_ucloud_ffi.so'
 
       - name: Rename debug APK
         run: cp apps/client/build/app/outputs/flutter-apk/app-debug.apk open-ucloud-client-android-debug-signed.apk

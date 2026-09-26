@@ -4,14 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'home_screen.dart';
 import 'theme_mode_controller.dart';
 
-class OpenCloudApp extends ConsumerStatefulWidget {
-  const OpenCloudApp({super.key});
+class OpenUcloudApp extends ConsumerStatefulWidget {
+  const OpenUcloudApp({super.key});
 
   @override
-  ConsumerState<OpenCloudApp> createState() => _OpenCloudAppState();
+  ConsumerState<OpenUcloudApp> createState() => _OpenUcloudAppState();
 }
 
-class _OpenCloudAppState extends ConsumerState<OpenCloudApp> {
+class _OpenUcloudAppState extends ConsumerState<OpenUcloudApp> {
   bool _bootstrapped = false;
 
   @override

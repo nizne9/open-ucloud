@@ -1,13 +1,13 @@
 use crate::session::{shared_session_coordinator, SessionCoordinator};
 use futures_util::stream::{self, StreamExt};
-use open_cloud_api::{
+use open_ucloud_api::{
     AuthErrorCode, AuthErrorResponse, CourseResourceDetail, CourseResourceSummary,
 };
-use open_cloud_core::{
+use open_ucloud_core::{
     client_capabilities, now_ms, parse_attendance_qr_payload, DownloadCancelFlag, DownloadProgress,
-    LoginFlow, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
+    LoginFlow, OpenUcloudClient, OpenUcloudEndpoints, ReqwestHttpClient,
 };
-use open_cloud_store::AuthSession;
+use open_ucloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -368,7 +368,7 @@ struct TestResourceDownloadRequest {
 }
 
 static DOWNLOAD_TASKS: OnceLock<Mutex<HashMap<String, Arc<DownloadTask>>>> = OnceLock::new();
-static SHARED_CLIENT: OnceLock<OpenCloudClient<ReqwestHttpClient>> = OnceLock::new();
+static SHARED_CLIENT: OnceLock<OpenUcloudClient<ReqwestHttpClient>> = OnceLock::new();
 
 fn download_tasks() -> &'static Mutex<HashMap<String, Arc<DownloadTask>>> {
     DOWNLOAD_TASKS.get_or_init(|| Mutex::new(HashMap::new()))
@@ -386,12 +386,12 @@ fn lock_recover<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn shared_default_client() -> Result<&'static OpenCloudClient<ReqwestHttpClient>, FfiAuthError> {
+fn shared_default_client() -> Result<&'static OpenUcloudClient<ReqwestHttpClient>, FfiAuthError> {
     if let Some(client) = SHARED_CLIENT.get() {
         return Ok(client);
     }
     let http = ReqwestHttpClient::new().map_err(to_ffi_error)?;
-    let _ = SHARED_CLIENT.set(OpenCloudClient::new(http, OpenCloudEndpoints::default()));
+    let _ = SHARED_CLIENT.set(OpenUcloudClient::new(http, OpenUcloudEndpoints::default()));
     SHARED_CLIENT.get().ok_or_else(|| {
         error(
             AuthErrorCode::UnknownAuthError,
@@ -755,11 +755,11 @@ pub async fn logout() -> FfiLogoutResponse {
 }
 
 async fn auth_start_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     username: String,
 ) -> Result<FfiAuthStartResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let flow = client.start_login(&username).await.map_err(to_ffi_error)?;
     let response = FfiAuthStartResult {
@@ -774,12 +774,12 @@ where
 }
 
 async fn auth_finish_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     request: FfiAuthFinishRequest,
     flow: FfiLoginFlow,
 ) -> Result<FfiAuthFinishResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     if request.username != flow.username || request.flow_id != flow.execution {
         return Err(error(
@@ -816,14 +816,14 @@ where
 }
 
 async fn courses_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     with_going: bool,
     now_ms: u64,
 ) -> Result<FfiCourseResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (refreshed, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -851,13 +851,13 @@ where
 }
 
 async fn assignments_undone_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     now_ms: u64,
 ) -> Result<FfiAssignmentListResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -872,7 +872,7 @@ where
 }
 
 async fn assignments_for_course_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     site_id: String,
@@ -881,7 +881,7 @@ async fn assignments_for_course_with_client<C>(
     now_ms: u64,
 ) -> Result<FfiAssignmentListResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -896,14 +896,14 @@ where
 }
 
 async fn assignment_detail_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     assignment_id: String,
     now_ms: u64,
 ) -> Result<FfiAssignmentDetailResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -917,7 +917,7 @@ where
 }
 
 async fn assignment_upload_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     assignment_id: String,
@@ -925,7 +925,7 @@ async fn assignment_upload_with_client<C>(
     now_ms: u64,
 ) -> Result<FfiAssignmentUploadResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -933,7 +933,7 @@ where
         .get_assignment_detail(&assignment_id, &session.access_token)
         .await
         .map_err(to_ffi_error)?;
-    if detail.status == open_cloud_api::AssignmentStatus::Expired {
+    if detail.status == open_ucloud_api::AssignmentStatus::Expired {
         return Err(error(
             AuthErrorCode::InvalidInput,
             "当前作业已截止，不能继续上传附件。",
@@ -961,7 +961,7 @@ where
 }
 
 async fn assignment_submit_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     assignment_id: String,
@@ -970,7 +970,7 @@ async fn assignment_submit_with_client<C>(
     now_ms: u64,
 ) -> Result<FfiAssignmentSubmitResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -991,7 +991,7 @@ where
 }
 
 async fn resources_for_course_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     site_id: String,
@@ -999,7 +999,7 @@ async fn resources_for_course_with_client<C>(
     now_ms: u64,
 ) -> Result<FfiCourseResourcesResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -1019,7 +1019,7 @@ where
 }
 
 async fn resource_detail_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     resource_id: String,
@@ -1028,7 +1028,7 @@ async fn resource_detail_with_client<C>(
     now_ms: u64,
 ) -> Result<FfiCourseResourceDetailResponse, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, updated_session_payload) =
         refreshed_session(client, coordinator, session_payload, now_ms).await?;
@@ -1044,12 +1044,12 @@ where
 
 #[cfg(test)]
 async fn resource_download_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     request: TestResourceDownloadRequest,
 ) -> Result<Vec<String>, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, _) =
         refreshed_session(client, coordinator, request.session_payload, request.now_ms).await?;
@@ -1075,7 +1075,7 @@ where
 
 #[cfg(test)]
 async fn resource_download_course_with_client<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     site_id: String,
@@ -1084,7 +1084,7 @@ async fn resource_download_course_with_client<C>(
     now_ms: u64,
 ) -> Result<Vec<String>, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let (session, _) = refreshed_session(client, coordinator, session_payload, now_ms).await?;
     let list = client
@@ -1116,7 +1116,7 @@ where
 }
 
 async fn resource_download_task(
-    client: OpenCloudClient<ReqwestHttpClient>,
+    client: OpenUcloudClient<ReqwestHttpClient>,
     task: Arc<DownloadTask>,
     request: ResourceDownloadTaskRequest,
 ) -> Result<(), FfiAuthError> {
@@ -1160,7 +1160,7 @@ async fn resource_download_task(
 }
 
 async fn resource_download_course_task(
-    client: OpenCloudClient<ReqwestHttpClient>,
+    client: OpenUcloudClient<ReqwestHttpClient>,
     task: Arc<DownloadTask>,
     session: AuthSession,
     site_id: String,
@@ -1202,7 +1202,7 @@ async fn resource_download_course_task(
 }
 
 async fn fetch_course_resource_details<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     records: Vec<CourseResourceSummary>,
     site_id: &str,
     site_name: &str,
@@ -1210,7 +1210,7 @@ async fn fetch_course_resource_details<C>(
     cancel: DownloadCancelFlag,
 ) -> Result<Vec<CourseResourceDetail>, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     stream::iter(records)
         .take_while({
@@ -1290,13 +1290,13 @@ fn next_download_path_reserved(
 }
 
 async fn download_course_targets<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     targets: Vec<(CourseResourceDetail, PathBuf)>,
     cancel: DownloadCancelFlag,
     task: Option<Arc<DownloadTask>>,
 ) -> Result<Vec<(CourseResourceDetail, PathBuf)>, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     stream::iter(targets)
         .map(|(detail, target)| {
@@ -1367,13 +1367,13 @@ fn finish_download_task(task: Arc<DownloadTask>, result: Result<(), FfiAuthError
 }
 
 async fn refreshed_session<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     coordinator: &SessionCoordinator,
     session_payload: String,
     now_ms: u64,
 ) -> Result<(AuthSession, Option<String>), FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let incoming = decode_session_payload(&session_payload, now_ms)?;
     let refreshed = coordinator
@@ -1389,14 +1389,14 @@ where
 }
 
 async fn download_resource_to_path<C>(
-    client: &OpenCloudClient<C>,
-    detail: &open_cloud_api::CourseResourceDetail,
+    client: &OpenUcloudClient<C>,
+    detail: &open_ucloud_api::CourseResourceDetail,
     requested_path: &Path,
     progress: DownloadProgress,
     cancel: DownloadCancelFlag,
 ) -> Result<PathBuf, FfiAuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let url = detail
         .download_url
@@ -1517,7 +1517,7 @@ fn decode_session_payload(session_payload: &str, now_ms: u64) -> Result<AuthSess
     Ok(session)
 }
 
-fn to_ffi_error(error_value: open_cloud_core::AuthError) -> FfiAuthError {
+fn to_ffi_error(error_value: open_ucloud_core::AuthError) -> FfiAuthError {
     FfiAuthError {
         code: error_value.code.into(),
         message: error_value.message,
@@ -1582,7 +1582,7 @@ impl From<AuthErrorCode> for FfiAuthErrorCode {
     }
 }
 
-impl From<FfiRoleName> for open_cloud_api::RoleName {
+impl From<FfiRoleName> for open_ucloud_api::RoleName {
     fn from(value: FfiRoleName) -> Self {
         match value {
             FfiRoleName::Student => Self::Student,
@@ -1592,18 +1592,18 @@ impl From<FfiRoleName> for open_cloud_api::RoleName {
     }
 }
 
-impl From<open_cloud_api::RoleName> for FfiRoleName {
-    fn from(value: open_cloud_api::RoleName) -> Self {
+impl From<open_ucloud_api::RoleName> for FfiRoleName {
+    fn from(value: open_ucloud_api::RoleName) -> Self {
         match value {
-            open_cloud_api::RoleName::Student => Self::Student,
-            open_cloud_api::RoleName::Teacher => Self::Teacher,
-            open_cloud_api::RoleName::Assistant => Self::Assistant,
+            open_ucloud_api::RoleName::Student => Self::Student,
+            open_ucloud_api::RoleName::Teacher => Self::Teacher,
+            open_ucloud_api::RoleName::Assistant => Self::Assistant,
         }
     }
 }
 
-impl From<open_cloud_api::RoleInfo> for FfiRoleInfo {
-    fn from(value: open_cloud_api::RoleInfo) -> Self {
+impl From<open_ucloud_api::RoleInfo> for FfiRoleInfo {
+    fn from(value: open_ucloud_api::RoleInfo) -> Self {
         Self {
             domain_id: value.domain_id,
             domain_name: value.domain_name,
@@ -1615,8 +1615,8 @@ impl From<open_cloud_api::RoleInfo> for FfiRoleInfo {
     }
 }
 
-impl From<open_cloud_api::SessionUser> for FfiSessionUser {
-    fn from(value: open_cloud_api::SessionUser) -> Self {
+impl From<open_ucloud_api::SessionUser> for FfiSessionUser {
+    fn from(value: open_ucloud_api::SessionUser) -> Self {
         Self {
             account: value.account,
             real_name: value.real_name,
@@ -1626,8 +1626,8 @@ impl From<open_cloud_api::SessionUser> for FfiSessionUser {
     }
 }
 
-impl From<open_cloud_api::CourseSite> for FfiCourseSite {
-    fn from(value: open_cloud_api::CourseSite) -> Self {
+impl From<open_ucloud_api::CourseSite> for FfiCourseSite {
+    fn from(value: open_ucloud_api::CourseSite) -> Self {
         Self {
             id: value.id,
             site_name: value.site_name,
@@ -1635,8 +1635,8 @@ impl From<open_cloud_api::CourseSite> for FfiCourseSite {
     }
 }
 
-impl From<open_cloud_api::GoingSite> for FfiGoingSite {
-    fn from(value: open_cloud_api::GoingSite) -> Self {
+impl From<open_ucloud_api::GoingSite> for FfiGoingSite {
+    fn from(value: open_ucloud_api::GoingSite) -> Self {
         Self {
             group_id: value.group_id,
             site_id: value.site_id,
@@ -1644,8 +1644,8 @@ impl From<open_cloud_api::GoingSite> for FfiGoingSite {
     }
 }
 
-impl From<open_cloud_api::AttendanceQrPayload> for FfiAttendanceQrPayload {
-    fn from(value: open_cloud_api::AttendanceQrPayload) -> Self {
+impl From<open_ucloud_api::AttendanceQrPayload> for FfiAttendanceQrPayload {
+    fn from(value: open_ucloud_api::AttendanceQrPayload) -> Self {
         Self {
             attendance_id: value.attendance_id,
             site_id: value.site_id,
@@ -1655,8 +1655,8 @@ impl From<open_cloud_api::AttendanceQrPayload> for FfiAttendanceQrPayload {
     }
 }
 
-impl From<open_cloud_api::ClientCapabilities> for FfiClientCapabilities {
-    fn from(value: open_cloud_api::ClientCapabilities) -> Self {
+impl From<open_ucloud_api::ClientCapabilities> for FfiClientCapabilities {
+    fn from(value: open_ucloud_api::ClientCapabilities) -> Self {
         Self {
             self_attendance: value.self_attendance,
             attendance_qr_payload_parsing: value.attendance_qr_payload_parsing,
@@ -1664,18 +1664,18 @@ impl From<open_cloud_api::ClientCapabilities> for FfiClientCapabilities {
     }
 }
 
-impl From<open_cloud_api::AssignmentStatus> for FfiAssignmentStatus {
-    fn from(value: open_cloud_api::AssignmentStatus) -> Self {
+impl From<open_ucloud_api::AssignmentStatus> for FfiAssignmentStatus {
+    fn from(value: open_ucloud_api::AssignmentStatus) -> Self {
         match value {
-            open_cloud_api::AssignmentStatus::Pending => Self::Pending,
-            open_cloud_api::AssignmentStatus::Submitted => Self::Submitted,
-            open_cloud_api::AssignmentStatus::Expired => Self::Expired,
+            open_ucloud_api::AssignmentStatus::Pending => Self::Pending,
+            open_ucloud_api::AssignmentStatus::Submitted => Self::Submitted,
+            open_ucloud_api::AssignmentStatus::Expired => Self::Expired,
         }
     }
 }
 
-impl From<open_cloud_api::AssignmentSummary> for FfiAssignmentSummary {
-    fn from(value: open_cloud_api::AssignmentSummary) -> Self {
+impl From<open_ucloud_api::AssignmentSummary> for FfiAssignmentSummary {
+    fn from(value: open_ucloud_api::AssignmentSummary) -> Self {
         Self {
             end_time: value.end_time,
             id: value.id,
@@ -1689,8 +1689,8 @@ impl From<open_cloud_api::AssignmentSummary> for FfiAssignmentSummary {
     }
 }
 
-impl From<open_cloud_api::AssignmentResource> for FfiAssignmentResource {
-    fn from(value: open_cloud_api::AssignmentResource) -> Self {
+impl From<open_ucloud_api::AssignmentResource> for FfiAssignmentResource {
+    fn from(value: open_ucloud_api::AssignmentResource) -> Self {
         Self {
             ext: value.ext,
             name: value.name,
@@ -1701,8 +1701,8 @@ impl From<open_cloud_api::AssignmentResource> for FfiAssignmentResource {
     }
 }
 
-impl From<open_cloud_api::AssignmentDetailResponse> for FfiAssignmentDetailResponse {
-    fn from(value: open_cloud_api::AssignmentDetailResponse) -> Self {
+impl From<open_ucloud_api::AssignmentDetailResponse> for FfiAssignmentDetailResponse {
+    fn from(value: open_ucloud_api::AssignmentDetailResponse) -> Self {
         Self {
             class_name: value.class_name,
             comment: value.comment,
@@ -1733,8 +1733,8 @@ impl From<open_cloud_api::AssignmentDetailResponse> for FfiAssignmentDetailRespo
     }
 }
 
-impl From<open_cloud_api::AssignmentUploadResponse> for FfiAssignmentUploadResponse {
-    fn from(value: open_cloud_api::AssignmentUploadResponse) -> Self {
+impl From<open_ucloud_api::AssignmentUploadResponse> for FfiAssignmentUploadResponse {
+    fn from(value: open_ucloud_api::AssignmentUploadResponse) -> Self {
         Self {
             assignment_id: value.assignment_id,
             file_name: value.file_name,
@@ -1747,8 +1747,8 @@ impl From<open_cloud_api::AssignmentUploadResponse> for FfiAssignmentUploadRespo
     }
 }
 
-impl From<open_cloud_api::CourseResourceSummary> for FfiCourseResourceSummary {
-    fn from(value: open_cloud_api::CourseResourceSummary) -> Self {
+impl From<open_ucloud_api::CourseResourceSummary> for FfiCourseResourceSummary {
+    fn from(value: open_ucloud_api::CourseResourceSummary) -> Self {
         Self {
             ext: value.ext,
             name: value.name,
@@ -1761,8 +1761,8 @@ impl From<open_cloud_api::CourseResourceSummary> for FfiCourseResourceSummary {
     }
 }
 
-impl From<open_cloud_api::CourseResourceDetail> for FfiCourseResourceDetail {
-    fn from(value: open_cloud_api::CourseResourceDetail) -> Self {
+impl From<open_ucloud_api::CourseResourceDetail> for FfiCourseResourceDetail {
+    fn from(value: open_ucloud_api::CourseResourceDetail) -> Self {
         Self {
             description: value.description,
             download_url: value.download_url,
@@ -1781,8 +1781,8 @@ impl From<open_cloud_api::CourseResourceDetail> for FfiCourseResourceDetail {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use open_cloud_api::{RoleName, SessionUser};
-    use open_cloud_core::{AuthError, HttpRequest, HttpResponse, HttpResponseHead};
+    use open_ucloud_api::{RoleName, SessionUser};
+    use open_ucloud_core::{AuthError, HttpRequest, HttpResponse, HttpResponseHead};
     use std::collections::VecDeque;
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -1809,7 +1809,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl open_cloud_core::HttpClient for MockHttp {
+    impl open_ucloud_core::HttpClient for MockHttp {
         async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
             self.requests.lock().expect("requests lock").push(request);
             self.responses
@@ -1844,7 +1844,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl open_cloud_core::HttpClient for SlowDownloadHttp {
+    impl open_ucloud_core::HttpClient for SlowDownloadHttp {
         async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
             self.requests.lock().expect("requests lock").push(request);
             self.responses
@@ -2053,7 +2053,7 @@ mod tests {
                 ),
             ),
         ]);
-        let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
         let result = auth_finish_with_client(
             &client,
@@ -2117,7 +2117,7 @@ mod tests {
                 r#"{"success":true,"data":{"records":[{"groupId":"group-1","siteId":"site-1"}]}}"#,
             ),
         ]);
-        let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(101, 1_000)).expect("session encodes");
 
@@ -2165,7 +2165,7 @@ mod tests {
                 ),
             ),
         ]);
-        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let incoming = session(101, 1_000);
 
@@ -2189,7 +2189,7 @@ mod tests {
     #[tokio::test]
     async fn session_resolution_reconciles_a_stale_payload_with_cached_session() {
         let http = MockHttp::default();
-        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let stale = session(future_exp(5_000), future_exp(10_000));
         let current = session(future_exp(15_000), future_exp(20_000));
@@ -2211,7 +2211,7 @@ mod tests {
             &[],
             r#"{"success":true,"data":{"records":[{"id":"site-1","siteName":"软件测试"}]}}"#,
         )]);
-        let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
@@ -2256,7 +2256,7 @@ mod tests {
                 r#"{"success":true,"data":{"undoneList":[{"activityId":"work-1","activityName":"实验报告","endTime":"2026-05-03 23:59:59","type":3,"siteId":"site-1","siteName":"软件测试"}]}}"#,
             ),
         ]);
-        let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(101, 1_000)).expect("session encodes");
 
@@ -2278,7 +2278,7 @@ mod tests {
             &[],
             r#"{"success":true,"data":{"assignmentEndTime":"2000-01-01 00:00:00","assignmentTitle":"实验报告","id":"work-1","siteId":"site-1","siteName":"软件测试"}}"#,
         )]);
-        let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
@@ -2300,7 +2300,7 @@ mod tests {
 
     #[tokio::test]
     async fn resource_download_writes_to_next_non_overwriting_path() {
-        let base = std::env::temp_dir().join(format!("open-cloud-ffi-{}", now_ms()));
+        let base = std::env::temp_dir().join(format!("open-ucloud-ffi-{}", now_ms()));
         std::fs::create_dir_all(&base).expect("temp dir");
         let existing = base.join("课件.pdf");
         std::fs::write(&existing, b"old").expect("existing file");
@@ -2318,7 +2318,7 @@ mod tests {
             ),
             response(200, &[], "new bytes"),
         ]);
-        let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
@@ -2345,7 +2345,7 @@ mod tests {
 
     #[tokio::test]
     async fn resource_download_course_sanitizes_upstream_file_names() {
-        let base = std::env::temp_dir().join(format!("open-cloud-ffi-batch-{}", now_ms()));
+        let base = std::env::temp_dir().join(format!("open-ucloud-ffi-batch-{}", now_ms()));
         std::fs::create_dir_all(&base).expect("temp dir");
         let outside = base
             .parent()
@@ -2370,7 +2370,7 @@ mod tests {
             ),
             response(200, &[], "new bytes"),
         ]);
-        let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
@@ -2403,7 +2403,7 @@ mod tests {
 
     #[tokio::test]
     async fn resource_download_course_downloads_files_concurrently() {
-        let base = std::env::temp_dir().join(format!("open-cloud-ffi-parallel-{}", now_ms()));
+        let base = std::env::temp_dir().join(format!("open-ucloud-ffi-parallel-{}", now_ms()));
         let http = SlowDownloadHttp::with(vec![
             response(
                 200,
@@ -2431,7 +2431,7 @@ mod tests {
                 r#"{"success":true,"data":{"previewUrl":"https://files.example/resource-2"}}"#,
             ),
         ]);
-        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
         let coordinator = SessionCoordinator::default();
         let payload = encode_session_payload(&session(future_exp(10_000), future_exp(20_000)))
             .expect("session encodes");
@@ -2495,7 +2495,7 @@ mod tests {
             &[],
             r#"{"success":true,"data":[{"id":"resource-1","name":"课件.pdf"}]}"#,
         )]);
-        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
         let cancel = DownloadCancelFlag::new();
         cancel.cancel();
 

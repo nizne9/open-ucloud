@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:open_cloud_client/src/theme_mode_controller.dart';
+import 'package:open_ucloud_client/src/theme_mode_controller.dart';
 
 void main() {
   test('restores stored theme mode values', () async {
@@ -84,7 +84,7 @@ void main() {
   });
 }
 
-class MemoryThemeModeStorage implements OpenCloudThemeModeStorage {
+class MemoryThemeModeStorage implements OpenUcloudThemeModeStorage {
   MemoryThemeModeStorage({
     this.value,
     this.readFuture,

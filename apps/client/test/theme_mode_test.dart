@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:open_cloud_client/src/app.dart';
-import 'package:open_cloud_client/src/client_controller.dart';
+import 'package:open_ucloud_client/src/app.dart';
+import 'package:open_ucloud_client/src/client_controller.dart';
 
 import 'support/fakes.dart';
 
@@ -12,9 +12,9 @@ void main() {
       ProviderScope(
         overrides: [
           sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
-          openCloudGatewayProvider.overrideWithValue(FakeOpenCloudGateway()),
+          openUcloudGatewayProvider.overrideWithValue(FakeOpenUcloudGateway()),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();
@@ -28,9 +28,9 @@ void main() {
       ProviderScope(
         overrides: [
           sessionStorageProvider.overrideWithValue(MemorySessionStorage()),
-          openCloudGatewayProvider.overrideWithValue(FakeOpenCloudGateway()),
+          openUcloudGatewayProvider.overrideWithValue(FakeOpenUcloudGateway()),
         ],
-        child: const OpenCloudApp(),
+        child: const OpenUcloudApp(),
       ),
     );
     await tester.pumpAndSettle();

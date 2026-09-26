@@ -1,9 +1,9 @@
 use crate::protocol::{http_status_error, PORTAL_BASIC_AUTH};
 use crate::transport::multipart_boundary;
-use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
+use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
 use base64::Engine;
 use cookie::Cookie;
-use open_cloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
+use open_ucloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
 use scraper::{Html, Selector};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ pub struct LoginResult {
     pub user: SessionUser,
 }
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {

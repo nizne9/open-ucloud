@@ -1,4 +1,4 @@
-import 'package:open_cloud_ffi/open_cloud_ffi.dart';
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart';
 
 enum ClientPhase {
   bootstrapping,

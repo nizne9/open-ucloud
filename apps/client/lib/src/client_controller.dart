@@ -1,20 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:open_cloud_ffi/open_cloud_ffi.dart';
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart';
 
 import 'client_state.dart';
-import 'open_cloud_gateway.dart';
+import 'open_ucloud_gateway.dart';
 import 'session_storage.dart';
 
 export 'client_state.dart';
 
-final sessionStorageProvider = Provider<OpenCloudSessionStorage>(
-  (_) => SecureOpenCloudSessionStorage(),
+final sessionStorageProvider = Provider<OpenUcloudSessionStorage>(
+  (_) => SecureOpenUcloudSessionStorage(),
 );
 
-final openCloudGatewayProvider = Provider<OpenCloudGateway>(
-  (_) => FfiOpenCloudGateway(),
+final openUcloudGatewayProvider = Provider<OpenUcloudGateway>(
+  (_) => FfiOpenUcloudGateway(),
 );
 
 final clientControllerProvider =
@@ -63,7 +63,7 @@ class ClientController extends Notifier<ClientState> {
       return;
     }
 
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       await gateway.init();
       final capabilities = await _loadCapabilitiesOrDefault(gateway);
@@ -104,7 +104,7 @@ class ClientController extends Notifier<ClientState> {
       phase: ClientPhase.startingLogin,
       pendingUsername: normalizedUsername,
     );
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       await gateway.init();
       final response = await gateway.authStart(normalizedUsername);
@@ -150,7 +150,7 @@ class ClientController extends Notifier<ClientState> {
     }
 
     state = state.copyWith(phase: ClientPhase.finishingLogin, clearError: true);
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
     try {
       final result = await gateway.authFinish(
@@ -233,7 +233,7 @@ class ClientController extends Notifier<ClientState> {
       clearAttendanceQrResult: true,
       clearAttendanceQrError: true,
     );
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final parsed = await gateway.parseAttendanceQrPayloadText(payload);
       state = state.copyWith(
@@ -279,7 +279,7 @@ class ClientController extends Notifier<ClientState> {
     _undoneAssignmentsCache = null;
     _courseAssignmentsCache.clear();
     await _cancelAllDownloads();
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
     try {
       final response = await gateway.logout();
@@ -346,7 +346,7 @@ class ClientController extends Notifier<ClientState> {
       }
       return;
     }
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final response = await gateway.assignmentsUndone(sessionPayload: payload);
       if (!_isCurrentAssignmentListGeneration(generation)) {
@@ -431,7 +431,7 @@ class ClientController extends Notifier<ClientState> {
       }
       return;
     }
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final response = await gateway.assignmentsForCourse(
         sessionPayload: payload,
@@ -492,7 +492,7 @@ class ClientController extends Notifier<ClientState> {
       );
       return;
     }
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final detail = await gateway.assignmentDetail(
         sessionPayload: payload,
@@ -600,7 +600,7 @@ class ClientController extends Notifier<ClientState> {
       clearError: true,
       clearOperationMessage: true,
     );
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final uploaded = await gateway.assignmentUpload(
         sessionPayload: payload,
@@ -705,7 +705,7 @@ class ClientController extends Notifier<ClientState> {
       clearError: true,
       clearOperationMessage: true,
     );
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final response = await gateway.assignmentSubmit(
         sessionPayload: payload,
@@ -801,7 +801,7 @@ class ClientController extends Notifier<ClientState> {
       }
       return;
     }
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final response = await gateway.resourcesForCourse(
         sessionPayload: payload,
@@ -855,7 +855,7 @@ class ClientController extends Notifier<ClientState> {
       );
       return;
     }
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final response = await gateway.resourceDetail(
         sessionPayload: payload,
@@ -1005,7 +1005,7 @@ class ClientController extends Notifier<ClientState> {
     _resourceDownloadGeneration += 1;
     _resourceDownloadPollTimer?.cancel();
     _resourceDownloadPollTimer = null;
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final status = await gateway.downloadTaskCancel(taskId: taskId);
       await _persistUpdatedPayload(status.updatedSessionPayload);
@@ -1029,7 +1029,7 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> _cancelAllDownloads() async {
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     for (final task in state.downloadTasks) {
       final taskId = task.taskId;
       if (taskId == null) {
@@ -1042,7 +1042,7 @@ class ClientController extends Notifier<ClientState> {
   /// Best-effort teardown of a Rust-side download task: cancel, then dispose.
   /// Failures are ignored so cleanup never stalls the queue.
   Future<void> _teardownDownloadTask(
-    OpenCloudGateway gateway,
+    OpenUcloudGateway gateway,
     String taskId,
   ) async {
     try {
@@ -1052,7 +1052,7 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<void> _disposeDownloadTaskQuietly(
-    OpenCloudGateway gateway,
+    OpenUcloudGateway gateway,
     String taskId,
   ) async {
     try {
@@ -1097,7 +1097,7 @@ class ClientController extends Notifier<ClientState> {
     if (current == null || !current.isQueued) {
       return false;
     }
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     try {
       final resourceId = item.resourceId;
       final response = resourceId == null
@@ -1178,7 +1178,7 @@ class ClientController extends Notifier<ClientState> {
       _resourceDownloadPollTimer = null;
       return;
     }
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     final FfiDownloadTaskStatus status;
     try {
       status = await gateway.downloadTaskStatus(taskId: taskId);
@@ -1306,7 +1306,7 @@ class ClientController extends Notifier<ClientState> {
     FfiAuthSessionResponse session, [
     FfiClientCapabilities? capabilities,
   ]) async {
-    final gateway = ref.read(openCloudGatewayProvider);
+    final gateway = ref.read(openUcloudGatewayProvider);
     final storage = ref.read(sessionStorageProvider);
     try {
       final response = await gateway.courses(
@@ -1429,7 +1429,7 @@ class ClientController extends Notifier<ClientState> {
   }
 
   Future<FfiClientCapabilities> _loadCapabilitiesOrDefault(
-    OpenCloudGateway gateway,
+    OpenUcloudGateway gateway,
   ) async {
     try {
       return await gateway.capabilities();

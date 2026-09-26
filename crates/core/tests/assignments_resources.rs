@@ -1,8 +1,10 @@
 use async_trait::async_trait;
-use open_cloud_api::{AssignmentDetailResponse, AssignmentSource, AssignmentStatus, AuthErrorCode};
-use open_cloud_core::{
+use open_ucloud_api::{
+    AssignmentDetailResponse, AssignmentSource, AssignmentStatus, AuthErrorCode,
+};
+use open_ucloud_core::{
     AuthError, DownloadCancelFlag, DownloadProgress, HttpBody, HttpClient, HttpMethod, HttpRequest,
-    HttpResponse, OpenCloudClient, OpenCloudEndpoints,
+    HttpResponse, OpenUcloudClient, OpenUcloudEndpoints,
 };
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -184,7 +186,7 @@ async fn get_course_assignments_normalizes_records_and_request_shape() {
           {"id":"","assignmentTitle":"空 ID","siteId":"site-1"}
         ]}}"#,
     )]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let result = client
         .get_course_assignments("site-1", "软件测试", "access-token", "实验")
@@ -245,7 +247,7 @@ async fn get_course_assignments_paginates_and_deduplicates_ids() {
             ]}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let result = client
         .get_course_assignments("site-1", "软件测试", "access-token", "")
@@ -270,7 +272,7 @@ async fn submitted_assignment_with_past_deadline_is_expired() {
           {"id":"work-1","title":"已提交但已截止","siteId":"site-1","statusName":"已提交","commitTime":"2026-05-01","endTime":"2000-01-01"}
         ]}}"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let result = client
         .get_course_assignments("site-1", "软件测试", "access-token", "")
@@ -289,11 +291,11 @@ async fn get_undone_assignments_keeps_only_assignment_items() {
           {"activityId":"quiz-1","activityName":"测验","endTime":"2099-05-03","siteId":1001,"siteName":"软件测试","type":2}
         ]}}"#,
     )]);
-    let endpoints = OpenCloudEndpoints {
+    let endpoints = OpenUcloudEndpoints {
         assignment_undone_url: "https://example.test/ykt-site/site/student/undone".to_string(),
-        ..OpenCloudEndpoints::default()
+        ..OpenUcloudEndpoints::default()
     };
-    let client = OpenCloudClient::new(http.clone(), endpoints);
+    let client = OpenUcloudClient::new(http.clone(), endpoints);
 
     let result = client
         .get_undone_assignments("u-1", "access-token")
@@ -340,7 +342,7 @@ async fn get_assignment_detail_loads_teacher_and_submitted_resources() {
             r#"{"success":true,"data":{"previewUrl":"https://files.example/student"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let detail = client
         .get_assignment_detail("work-1", "access-token")
@@ -374,7 +376,7 @@ async fn get_assignment_detail_accepts_fractional_score() {
           "siteId":"site-1","siteName":"软件测试","assignmentScore":95.5
         }}"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let detail = client
         .get_assignment_detail("work-1", "access-token")
@@ -387,7 +389,7 @@ async fn get_assignment_detail_accepts_fractional_score() {
 #[tokio::test]
 async fn submit_assignment_rejects_empty_submission_before_network() {
     let http = MockHttp::default();
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let err = client
         .submit_assignment("work-1", "u-1", "   ", &[], "access-token")
@@ -402,7 +404,7 @@ async fn submit_assignment_rejects_empty_submission_before_network() {
 #[tokio::test]
 async fn submit_assignment_sends_documented_payload() {
     let http = MockHttp::with(vec![response(200, r#"{"success":true}"#)]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let result = client
         .submit_assignment(
@@ -431,7 +433,7 @@ async fn submit_assignment_sends_documented_payload() {
 #[tokio::test]
 async fn submit_assignment_preserves_content_whitespace() {
     let http = MockHttp::with(vec![response(200, r#"{"success":true}"#)]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
     let content = "  line one\n    code();\n  ";
 
     client
@@ -454,7 +456,7 @@ async fn upload_assignment_file_sends_multipart_and_preview_url() {
             r#"{"success":true,"data":{"previewUrl":"https://files.example/report"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let result = client
         .upload_assignment_file(
@@ -494,7 +496,7 @@ async fn upload_assignment_file_sends_multipart_and_preview_url() {
 
 #[tokio::test]
 async fn upload_assignment_file_path_uses_transport_file_upload() {
-    let path = std::env::temp_dir().join(format!("open-cloud-upload-{}.pdf", std::process::id()));
+    let path = std::env::temp_dir().join(format!("open-ucloud-upload-{}.pdf", std::process::id()));
     std::fs::write(&path, b"pdf-bytes").expect("upload fixture");
     let http = PathUploadHttp::with(vec![
         response(200, r#"{"success":true,"data":"resource-1"}"#),
@@ -503,7 +505,7 @@ async fn upload_assignment_file_path_uses_transport_file_upload() {
             r#"{"success":true,"data":{"previewUrl":"https://files.example/report"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let result = client
         .upload_assignment_file_path(
@@ -536,8 +538,8 @@ async fn upload_assignment_file_uses_boundary_that_does_not_collide_with_file_by
             r#"{"success":true,"data":{"previewUrl":"https://files.example/report"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
-    let bytes = b"before\r\n------open-cloud-assignment-upload-boundary\r\nafter";
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
+    let bytes = b"before\r\n------open-ucloud-assignment-upload-boundary\r\nafter";
 
     client
         .upload_assignment_file(
@@ -569,7 +571,7 @@ async fn upload_assignment_file_derives_boundary_from_upload_values() {
         response(200, r#"{"success":true,"data":"resource-2"}"#),
         response(200, r#"{"success":true,"data":{"previewUrl":"two"}}"#),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     client
         .upload_assignment_file(
@@ -612,7 +614,7 @@ async fn upload_assignment_file_escapes_multipart_filename() {
             r#"{"success":true,"data":{"previewUrl":"https://files.example/report"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let result = client
         .upload_assignment_file(
@@ -635,7 +637,7 @@ async fn upload_assignment_file_escapes_multipart_filename() {
 #[tokio::test]
 async fn upload_assignment_file_rejects_header_breaking_filename() {
     let http = MockHttp::with(Vec::new());
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let error = client
         .upload_assignment_file(
@@ -655,7 +657,7 @@ async fn upload_assignment_file_rejects_header_breaking_filename() {
 #[tokio::test]
 async fn upload_assignment_file_rejects_blocked_extension_with_trailing_space() {
     let http = MockHttp::with(Vec::new());
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let error = client
         .upload_assignment_file(
@@ -682,7 +684,7 @@ async fn get_course_resources_flattens_tree_and_dedupes() {
            "children":[{"resource":{"id":1001,"name":"重复.pdf"}}]}
         ]}"#,
     )]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let resources = client
         .get_course_resources("site-1", "软件测试", "u-1", "access-token")
@@ -716,7 +718,7 @@ async fn get_resource_detail_adds_download_url() {
             r#"{"success":true,"data":{"previewUrl":"https://files.example/resource"}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let detail = client
         .get_resource_detail("resource-1", "site-1", "软件测试", "access-token")
@@ -739,7 +741,7 @@ async fn download_url_to_path_streams_redirected_body_to_partial_then_renames() 
         response_with_headers(302, &[("Location", "/object/resource-1")], ""),
         response(200, "file bytes"),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
     let path = temp_download_path("streamed-resource.txt");
     let _ = std::fs::remove_file(&path);
     let bytes_seen = Arc::new(Mutex::new(0_u64));
@@ -775,7 +777,7 @@ async fn download_url_to_path_streams_redirected_body_to_partial_then_renames() 
 #[tokio::test]
 async fn download_url_to_path_removes_partial_when_cancelled_before_request() {
     let http = MockHttp::with(vec![response(200, "file bytes")]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
     let path = temp_download_path("cancelled-resource.txt");
     let _ = std::fs::remove_file(&path);
     let cancel = DownloadCancelFlag::new();
@@ -800,7 +802,7 @@ async fn download_url_to_path_removes_partial_when_cancelled_before_request() {
 #[tokio::test]
 async fn download_url_to_path_removes_partial_when_cancelled_before_rename() {
     let http = MockHttp::with(vec![response(200, "file bytes")]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
     let path = temp_download_path("cancelled-before-rename.txt");
     let _ = std::fs::remove_file(&path);
     let cancel = DownloadCancelFlag::new();
@@ -830,7 +832,7 @@ async fn download_url_to_path_removes_partial_when_cancelled_before_rename() {
 #[tokio::test]
 async fn download_url_to_path_never_overwrites_a_racing_target() {
     let http = MockHttp::with(vec![response(200, "new bytes")]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let path = temp_download_path("existing-resource.txt");
     std::fs::write(&path, b"existing bytes").expect("existing target fixture");
 
@@ -880,7 +882,7 @@ fn partial_files_for(target: &std::path::Path) -> Vec<PathBuf> {
 #[tokio::test]
 async fn resource_download_url_maps_missing_preview_to_none() {
     let http = MockHttp::with(vec![response(404, "not found")]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let url = client
         .get_resource_download_url("resource-1", "access-token")
@@ -897,7 +899,7 @@ async fn resource_download_url_degrades_soft_failures_to_none() {
         response(200, r#"{"success":false,"msg":"没有预览权限"}"#),
         response(200, "not json"),
     ]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     for case in ["500", "success:false", "invalid json"] {
         let url = client
@@ -911,7 +913,7 @@ async fn resource_download_url_degrades_soft_failures_to_none() {
 #[tokio::test]
 async fn resource_download_url_propagates_session_expiry() {
     let http = MockHttp::with(vec![response(401, "unauthorized")]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let expired = client
         .get_resource_download_url("resource-1", "access-token")

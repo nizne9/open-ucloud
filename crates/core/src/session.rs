@@ -1,6 +1,6 @@
-use crate::{get_token_expiration_ms, AuthError, HttpClient, OpenCloudClient};
-use open_cloud_api::{AuthErrorCode, SessionUser};
-use open_cloud_store::{AuthSession, SessionStore};
+use crate::{get_token_expiration_ms, AuthError, HttpClient, OpenUcloudClient};
+use open_ucloud_api::{AuthErrorCode, SessionUser};
+use open_ucloud_store::{AuthSession, SessionStore};
 
 /// Access tokens this close to expiry are refreshed instead of used.
 const ACCESS_TOKEN_REFRESH_SKEW_MS: u64 = 60_000;
@@ -18,7 +18,7 @@ fn access_token_is_fresh(session: &AuthSession, now_ms: u64) -> bool {
 
 #[derive(Clone)]
 pub struct SessionManager<C, S> {
-    auth: OpenCloudClient<C>,
+    auth: OpenUcloudClient<C>,
     store: S,
 }
 
@@ -27,7 +27,7 @@ where
     C: HttpClient,
     S: SessionStore,
 {
-    pub fn new(auth: OpenCloudClient<C>, store: S) -> Self {
+    pub fn new(auth: OpenUcloudClient<C>, store: S) -> Self {
         Self { auth, store }
     }
 
@@ -56,7 +56,7 @@ where
 }
 
 pub async fn refresh_session_if_needed<C>(
-    auth: &OpenCloudClient<C>,
+    auth: &OpenUcloudClient<C>,
     session: AuthSession,
     now_ms: u64,
 ) -> Result<AuthSession, AuthError>

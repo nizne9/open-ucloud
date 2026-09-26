@@ -1,5 +1,5 @@
-use open_cloud_api::{RoleName, SessionUser};
-use open_cloud_store::{AuthSession, MemorySessionStore, SessionStore};
+use open_ucloud_api::{RoleName, SessionUser};
+use open_ucloud_store::{AuthSession, MemorySessionStore, SessionStore};
 
 #[test]
 fn stores_and_deletes_memory_sessions() {

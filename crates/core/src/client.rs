@@ -1,7 +1,7 @@
 use crate::HttpClient;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OpenCloudEndpoints {
+pub struct OpenUcloudEndpoints {
     pub login_url: String,
     pub assignment_detail_url: String,
     pub assignment_list_url: String,
@@ -18,7 +18,7 @@ pub struct OpenCloudEndpoints {
     pub ucloud_referer: String,
 }
 
-impl Default for OpenCloudEndpoints {
+impl Default for OpenUcloudEndpoints {
     fn default() -> Self {
         Self {
             login_url:
@@ -51,16 +51,16 @@ impl Default for OpenCloudEndpoints {
 }
 
 #[derive(Clone)]
-pub struct OpenCloudClient<C> {
-    pub(crate) endpoints: OpenCloudEndpoints,
+pub struct OpenUcloudClient<C> {
+    pub(crate) endpoints: OpenUcloudEndpoints,
     pub(crate) http: C,
 }
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {
-    pub fn new(http: C, endpoints: OpenCloudEndpoints) -> Self {
+    pub fn new(http: C, endpoints: OpenUcloudEndpoints) -> Self {
         Self { endpoints, http }
     }
 }

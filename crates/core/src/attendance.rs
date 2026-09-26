@@ -1,12 +1,12 @@
 use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
-use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
-use open_cloud_api::{AttendanceQrPayload, AuthErrorCode, GoingSite};
+use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
+use open_ucloud_api::{AttendanceQrPayload, AuthErrorCode, GoingSite};
 use serde::Deserialize;
 
 const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
 const CHECKWORK_PREFIX: &str = "checkwork|";
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {

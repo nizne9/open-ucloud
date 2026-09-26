@@ -7,25 +7,25 @@ The CLI is a first-class harness for agents, scripts, and power users. It should
 Commands should be verb-first and stable:
 
 ```bash
-open-cloud doctor
-open-cloud doctor --json
-open-cloud login --interactive
-open-cloud session --json
-open-cloud capabilities --json
-open-cloud courses --json
-open-cloud courses --with-going --json
-open-cloud course <site-id> --json
-open-cloud attendance --site <site-id> --json
-open-cloud assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
-open-cloud assignments undone --json
-open-cloud assignments detail <assignment-id> --json
-open-cloud assignments upload <assignment-id> --file <path> --yes --json
-open-cloud assignments submit <assignment-id> [--content <text>|--content-file <path>] [--attachment <resource-id>] --yes --json
-open-cloud resources list --site <site-id> [--site-name <name>] --json
-open-cloud resources detail <resource-id> --site <site-id> [--site-name <name>] --json
-open-cloud resources download <resource-id> --site <site-id> [--site-name <name>] --out-dir <dir> --json
-open-cloud resources download-course --site <site-id> [--site-name <name>] --out-dir <dir> --yes --json
-open-cloud logout --yes
+open-ucloud doctor
+open-ucloud doctor --json
+open-ucloud login --interactive
+open-ucloud session --json
+open-ucloud capabilities --json
+open-ucloud courses --json
+open-ucloud courses --with-going --json
+open-ucloud course <site-id> --json
+open-ucloud attendance --site <site-id> --json
+open-ucloud assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
+open-ucloud assignments undone --json
+open-ucloud assignments detail <assignment-id> --json
+open-ucloud assignments upload <assignment-id> --file <path> --yes --json
+open-ucloud assignments submit <assignment-id> [--content <text>|--content-file <path>] [--attachment <resource-id>] --yes --json
+open-ucloud resources list --site <site-id> [--site-name <name>] --json
+open-ucloud resources detail <resource-id> --site <site-id> [--site-name <name>] --json
+open-ucloud resources download <resource-id> --site <site-id> [--site-name <name>] --out-dir <dir> --json
+open-ucloud resources download-course --site <site-id> [--site-name <name>] --out-dir <dir> --yes --json
+open-ucloud logout --yes
 ```
 
 Use human-readable output by default. Add `--json` for machine output. JSON fields and error codes are public contracts and require tests.

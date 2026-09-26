@@ -1,7 +1,7 @@
 use crate::AuthError;
 use async_trait::async_trait;
 use futures_util::StreamExt;
-use open_cloud_api::AuthErrorCode;
+use open_ucloud_api::AuthErrorCode;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{
@@ -153,7 +153,7 @@ pub trait HttpClient: Clone + Send + Sync + 'static {
             .await
             .map_err(|error| AuthError::file_system(error.to_string()))?;
         let boundary = format!(
-            "open-cloud-boundary-{}-{}",
+            "open-ucloud-boundary-{}-{}",
             fields.len(),
             file_name.len() + bytes.len()
         );
@@ -217,7 +217,7 @@ impl ReqwestHttpClient {
             .connect_timeout(CONNECT_TIMEOUT)
             .read_timeout(READ_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
-            .user_agent(concat!("open-cloud/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("open-ucloud/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|error| AuthError::upstream(error.to_string()))?;
         Ok(Self { client })
@@ -441,7 +441,7 @@ pub(crate) fn multipart_quoted_string(value: &str) -> String {
 /// given part values.
 pub(crate) fn multipart_boundary(values: &[&[u8]]) -> String {
     let seed = multipart_boundary_seed(values);
-    let base = format!("----open-cloud-boundary-{seed:016x}");
+    let base = format!("----open-ucloud-boundary-{seed:016x}");
     for suffix in 0.. {
         let boundary = if suffix == 0 {
             base.clone()

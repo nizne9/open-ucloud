@@ -1,4 +1,4 @@
 #[tokio::main]
 async fn main() {
-    std::process::exit(open_cloud_cli::run().await);
+    std::process::exit(open_ucloud_cli::run().await);
 }

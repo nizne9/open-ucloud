@@ -1,4 +1,4 @@
-use open_cloud_api::{
+use open_ucloud_api::{
     AssignmentDetailResponse, AssignmentResource, AssignmentSource, AssignmentStatus,
     AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse, AttendanceQrPayload,
     AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthFinishResponse,

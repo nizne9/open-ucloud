@@ -6,7 +6,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
-import 'package:open_cloud_ffi/open_cloud_ffi.dart';
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'assignment_content_view.dart';

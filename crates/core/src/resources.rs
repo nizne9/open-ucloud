@@ -4,9 +4,9 @@ use crate::protocol::{
 };
 use crate::{
     AuthError, DownloadCancelFlag, DownloadProgress, HttpClient, HttpMethod, HttpRequest,
-    OpenCloudClient,
+    OpenUcloudClient,
 };
-use open_cloud_api::{
+use open_ucloud_api::{
     AuthErrorCode, CourseResourceDetail, CourseResourceSummary, CourseResourcesResponse,
 };
 use serde::Deserialize;
@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 const MAX_DOWNLOAD_REDIRECTS: usize = 10;
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {

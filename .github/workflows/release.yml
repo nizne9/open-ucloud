@@ -46,10 +46,10 @@ jobs:
       matrix:
         include:
           - backend: keyutils
-            artifact: open-cloud-cli-linux-x64-keyutils
+            artifact: open-ucloud-cli-linux-x64-keyutils
             cargo_features: ""
           - backend: secret-service
-            artifact: open-cloud-cli-linux-x64-secret-service
+            artifact: open-ucloud-cli-linux-x64-secret-service
             cargo_features: "--features linux-secret-service"
 
     steps:
@@ -78,12 +78,12 @@ jobs:
             cargo-${{ runner.os }}-${{ github.workflow }}-${{ matrix.backend }}-
 
       - name: Build CLI
-        run: cargo build --release -p open-cloud-cli ${{ matrix.cargo_features }}
+        run: cargo build --release -p open-ucloud-cli ${{ matrix.cargo_features }}
 
       - name: Package CLI
         run: |
           mkdir -p dist/${{ matrix.artifact }}
-          cp target/release/open-cloud dist/${{ matrix.artifact }}/open-cloud
+          cp target/release/open-ucloud dist/${{ matrix.artifact }}/open-ucloud
           tar -C dist -czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
           sha256sum ${{ matrix.artifact }}.tar.gz > ${{ matrix.artifact }}.tar.gz.sha256
 
@@ -122,24 +122,24 @@ jobs:
             cargo-${{ runner.os }}-${{ github.workflow }}-cli-
 
       - name: Build CLI
-        run: cargo build --release -p open-cloud-cli
+        run: cargo build --release -p open-ucloud-cli
 
       - name: Package CLI
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist/open-cloud-cli-windows-x64 | Out-Null
-          Copy-Item target/release/open-cloud.exe dist/open-cloud-cli-windows-x64/open-cloud.exe
-          Compress-Archive -Path dist/open-cloud-cli-windows-x64/* -DestinationPath open-cloud-cli-windows-x64.zip -Force
-          $hash = (Get-FileHash open-cloud-cli-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
-          "$hash  open-cloud-cli-windows-x64.zip" | Out-File -Encoding ascii open-cloud-cli-windows-x64.zip.sha256
+          New-Item -ItemType Directory -Force -Path dist/open-ucloud-cli-windows-x64 | Out-Null
+          Copy-Item target/release/open-ucloud.exe dist/open-ucloud-cli-windows-x64/open-ucloud.exe
+          Compress-Archive -Path dist/open-ucloud-cli-windows-x64/* -DestinationPath open-ucloud-cli-windows-x64.zip -Force
+          $hash = (Get-FileHash open-ucloud-cli-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  open-ucloud-cli-windows-x64.zip" | Out-File -Encoding ascii open-ucloud-cli-windows-x64.zip.sha256
 
       - name: Upload release asset artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: release-open-cloud-cli-windows-x64
+          name: release-open-ucloud-cli-windows-x64
           path: |
-            open-cloud-cli-windows-x64.zip
-            open-cloud-cli-windows-x64.zip.sha256
+            open-ucloud-cli-windows-x64.zip
+            open-ucloud-cli-windows-x64.zip.sha256
           retention-days: 14
 
   cli-macos:
@@ -171,24 +171,24 @@ jobs:
 
       - name: Build universal CLI
         run: |
-          cargo build --release --target x86_64-apple-darwin -p open-cloud-cli
-          cargo build --release --target aarch64-apple-darwin -p open-cloud-cli
-          mkdir -p dist/open-cloud-cli-macos-universal
+          cargo build --release --target x86_64-apple-darwin -p open-ucloud-cli
+          cargo build --release --target aarch64-apple-darwin -p open-ucloud-cli
+          mkdir -p dist/open-ucloud-cli-macos-universal
           lipo -create \
-            target/x86_64-apple-darwin/release/open-cloud \
-            target/aarch64-apple-darwin/release/open-cloud \
-            -output dist/open-cloud-cli-macos-universal/open-cloud
-          chmod +x dist/open-cloud-cli-macos-universal/open-cloud
-          tar -C dist -czf open-cloud-cli-macos-universal.tar.gz open-cloud-cli-macos-universal
-          shasum -a 256 open-cloud-cli-macos-universal.tar.gz > open-cloud-cli-macos-universal.tar.gz.sha256
+            target/x86_64-apple-darwin/release/open-ucloud \
+            target/aarch64-apple-darwin/release/open-ucloud \
+            -output dist/open-ucloud-cli-macos-universal/open-ucloud
+          chmod +x dist/open-ucloud-cli-macos-universal/open-ucloud
+          tar -C dist -czf open-ucloud-cli-macos-universal.tar.gz open-ucloud-cli-macos-universal
+          shasum -a 256 open-ucloud-cli-macos-universal.tar.gz > open-ucloud-cli-macos-universal.tar.gz.sha256
 
       - name: Upload release asset artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: release-open-cloud-cli-macos-universal
+          name: release-open-ucloud-cli-macos-universal
           path: |
-            open-cloud-cli-macos-universal.tar.gz
-            open-cloud-cli-macos-universal.tar.gz.sha256
+            open-ucloud-cli-macos-universal.tar.gz
+            open-ucloud-cli-macos-universal.tar.gz.sha256
           retention-days: 14
 
   client-linux:
@@ -228,7 +228,7 @@ jobs:
           cache: true
 
       - name: Build Rust FFI library
-        run: cargo build --release -p open-cloud-ffi
+        run: cargo build --release -p open-ucloud-ffi
 
       - name: Build Linux client
         working-directory: apps/client
@@ -239,7 +239,7 @@ jobs:
 
       - name: Package Linux client
         run: |
-          test -f apps/client/build/linux/x64/release/bundle/lib/libopen_cloud_ffi.so
+          test -f apps/client/build/linux/x64/release/bundle/lib/libopen_ucloud_ffi.so
           tar -C apps/client/build/linux/x64/release \
             -czf open-ucloud-client-linux-x64-unsigned.tar.gz bundle
           sha256sum open-ucloud-client-linux-x64-unsigned.tar.gz > open-ucloud-client-linux-x64-unsigned.tar.gz.sha256
@@ -285,7 +285,7 @@ jobs:
           cache: true
 
       - name: Build Rust FFI library
-        run: cargo build --release -p open-cloud-ffi
+        run: cargo build --release -p open-ucloud-ffi
 
       - name: Build Windows client
         working-directory: apps/client
@@ -298,8 +298,8 @@ jobs:
         shell: pwsh
         run: |
           $bundle = "apps/client/build/windows/x64/runner/Release"
-          if (!(Test-Path "$bundle/open_cloud_ffi.dll")) {
-            throw "Missing $bundle/open_cloud_ffi.dll"
+          if (!(Test-Path "$bundle/open_ucloud_ffi.dll")) {
+            throw "Missing $bundle/open_ucloud_ffi.dll"
           }
           Compress-Archive -Path "$bundle/*" -DestinationPath open-ucloud-client-windows-x64-unsigned.zip -Force
           $hash = (Get-FileHash open-ucloud-client-windows-x64-unsigned.zip -Algorithm SHA256).Hash.ToLower()
@@ -356,9 +356,9 @@ jobs:
 
       - name: Package macOS client
         run: |
-          test -f apps/client/build/macos/Build/Products/Release/open_cloud_client.app/Contents/Frameworks/libopen_cloud_ffi.dylib
+          test -f apps/client/build/macos/Build/Products/Release/open_ucloud_client.app/Contents/Frameworks/libopen_ucloud_ffi.dylib
           ditto -c -k --sequesterRsrc --keepParent \
-            apps/client/build/macos/Build/Products/Release/open_cloud_client.app \
+            apps/client/build/macos/Build/Products/Release/open_ucloud_client.app \
             open-ucloud-client-macos-universal-unsigned.zip
           shasum -a 256 open-ucloud-client-macos-universal-unsigned.zip > open-ucloud-client-macos-universal-unsigned.zip.sha256
 
@@ -439,7 +439,7 @@ jobs:
           for abi in arm64-v8a armeabi-v7a x86_64; do
             apk="apps/client/build/app/outputs/flutter-apk/app-${abi}-release.apk"
             test -f "$apk"
-            unzip -l "$apk" | grep "lib/${abi}/libopen_cloud_ffi.so"
+            unzip -l "$apk" | grep "lib/${abi}/libopen_ucloud_ffi.so"
             "$apksigner" verify --verbose --print-certs "$apk"
           done
 

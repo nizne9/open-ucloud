@@ -1,4 +1,4 @@
-use open_cloud_api::ClientCapabilities;
+use open_ucloud_api::ClientCapabilities;
 
 pub fn client_capabilities() -> ClientCapabilities {
     ClientCapabilities {
