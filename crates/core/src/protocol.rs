@@ -58,7 +58,10 @@ pub(crate) fn parse_ucloud_empty_success(
     Err(AuthError::upstream(payload.upstream_message(fallback)))
 }
 
-fn parse_ucloud_response<T>(response: HttpResponse, fallback: &str) -> Result<UcloudEnvelope<T>, AuthError>
+fn parse_ucloud_response<T>(
+    response: HttpResponse,
+    fallback: &str,
+) -> Result<UcloudEnvelope<T>, AuthError>
 where
     T: for<'de> Deserialize<'de>,
 {
@@ -72,7 +75,11 @@ where
     serde_json::from_slice(&response.body).map_err(|error| AuthError::upstream(error.to_string()))
 }
 
-pub(crate) fn http_status_error(status: u16, retry_after: Option<&str>, fallback: &str) -> AuthError {
+pub(crate) fn http_status_error(
+    status: u16,
+    retry_after: Option<&str>,
+    fallback: &str,
+) -> AuthError {
     let message = format!("{fallback} HTTP status {status}.");
     match status {
         401 | 403 => AuthError::new(AuthErrorCode::SessionExpired, message),

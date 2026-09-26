@@ -97,7 +97,8 @@ where
         if response.status == 404 {
             return Ok(None);
         }
-        match parse_ucloud_optional_envelope(response, "资料下载地址获取失败，请稍后重试。") {
+        match parse_ucloud_optional_envelope(response, "资料下载地址获取失败，请稍后重试。")
+        {
             Ok(data) => Ok(data.and_then(|data: RawPreviewUrl| data.preview_url)),
             Err(error) if error.code == AuthErrorCode::SessionExpired => Err(error),
             Err(_) => Ok(None),
