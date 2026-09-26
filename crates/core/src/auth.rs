@@ -157,7 +157,20 @@ where
             })
             .ok_or_else(|| AuthError::upstream("无法从回调中提取 ticket。"))?;
 
-        let token_payload = self.exchange_ticket(&ticket).await?;
+        self.login_with_ticket(&ticket, role).await
+    }
+
+    /// Finish authentication from a CAS service ticket.
+    ///
+    /// `ticket` is the one-time `ST-...` value carried by the UCloud callback
+    /// URL after the unified-authentication login succeeds. No password,
+    /// captcha, or login cookie is needed.
+    pub async fn login_with_ticket(
+        &self,
+        ticket: &str,
+        role: Option<RoleName>,
+    ) -> Result<LoginResult, AuthError> {
+        let token_payload = self.exchange_ticket(ticket).await?;
         let roles = self.get_user_roles(&token_payload.refresh_token).await?;
         if roles.is_empty() {
             return Err(AuthError::new(
