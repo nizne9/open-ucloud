@@ -16,6 +16,9 @@ open-ucloud courses --json
 open-ucloud courses --with-going --json
 open-ucloud course <site-id> --json
 open-ucloud attendance --site <site-id> --json
+open-ucloud attendance status --site <site-id> --json
+open-ucloud attendance sign --site <site-id> --group <group-id> --yes --json
+open-ucloud attendance qr --site <site-id> --group <group-id> --json
 open-ucloud assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
 open-ucloud assignments undone --json
 open-ucloud assignments detail <assignment-id> --json
@@ -34,16 +37,16 @@ Machine-readable failures include a stable `code`, a user-facing `message`, and 
 
 `login --interactive` verifies the real login chain and stores the session in the system credential store. `session --json` reads that stored session and must not print access tokens, refresh tokens, cookies, passwords, or upstream session data. If secure storage is unavailable or locked, commands return `SECURE_STORAGE_UNAVAILABLE` instead of falling back to plaintext files.
 
-`capabilities --json` does not require a session and prints build capability flags:
+`capabilities --json` does not require a session and prints capability flags for the current adapter:
 
 ```json
 {
-  "selfAttendance": false,
+  "selfAttendance": true,
   "attendanceQrPayloadParsing": true
 }
 ```
 
-Capability flags are independent adapter hints. `selfAttendance` describes whether a self-attendance flow is available in the current build. `attendanceQrPayloadParsing` describes whether core/FFI can parse `checkwork|...` QR payload text for clients that accept pasted QR content.
+Capability flags are independent per-adapter hints. Core supports an explicit, user-triggered check-in, so the CLI reports `selfAttendance: true`; the FFI/Flutter client deliberately omits that surface (no sign button) and reports `false`. `selfAttendance` describes whether a self-attendance flow is available in the current build. `attendanceQrPayloadParsing` describes whether core/FFI can parse `checkwork|...` QR payload text for clients that accept pasted QR content.
 
 `courses --json` reads the stored session, refreshes an expiring access token through core, and prints:
 
@@ -94,9 +97,30 @@ The human-readable `courses --with-going` output prints one `id<TAB>siteName<TAB
 }
 ```
 
-The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available.
+The human-readable output uses the same `id<TAB>siteName<TAB>going|idle` shape and appends `groupId` only when available. The same status is available as the `attendance status --site <site-id>` subcommand.
 
-Core and FFI also expose parsing for `checkwork|...` QR payload text.
+`attendance sign --site <site-id> --group <group-id> --yes --json` submits an explicit, user-selected check-in for a course with an active session and prints:
+
+```json
+{
+  "ok": true,
+  "siteId": "site-1",
+  "groupId": "group-1"
+}
+```
+
+`attendance qr --site <site-id> --group <group-id> --json` resolves the fields needed to render the in-progress attendance QR code and prints:
+
+```json
+{
+  "attendanceId": "attendance-1",
+  "siteId": "site-1",
+  "groupId": "group-1",
+  "createTime": "clock-param"
+}
+```
+
+`attendance` subcommands conflict with the legacy outer `--site/--json` options; combining the two forms is an error. Core and FFI also expose parsing for `checkwork|...` QR payload text.
 
 `assignments list --site <site-id> --json` reads the stored session, refreshes tokens through core, and prints:
 

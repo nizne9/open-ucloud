@@ -711,7 +711,20 @@ where
 {
     // Legacy `attendance --site <id>` is equivalent to `attendance status --site <id>`.
     let action = match command {
-        Some(action) => action,
+        Some(action) => {
+            // Subcommands cannot be combined with the legacy outer options.
+            if site.is_some() || outer_json {
+                let json = attendance_json_flag(&action);
+                return cli_error_response(
+                    error(
+                        AuthErrorCode::InvalidInput,
+                        "attendance subcommands conflict with the legacy --site/--json options.",
+                    ),
+                    json,
+                );
+            }
+            action
+        }
         None => AttendanceCommands::Status {
             site: match site {
                 Some(site) => site,
@@ -749,7 +762,7 @@ where
                     .map_err(to_response_error),
                 json,
             )?;
-            print_json_or(&status, json, &format_attendance_status(&status))?;
+            print_json_or(&status, json, || format_attendance_status(&status))?;
         }
         AttendanceCommands::Sign {
             site, group, json, ..
@@ -761,7 +774,7 @@ where
                     .map_err(to_response_error),
                 json,
             )?;
-            print_json_or(&response, json, &format_attendance_sign(&response))?;
+            print_json_or(&response, json, || format_attendance_sign(&response))?;
         }
         AttendanceCommands::Qr { site, group, json } => {
             let response = json_cli_result(
@@ -771,7 +784,7 @@ where
                     .map_err(to_response_error),
                 json,
             )?;
-            print_json_or(&response, json, &format_attendance_qr(&response))?;
+            print_json_or(&response, json, || format_attendance_qr(&response))?;
         }
     }
     Ok(())
@@ -789,7 +802,11 @@ fn attendance_requires_yes(command: &AttendanceCommands) -> bool {
     matches!(command, AttendanceCommands::Sign { yes: false, .. })
 }
 
-fn print_json_or<T: Serialize>(value: &T, json: bool, human: &str) -> Result<(), CliError> {
+fn print_json_or<T: Serialize>(
+    value: &T,
+    json: bool,
+    human: impl FnOnce() -> String,
+) -> Result<(), CliError> {
     if json {
         println!(
             "{}",
@@ -797,7 +814,7 @@ fn print_json_or<T: Serialize>(value: &T, json: bool, human: &str) -> Result<(),
                 .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
         );
     } else {
-        print!("{human}");
+        print!("{}", human());
     }
     Ok(())
 }

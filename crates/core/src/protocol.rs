@@ -109,6 +109,12 @@ impl<'a> UcloudJsonHeaders<'a> {
             ("Blade-Auth".to_string(), self.access_token.to_string()),
         ]
     }
+
+    pub(crate) fn into_json_post_vec(self) -> Vec<(String, String)> {
+        let mut headers = self.into_vec();
+        headers.push(("content-type".to_string(), "application/json".to_string()));
+        headers
+    }
 }
 
 pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {

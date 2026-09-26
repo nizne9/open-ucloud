@@ -40,7 +40,42 @@ fn exposes_documented_commands() {
         .expect("course detail parses");
     command
         .try_get_matches_from_mut(["open-ucloud", "attendance", "--site", "site-1", "--json"])
+        .expect("attendance legacy status parses");
+    command
+        .try_get_matches_from_mut([
+            "open-ucloud",
+            "attendance",
+            "status",
+            "--site",
+            "site-1",
+            "--json",
+        ])
         .expect("attendance status parses");
+    command
+        .try_get_matches_from_mut([
+            "open-ucloud",
+            "attendance",
+            "sign",
+            "--site",
+            "site-1",
+            "--group",
+            "group-1",
+            "--yes",
+            "--json",
+        ])
+        .expect("attendance sign parses");
+    command
+        .try_get_matches_from_mut([
+            "open-ucloud",
+            "attendance",
+            "qr",
+            "--site",
+            "site-1",
+            "--group",
+            "group-1",
+            "--json",
+        ])
+        .expect("attendance qr parses");
     command
         .try_get_matches_from_mut([
             "open-ucloud",
@@ -271,6 +306,53 @@ async fn attendance_json_returns_failure_when_session_is_missing() {
 
     assert!(err.json_error_was_printed());
     assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
+async fn attendance_sign_requires_yes_before_session_load() {
+    let cli = Cli::try_parse_from([
+        "open-ucloud",
+        "attendance",
+        "sign",
+        "--site",
+        "site-1",
+        "--group",
+        "group-1",
+    ])
+    .expect("sign parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing yes fails");
+
+    assert_eq!(err.response().code, AuthErrorCode::InvalidInput);
+    assert!(err.response().message.contains("--yes"));
+}
+
+#[tokio::test]
+async fn attendance_subcommand_conflicts_with_legacy_options() {
+    let cli = Cli::try_parse_from([
+        "open-ucloud",
+        "attendance",
+        "--site",
+        "site-1",
+        "sign",
+        "--site",
+        "site-1",
+        "--group",
+        "group-1",
+        "--yes",
+    ])
+    .expect("mixed forms parse");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("conflicting forms fail");
+
+    assert_eq!(err.response().code, AuthErrorCode::InvalidInput);
+    assert!(err.response().message.contains("conflict"));
 }
 
 #[tokio::test]

@@ -490,10 +490,11 @@ pub fn session_summary(session_payload: String) -> Result<FfiAuthSessionResponse
 }
 
 pub fn capabilities() -> FfiClientCapabilities {
-    let mut capabilities = FfiClientCapabilities::from(client_capabilities());
     // FFI deliberately omits the self sign-in surface; Flutter has no sign button.
-    capabilities.self_attendance = false;
-    capabilities
+    FfiClientCapabilities {
+        self_attendance: false,
+        attendance_qr_payload_parsing: client_capabilities().attendance_qr_payload_parsing,
+    }
 }
 
 pub fn parse_attendance_qr_payload_text(
@@ -1654,15 +1655,6 @@ impl From<open_ucloud_api::AttendanceQrPayload> for FfiAttendanceQrPayload {
             site_id: value.site_id,
             create_time: value.create_time,
             class_lesson_id: value.class_lesson_id,
-        }
-    }
-}
-
-impl From<open_ucloud_api::ClientCapabilities> for FfiClientCapabilities {
-    fn from(value: open_ucloud_api::ClientCapabilities) -> Self {
-        Self {
-            self_attendance: value.self_attendance,
-            attendance_qr_payload_parsing: value.attendance_qr_payload_parsing,
         }
     }
 }

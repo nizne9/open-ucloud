@@ -29,6 +29,9 @@ cargo run -p open-ucloud-cli -- courses --json
 cargo run -p open-ucloud-cli -- courses --with-going --json
 cargo run -p open-ucloud-cli -- course <site-id> --json
 cargo run -p open-ucloud-cli -- attendance --site <site-id> --json
+cargo run -p open-ucloud-cli -- attendance status --site <site-id> --json
+cargo run -p open-ucloud-cli -- attendance sign --site <site-id> --group <group-id> --yes --json
+cargo run -p open-ucloud-cli -- attendance qr --site <site-id> --group <group-id> --json
 cargo run -p open-ucloud-cli -- assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
 cargo run -p open-ucloud-cli -- assignments undone --json
 cargo run -p open-ucloud-cli -- assignments detail <assignment-id> --json

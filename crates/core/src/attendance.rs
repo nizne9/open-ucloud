@@ -26,8 +26,7 @@ where
             .map_err(|error| AuthError::upstream(error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("siteIds", &site_ids.join(","));
-        let mut headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_vec();
-        headers.push(("content-type".to_string(), "application/json".to_string()));
+        let headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_json_post_vec();
         let response = self
             .http
             .send(HttpRequest {
@@ -51,8 +50,7 @@ where
         if site_id.is_empty() || group_id.is_empty() {
             return Err(invalid_attendance_input("签到课程信息不完整。"));
         }
-        let mut headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_vec();
-        headers.push(("content-type".to_string(), "application/json".to_string()));
+        let headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_json_post_vec();
         let response = self
             .http
             .send(HttpRequest {
@@ -67,7 +65,7 @@ where
         let basic: RawCheckoutBasic = parse_ucloud_envelope(response, "签到信息加载失败。")?;
         let attendance_id = value_to_string(basic.attendance_basic_info.id)
             .filter(|value| !value.is_empty())
-            .ok_or_else(|| invalid_attendance_input("未找到签到 ID。"))?;
+            .ok_or_else(attendance_not_found)?;
         Ok(attendance_id)
     }
 
@@ -89,7 +87,7 @@ where
         let clock: RawClockResponse = parse_ucloud_envelope(response, "签到时间参数加载失败。")?;
         value_to_string(clock.data)
             .filter(|value| !value.is_empty())
-            .ok_or_else(|| invalid_attendance_input("签到时间参数为空。"))
+            .ok_or_else(|| AuthError::upstream("签到时间参数为空。"))
     }
 
     /// Submit attendance for a user-selected course with an active session.
@@ -103,19 +101,19 @@ where
         user_id: &str,
         access_token: &str,
     ) -> Result<AttendanceSignResponse, AuthError> {
-        let attendance_id = self
-            .get_attendance_basic_id(site_id, group_id, access_token)
-            .await?;
-        let qr_code_create_time = self.get_attendance_clock_param(access_token).await?;
+        // basic and clock are independent; fetch them concurrently to save a round trip.
+        let (attendance_id, qr_code_create_time) = tokio::join!(
+            self.get_attendance_basic_id(site_id, group_id, access_token),
+            self.get_attendance_clock_param(access_token),
+        );
         let body = sign_request_body(
-            &attendance_id,
+            &attendance_id?,
             group_id,
             site_id,
             user_id,
-            &qr_code_create_time,
+            &qr_code_create_time?,
         );
-        let mut headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_vec();
-        headers.push(("content-type".to_string(), "application/json".to_string()));
+        let headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_json_post_vec();
         let response = self
             .http
             .send(HttpRequest {
@@ -140,15 +138,15 @@ where
         group_id: &str,
         access_token: &str,
     ) -> Result<AttendanceQrResponse, AuthError> {
-        let attendance_id = self
-            .get_attendance_basic_id(site_id, group_id, access_token)
-            .await?;
-        let create_time = self.get_attendance_clock_param(access_token).await?;
+        let (attendance_id, create_time) = tokio::join!(
+            self.get_attendance_basic_id(site_id, group_id, access_token),
+            self.get_attendance_clock_param(access_token),
+        );
         Ok(AttendanceQrResponse {
-            attendance_id,
+            attendance_id: attendance_id?,
             site_id: site_id.to_string(),
             group_id: group_id.to_string(),
-            create_time,
+            create_time: create_time?,
         })
     }
 }
@@ -217,7 +215,6 @@ struct RawAttendanceBasicInfo {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
 struct RawClockResponse {
     data: serde_json::Value,
 }
@@ -261,6 +258,10 @@ pub fn parse_attendance_qr_payload(value: &str) -> Result<AttendanceQrPayload, A
 
 fn invalid_attendance_input(message: &str) -> AuthError {
     AuthError::new(AuthErrorCode::InvalidInput, message)
+}
+
+fn attendance_not_found() -> AuthError {
+    AuthError::new(AuthErrorCode::NotFound, "当前没有进行中的签到。")
 }
 
 fn invalid_attendance_qr_payload() -> AuthError {
