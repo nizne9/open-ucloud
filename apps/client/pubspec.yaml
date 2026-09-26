@@ -32,10 +32,10 @@ dependencies:
   flutter:
     sdk: flutter
 
-  flutter_riverpod: ^3.3.2
-  flutter_rust_bridge: ^2.12.0
-  flutter_secure_storage: ^10.3.1
-  html: ^0.15.6
+  flutter_riverpod: ^3.4.3
+  flutter_rust_bridge: ^2.13.0
+  flutter_secure_storage: ^11.2.0
+  html: ^0.15.7
   open_cloud_ffi:
     path: ../../crates/ffi/dart
   path: ^1.9.1
