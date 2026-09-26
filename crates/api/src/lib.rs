@@ -62,7 +62,9 @@ pub struct RoleInfo {
     pub domain_id: String,
     pub domain_name: String,
     pub id: String,
-    pub role_aliase: String,
+    // Upstream serializes this field with its own misspelling, `roleAliase`.
+    #[serde(alias = "roleAliase")]
+    pub role_alias: String,
     pub role_id: String,
     pub role_name: RoleName,
 }
@@ -199,6 +201,22 @@ pub enum AssignmentStatus {
     Expired,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AssignmentSource {
+    Course,
+    Undone,
+}
+
+impl AssignmentSource {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Course => "course",
+            Self::Undone => "undone",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssignmentSummary {
@@ -206,7 +224,7 @@ pub struct AssignmentSummary {
     pub id: String,
     pub site_id: String,
     pub site_name: String,
-    pub source: String,
+    pub source: AssignmentSource,
     pub start_time: String,
     pub status: AssignmentStatus,
     pub title: String,

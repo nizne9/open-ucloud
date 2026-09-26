@@ -7,8 +7,8 @@ use open_cloud_api::{
     CourseResourceSummary, CourseResourcesResponse, CourseSite, GoingSite, RoleName,
 };
 use open_cloud_core::{
-    client_capabilities, refresh_session_if_needed, resolve_course_detail, DownloadCancelFlag,
-    DownloadProgress, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
+    client_capabilities, now_ms, refresh_session_if_needed, resolve_course_detail,
+    DownloadCancelFlag, DownloadProgress, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
 };
 use open_cloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
@@ -1471,13 +1471,6 @@ fn error(code: AuthErrorCode, message: impl Into<String>) -> AuthErrorResponse {
         message: message.into(),
         retry_after_seconds: None,
     }
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_millis() as u64)
-        .unwrap_or_default()
 }
 
 #[cfg(test)]

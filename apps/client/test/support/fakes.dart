@@ -31,7 +31,7 @@ class MemorySessionStorage implements OpenCloudSessionStorage {
 
 FfiDownloadTaskStatus _succeededDownloadStatus(
   String taskId,
-  FfiCourseResourceDownloadResponse response,
+  FakeCourseResourceDownloadResponse response,
 ) {
   return FfiDownloadTaskStatus(
     taskId: taskId,
@@ -44,8 +44,8 @@ FfiDownloadTaskStatus _succeededDownloadStatus(
   );
 }
 
-class FfiCourseResourceDownloadResponse {
-  const FfiCourseResourceDownloadResponse({
+class FakeCourseResourceDownloadResponse {
+  const FakeCourseResourceDownloadResponse({
     required this.records,
     required this.writtenPaths,
     this.updatedSessionPayload,
@@ -83,14 +83,14 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
     this.resourceDetailResponse,
     this.resourceDetailFuture,
     List<Future<FfiCourseResourceDetailResponse>>? resourceDetailFutures,
-    this.resourceDownloadResponse = const FfiCourseResourceDownloadResponse(
+    this.resourceDownloadResponse = const FakeCourseResourceDownloadResponse(
       records: [],
       writtenPaths: [],
     ),
     this.resourceDownloadFuture,
     this.resourceDownloadCourseFuture,
-    List<Future<FfiCourseResourceDownloadResponse>>? resourceDownloadFutures,
-    List<Future<FfiCourseResourceDownloadResponse>>?
+    List<Future<FakeCourseResourceDownloadResponse>>? resourceDownloadFutures,
+    List<Future<FakeCourseResourceDownloadResponse>>?
     resourceDownloadCourseFutures,
     List<Future<FfiDownloadTaskStatus>>? downloadTaskStatusFutures,
     List<FfiDownloadTaskStatus>? downloadTaskStatuses,
@@ -138,11 +138,13 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   final FfiCourseResourceDetailResponse? resourceDetailResponse;
   final Future<FfiCourseResourceDetailResponse>? resourceDetailFuture;
   final List<Future<FfiCourseResourceDetailResponse>> resourceDetailFutures;
-  final FfiCourseResourceDownloadResponse resourceDownloadResponse;
-  final Future<FfiCourseResourceDownloadResponse>? resourceDownloadFuture;
-  final Future<FfiCourseResourceDownloadResponse>? resourceDownloadCourseFuture;
-  final List<Future<FfiCourseResourceDownloadResponse>> resourceDownloadFutures;
-  final List<Future<FfiCourseResourceDownloadResponse>>
+  final FakeCourseResourceDownloadResponse resourceDownloadResponse;
+  final Future<FakeCourseResourceDownloadResponse>? resourceDownloadFuture;
+  final Future<FakeCourseResourceDownloadResponse>?
+  resourceDownloadCourseFuture;
+  final List<Future<FakeCourseResourceDownloadResponse>>
+  resourceDownloadFutures;
+  final List<Future<FakeCourseResourceDownloadResponse>>
   resourceDownloadCourseFutures;
   final List<Future<FfiDownloadTaskStatus>> downloadTaskStatusFutures;
   final List<FfiDownloadTaskStatus> downloadTaskStatuses;
@@ -183,7 +185,6 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
       auth: const FfiAuthStartResult(flowId: 'flow-1', requiresCaptcha: false),
       flow: FfiLoginFlow(
         cookie: 'cookie',
-        createdAtMs: BigInt.one,
         execution: 'flow-1',
         username: username,
       ),
@@ -528,11 +529,8 @@ class FakeOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<FfiLogoutResponse> downloadTaskDispose({
-    required String taskId,
-  }) async {
+  Future<void> downloadTaskDispose({required String taskId}) async {
     disposedDownloadTaskIds.add(taskId);
-    return const FfiLogoutResponse(clearSession: false);
   }
 
   @override

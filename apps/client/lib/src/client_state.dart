@@ -56,23 +56,18 @@ class AssignmentAttachmentState {
     required this.name,
     required this.resourceId,
     this.previewUrl,
-    this.status = 'uploaded',
-    this.errorMessage,
   });
 
   final String name;
   final String resourceId;
   final String? previewUrl;
-  final String status;
-  final String? errorMessage;
 }
 
 /// Whether a download task state is terminal (no further updates expected).
 bool isTerminalDownloadState(FfiDownloadTaskState state) {
   return state == FfiDownloadTaskState.succeeded ||
       state == FfiDownloadTaskState.failed ||
-      state == FfiDownloadTaskState.cancelled ||
-      state == FfiDownloadTaskState.disposed;
+      state == FfiDownloadTaskState.cancelled;
 }
 
 /// One entry in the download queue. Queued items have no [taskId] yet; the

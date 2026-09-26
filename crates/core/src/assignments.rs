@@ -1,17 +1,19 @@
-use crate::protocol::{parse_ucloud_envelope, value_to_string};
+use crate::protocol::{
+    parse_ucloud_empty_success, parse_ucloud_envelope, value_to_string, PORTAL_BASIC_AUTH,
+};
 use crate::resources::{portal_json_headers, raw_resource_id, RawResourceDetail};
+use crate::transport::{multipart_boundary, multipart_quoted_string};
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
 use futures_util::stream::{self, StreamExt};
 use open_cloud_api::{
-    AssignmentDetailResponse, AssignmentListResponse, AssignmentResource, AssignmentStatus,
-    AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse, AuthErrorCode,
+    AssignmentDetailResponse, AssignmentListResponse, AssignmentResource, AssignmentSource,
+    AssignmentStatus, AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse,
+    AuthErrorCode,
 };
 use serde::Deserialize;
 use std::collections::HashSet;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 
-const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
 const MAX_ASSIGNMENT_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
 const ASSIGNMENT_PAGE_SIZE: u32 = 100;
 const MAX_ASSIGNMENT_PAGES: u32 = 100;
@@ -61,7 +63,7 @@ where
                 records
                     .into_iter()
                     .filter_map(|record| {
-                        to_assignment_summary(record, "course", site_id, site_name)
+                        to_assignment_summary(record, AssignmentSource::Course, site_id, site_name)
                     })
                     .filter(|assignment| seen_ids.insert(assignment.id.clone())),
             );
@@ -116,7 +118,7 @@ where
                             site_name: item.site_name,
                             ..RawAssignmentSummary::default()
                         },
-                        "undone",
+                        AssignmentSource::Undone,
                         "",
                         "",
                     )
@@ -234,7 +236,7 @@ where
                 body: Some(HttpBody::text(body.to_string())),
             })
             .await?;
-        parse_empty_success(response, "作业提交失败，请稍后重试。")?;
+        parse_ucloud_empty_success(response, "作业提交失败，请稍后重试。")?;
         Ok(AssignmentSubmitResponse { ok: true })
     }
 
@@ -491,7 +493,7 @@ struct RawAssignmentResourceRef {
 
 fn to_assignment_summary(
     record: RawAssignmentSummary,
-    source: &str,
+    source: AssignmentSource,
     fallback_site_id: &str,
     fallback_site_name: &str,
 ) -> Option<AssignmentSummary> {
@@ -511,7 +513,7 @@ fn to_assignment_summary(
             Some(fallback_site_name.to_string()),
         ])
         .unwrap_or_default(),
-        source: source.to_string(),
+        source,
         start_time: pick_string([
             record.assignment_begin_time.clone(),
             record.start_time.clone(),
@@ -605,27 +607,6 @@ fn validate_assignment_upload_metadata(file_name: &str, size: usize) -> Result<(
     Ok(())
 }
 
-fn parse_empty_success(response: crate::HttpResponse, fallback: &str) -> Result<(), AuthError> {
-    if !(200..300).contains(&response.status) {
-        return Err(AuthError::upstream(format!(
-            "{fallback} HTTP status {}.",
-            response.status
-        )));
-    }
-    let payload: serde_json::Value = serde_json::from_slice(&response.body)
-        .map_err(|error| AuthError::upstream(error.to_string()))?;
-    if payload.get("success").and_then(|value| value.as_bool()) == Some(false) {
-        let message = payload
-            .get("message")
-            .or_else(|| payload.get("msg"))
-            .and_then(|value| value.as_str())
-            .filter(|value| !value.trim().is_empty())
-            .unwrap_or(fallback);
-        return Err(AuthError::upstream(message.to_string()));
-    }
-    Ok(())
-}
-
 fn json_headers(access_token: &str) -> Vec<(String, String)> {
     let mut headers = portal_json_headers(access_token);
     headers.push((
@@ -658,51 +639,6 @@ fn multipart_upload_body(file_name: &str, bytes: &[u8], user_id: &str) -> (Strin
     body.extend_from_slice(b"\r\n");
     body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
     (format!("multipart/form-data; boundary={boundary}"), body)
-}
-
-fn multipart_boundary(values: &[&[u8]]) -> String {
-    let seed = multipart_boundary_seed(values);
-    let base = format!("----open-cloud-assignment-upload-boundary-{seed:016x}");
-    for suffix in 0.. {
-        let boundary = if suffix == 0 {
-            base.clone()
-        } else {
-            format!("{base}-{suffix}")
-        };
-        let delimiter = format!("--{boundary}");
-        if values
-            .iter()
-            .all(|value| !contains_bytes(value, delimiter.as_bytes()))
-        {
-            return boundary;
-        }
-    }
-    unreachable!("unbounded boundary suffix search")
-}
-
-fn multipart_boundary_seed(values: &[&[u8]]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    for value in values {
-        value.len().hash(&mut hasher);
-        value.hash(&mut hasher);
-    }
-    hasher.finish()
-}
-
-fn multipart_quoted_string(value: &str) -> String {
-    let mut output = String::new();
-    for ch in value.chars() {
-        match ch {
-            '"' => output.push_str("\\\""),
-            '\\' => output.push_str("\\\\"),
-            other => output.push(other),
-        }
-    }
-    output
-}
-
-fn contains_bytes(value: &[u8], needle: &[u8]) -> bool {
-    !needle.is_empty() && value.windows(needle.len()).any(|window| window == needle)
 }
 
 fn push_field(body: &mut Vec<u8>, boundary: &str, name: &str, value: &[u8]) {

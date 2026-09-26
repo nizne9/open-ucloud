@@ -486,7 +486,10 @@ class ClientController extends Notifier<ClientState> {
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
-      state = state.copyWith(assignmentDetailLoading: false);
+      state = state.copyWith(
+        assignmentDetailLoading: false,
+        clearAssignmentSelection: state.phase == ClientPhase.authenticated,
+      );
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -516,6 +519,8 @@ class ClientController extends Notifier<ClientState> {
         assignmentDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      // Session expiry is handled even when the request went stale so the
+      // persisted session is always cleared.
       if (error.code == FfiAuthErrorCode.sessionExpired) {
         await _handleSessionError(
           error,
@@ -678,7 +683,7 @@ class ClientController extends Notifier<ClientState> {
     }
     final attachmentIds = [
       for (final attachment in state.assignmentAttachments)
-        if (attachment.status == 'uploaded') attachment.resourceId,
+        attachment.resourceId,
     ];
     final draft = draftText ?? state.assignmentDraft;
     final resubmitting = detail.status == FfiAssignmentStatus.submitted;
@@ -844,7 +849,10 @@ class ClientController extends Notifier<ClientState> {
     );
     final payload = await _readSessionPayloadOrUnauthenticated();
     if (payload == null) {
-      state = state.copyWith(resourceDetailLoading: false);
+      state = state.copyWith(
+        resourceDetailLoading: false,
+        clearResourceSelection: state.phase == ClientPhase.authenticated,
+      );
       return;
     }
     final gateway = ref.read(openCloudGatewayProvider);
@@ -867,6 +875,8 @@ class ClientController extends Notifier<ClientState> {
         resourceDetailLoading: false,
       );
     } on FfiAuthError catch (error) {
+      // Session expiry is handled even when the request went stale so the
+      // persisted session is always cleared.
       if (error.code == FfiAuthErrorCode.sessionExpired) {
         await _handleSessionError(
           error,
@@ -1004,9 +1014,7 @@ class ClientController extends Notifier<ClientState> {
     } catch (_) {
       _removeDownloadTask(itemId);
     } finally {
-      try {
-        await gateway.downloadTaskDispose(taskId: taskId);
-      } catch (_) {}
+      await _disposeDownloadTaskQuietly(gateway, taskId);
     }
     unawaited(_pumpDownloadQueue());
   }
@@ -1027,13 +1035,29 @@ class ClientController extends Notifier<ClientState> {
       if (taskId == null) {
         continue;
       }
-      try {
-        await gateway.downloadTaskCancel(taskId: taskId);
-      } catch (_) {}
-      try {
-        await gateway.downloadTaskDispose(taskId: taskId);
-      } catch (_) {}
+      await _teardownDownloadTask(gateway, taskId);
     }
+  }
+
+  /// Best-effort teardown of a Rust-side download task: cancel, then dispose.
+  /// Failures are ignored so cleanup never stalls the queue.
+  Future<void> _teardownDownloadTask(
+    OpenCloudGateway gateway,
+    String taskId,
+  ) async {
+    try {
+      await gateway.downloadTaskCancel(taskId: taskId);
+    } catch (_) {}
+    await _disposeDownloadTaskQuietly(gateway, taskId);
+  }
+
+  Future<void> _disposeDownloadTaskQuietly(
+    OpenCloudGateway gateway,
+    String taskId,
+  ) async {
+    try {
+      await gateway.downloadTaskDispose(taskId: taskId);
+    } catch (_) {}
   }
 
   /// Serial queue: starts the next queued item when nothing is running.
@@ -1092,8 +1116,7 @@ class ClientController extends Notifier<ClientState> {
             );
       if (_downloadTaskById(item.id) == null) {
         // Cancelled while the start call was in flight.
-        await gateway.downloadTaskCancel(taskId: response.taskId);
-        await gateway.downloadTaskDispose(taskId: response.taskId);
+        await _teardownDownloadTask(gateway, response.taskId);
         return false;
       }
       await _persistUpdatedPayload(response.status.updatedSessionPayload);
@@ -1178,12 +1201,7 @@ class ClientController extends Notifier<ClientState> {
         );
       }
       state = state.copyWith(errorMessage: message);
-      try {
-        await gateway.downloadTaskCancel(taskId: taskId);
-      } catch (_) {}
-      try {
-        await gateway.downloadTaskDispose(taskId: taskId);
-      } catch (_) {}
+      await _teardownDownloadTask(gateway, taskId);
       unawaited(_pumpDownloadQueue());
       return;
     }
@@ -1203,9 +1221,7 @@ class ClientController extends Notifier<ClientState> {
 
     _resourceDownloadPollTimer?.cancel();
     _resourceDownloadPollTimer = null;
-    try {
-      await gateway.downloadTaskDispose(taskId: taskId);
-    } catch (_) {}
+    await _disposeDownloadTaskQuietly(gateway, taskId);
     if (status.state == FfiDownloadTaskState.succeeded) {
       state = state.copyWith(
         operationMessage: '已下载 ${status.writtenPaths.length} 个资料文件',

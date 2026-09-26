@@ -119,7 +119,6 @@ async fn finish_login_flow_maps_invalid_captcha() {
         captcha_id: Some("cap-1".to_string()),
         captcha_image: None,
         cookie: "JSESSIONID=abc".to_string(),
-        created_at_ms: 1,
         execution: "e1".to_string(),
         username: "2024000000".to_string(),
     };
@@ -179,7 +178,6 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
         captcha_id: None,
         captcha_image: None,
         cookie: "JSESSIONID=abc".to_string(),
-        created_at_ms: 1,
         execution: "e1".to_string(),
         username: "2024000000".to_string(),
     };
@@ -636,4 +634,35 @@ fn resolve_course_detail_reports_missing_course() {
 
     assert_eq!(err.code, AuthErrorCode::NotFound);
     assert_eq!(err.message, "未找到课程：missing。");
+}
+
+#[tokio::test]
+async fn refresh_user_info_maps_401_to_session_expired() {
+    let http = MockHttp::with(vec![response(401, &[], "unauthorized")]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+
+    let err = client
+        .refresh_user_info("refresh-token", None, &[])
+        .await
+        .expect_err("401 fails the refresh");
+
+    assert_eq!(err.code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
+async fn role_lookup_rate_limit_preserves_retry_after() {
+    let http = MockHttp::with(vec![response(
+        429,
+        &[("Retry-After", "30")],
+        "too many requests",
+    )]);
+    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+
+    let err = client
+        .get_user_roles("token")
+        .await
+        .expect_err("429 fails the request");
+
+    assert_eq!(err.code, AuthErrorCode::RateLimited);
+    assert_eq!(err.retry_after_seconds, Some(30));
 }

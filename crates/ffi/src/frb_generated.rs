@@ -1219,7 +1219,6 @@ impl SseDecode for crate::api::FfiDownloadTaskState {
             2 => crate::api::FfiDownloadTaskState::Succeeded,
             3 => crate::api::FfiDownloadTaskState::Failed,
             4 => crate::api::FfiDownloadTaskState::Cancelled,
-            5 => crate::api::FfiDownloadTaskState::Disposed,
             _ => unreachable!("Invalid variant for FfiDownloadTaskState: {}", inner),
         };
     }
@@ -1271,14 +1270,12 @@ impl SseDecode for crate::api::FfiLoginFlow {
         let mut var_captchaId = <Option<String>>::sse_decode(deserializer);
         let mut var_captchaImage = <Option<String>>::sse_decode(deserializer);
         let mut var_cookie = <String>::sse_decode(deserializer);
-        let mut var_createdAtMs = <u64>::sse_decode(deserializer);
         let mut var_execution = <String>::sse_decode(deserializer);
         let mut var_username = <String>::sse_decode(deserializer);
         return crate::api::FfiLoginFlow {
             captcha_id: var_captchaId,
             captcha_image: var_captchaImage,
             cookie: var_cookie,
-            created_at_ms: var_createdAtMs,
             execution: var_execution,
             username: var_username,
         };
@@ -1301,14 +1298,14 @@ impl SseDecode for crate::api::FfiRoleInfo {
         let mut var_domainId = <String>::sse_decode(deserializer);
         let mut var_domainName = <String>::sse_decode(deserializer);
         let mut var_id = <String>::sse_decode(deserializer);
-        let mut var_roleAliase = <String>::sse_decode(deserializer);
+        let mut var_roleAlias = <String>::sse_decode(deserializer);
         let mut var_roleId = <String>::sse_decode(deserializer);
         let mut var_roleName = <crate::api::FfiRoleName>::sse_decode(deserializer);
         return crate::api::FfiRoleInfo {
             domain_id: var_domainId,
             domain_name: var_domainName,
             id: var_id,
-            role_aliase: var_roleAliase,
+            role_alias: var_roleAlias,
             role_id: var_roleId,
             role_name: var_roleName,
         };
@@ -2154,7 +2151,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::FfiDownloadTaskState {
             Self::Succeeded => 2.into_dart(),
             Self::Failed => 3.into_dart(),
             Self::Cancelled => 4.into_dart(),
-            Self::Disposed => 5.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -2222,7 +2218,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::FfiLoginFlow {
             self.captcha_id.into_into_dart().into_dart(),
             self.captcha_image.into_into_dart().into_dart(),
             self.cookie.into_into_dart().into_dart(),
-            self.created_at_ms.into_into_dart().into_dart(),
             self.execution.into_into_dart().into_dart(),
             self.username.into_into_dart().into_dart(),
         ]
@@ -2256,7 +2251,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::FfiRoleInfo {
             self.domain_id.into_into_dart().into_dart(),
             self.domain_name.into_into_dart().into_dart(),
             self.id.into_into_dart().into_dart(),
-            self.role_aliase.into_into_dart().into_dart(),
+            self.role_alias.into_into_dart().into_dart(),
             self.role_id.into_into_dart().into_dart(),
             self.role_name.into_into_dart().into_dart(),
         ]
@@ -2614,7 +2609,6 @@ impl SseEncode for crate::api::FfiDownloadTaskState {
                 crate::api::FfiDownloadTaskState::Succeeded => 2,
                 crate::api::FfiDownloadTaskState::Failed => 3,
                 crate::api::FfiDownloadTaskState::Cancelled => 4,
-                crate::api::FfiDownloadTaskState::Disposed => 5,
                 _ => {
                     unimplemented!("");
                 }
@@ -2654,7 +2648,6 @@ impl SseEncode for crate::api::FfiLoginFlow {
         <Option<String>>::sse_encode(self.captcha_id, serializer);
         <Option<String>>::sse_encode(self.captcha_image, serializer);
         <String>::sse_encode(self.cookie, serializer);
-        <u64>::sse_encode(self.created_at_ms, serializer);
         <String>::sse_encode(self.execution, serializer);
         <String>::sse_encode(self.username, serializer);
     }
@@ -2673,7 +2666,7 @@ impl SseEncode for crate::api::FfiRoleInfo {
         <String>::sse_encode(self.domain_id, serializer);
         <String>::sse_encode(self.domain_name, serializer);
         <String>::sse_encode(self.id, serializer);
-        <String>::sse_encode(self.role_aliase, serializer);
+        <String>::sse_encode(self.role_alias, serializer);
         <String>::sse_encode(self.role_id, serializer);
         <crate::api::FfiRoleName>::sse_encode(self.role_name, serializer);
     }

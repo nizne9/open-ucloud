@@ -533,7 +533,6 @@ void main() {
         flow: FfiLoginFlow(
           captchaId: 'captcha-1',
           cookie: 'cookie',
-          createdAtMs: BigInt.one,
           execution: 'flow-1',
           username: 'alice',
         ),
@@ -584,7 +583,6 @@ void main() {
                 flow: FfiLoginFlow(
                   captchaId: 'captcha-1',
                   cookie: 'cookie',
-                  createdAtMs: BigInt.one,
                   execution: 'flow-1',
                   username: 'alice',
                 ),
@@ -2616,7 +2614,7 @@ void main() {
           ),
         ],
       ),
-      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+      resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -2672,7 +2670,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    final download = Completer<FfiCourseResourceDownloadResponse>();
+    final download = Completer<FakeCourseResourceDownloadResponse>();
     final gateway = FakeOpenCloudGateway(
       session: _session(),
       courseResponse: _twoCourseResponse(),
@@ -2728,7 +2726,7 @@ void main() {
     );
 
     download.complete(
-      const FfiCourseResourceDownloadResponse(
+      const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -2770,7 +2768,7 @@ void main() {
           ),
         ],
       ),
-      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+      resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -2843,7 +2841,7 @@ void main() {
           ),
         ],
       ),
-      resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+      resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
         records: [
           FfiCourseResourceDetail(
             name: '课件.pdf',
@@ -2967,7 +2965,7 @@ void main() {
           ),
         ],
       ),
-      resourceDownloadResponse: FfiCourseResourceDownloadResponse(
+      resourceDownloadResponse: FakeCourseResourceDownloadResponse(
         records: [
           for (var index = 0; index < 50; index += 1)
             FfiCourseResourceDetail(
@@ -3170,7 +3168,7 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
-      final download = Completer<FfiCourseResourceDownloadResponse>();
+      final download = Completer<FakeCourseResourceDownloadResponse>();
       final container = ProviderContainer(
         overrides: [
           sessionStorageProvider.overrideWithValue(
@@ -3231,7 +3229,7 @@ void main() {
       expect(find.text('返回资料列表'), findsOneWidget);
 
       download.complete(
-        const FfiCourseResourceDownloadResponse(
+        const FakeCourseResourceDownloadResponse(
           records: [
             FfiCourseResourceDetail(
               name: '课件.pdf',
@@ -3297,7 +3295,7 @@ void main() {
                 updatedAt: '',
               ),
             ),
-            resourceDownloadResponse: const FfiCourseResourceDownloadResponse(
+            resourceDownloadResponse: const FakeCourseResourceDownloadResponse(
               records: [
                 FfiCourseResourceDetail(
                   name: '课件.pdf',

@@ -267,72 +267,24 @@ fn credential_persistence_label(
     }
 }
 
-#[cfg(all(target_os = "linux", feature = "linux-secret-service"))]
 fn system_credential_backend_label() -> &'static str {
-    "secret-service"
-}
-
-#[cfg(all(
-    target_os = "linux",
-    feature = "desktop-keyring",
-    not(feature = "linux-secret-service")
-))]
-fn system_credential_backend_label() -> &'static str {
-    "keyutils"
-}
-
-#[cfg(all(
-    target_os = "linux",
-    not(feature = "desktop-keyring"),
-    not(feature = "linux-secret-service")
-))]
-fn system_credential_backend_label() -> &'static str {
-    "mock"
-}
-
-#[cfg(all(
-    target_os = "macos",
-    not(feature = "desktop-keyring"),
-    not(feature = "linux-secret-service")
-))]
-fn system_credential_backend_label() -> &'static str {
-    "mock"
-}
-
-#[cfg(all(
-    target_os = "windows",
-    not(feature = "desktop-keyring"),
-    not(feature = "linux-secret-service")
-))]
-fn system_credential_backend_label() -> &'static str {
-    "mock"
-}
-
-#[cfg(not(any(
-    all(target_os = "linux", feature = "linux-secret-service"),
-    all(
-        target_os = "linux",
+    if cfg!(all(target_os = "linux", feature = "linux-secret-service")) {
+        "secret-service"
+    } else if cfg!(all(target_os = "linux", feature = "desktop-keyring")) {
+        "keyutils"
+    } else if cfg!(all(target_os = "macos", feature = "desktop-keyring")) {
+        "keychain"
+    } else if cfg!(all(target_os = "windows", feature = "desktop-keyring")) {
+        "credential-manager"
+    } else if cfg!(any(
         feature = "desktop-keyring",
-        not(feature = "linux-secret-service")
-    ),
-    all(
-        target_os = "linux",
-        not(feature = "desktop-keyring"),
-        not(feature = "linux-secret-service")
-    ),
-    all(
-        target_os = "macos",
-        not(feature = "desktop-keyring"),
-        not(feature = "linux-secret-service")
-    ),
-    all(
-        target_os = "windows",
-        not(feature = "desktop-keyring"),
-        not(feature = "linux-secret-service")
-    )
-)))]
-fn system_credential_backend_label() -> &'static str {
-    "unknown"
+        feature = "linux-secret-service"
+    )) {
+        "unknown"
+    } else {
+        // keyring falls back to its in-process mock store without platform features.
+        "mock"
+    }
 }
 
 fn to_store_error(error: keyring::Error) -> StoreError {

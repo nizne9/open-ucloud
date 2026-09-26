@@ -72,7 +72,6 @@ String _downloadTaskStatusText(DownloadTaskItem task) {
       '下载完成 · ${status.writtenPaths.length} 个文件',
     FfiDownloadTaskState.failed => status.errorMessage ?? '下载失败。',
     FfiDownloadTaskState.cancelled => '下载已取消',
-    FfiDownloadTaskState.disposed => '下载已取消',
   };
 }
 
@@ -83,8 +82,7 @@ IconData _downloadTaskIcon(DownloadTaskItem task) {
   return switch (task.status?.state) {
     FfiDownloadTaskState.succeeded => Icons.check_circle_outline,
     FfiDownloadTaskState.failed => Icons.error_outline,
-    FfiDownloadTaskState.cancelled ||
-    FfiDownloadTaskState.disposed => Icons.cancel_outlined,
+    FfiDownloadTaskState.cancelled => Icons.cancel_outlined,
     _ => Icons.downloading_outlined,
   };
 }

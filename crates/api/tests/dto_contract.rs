@@ -1,10 +1,10 @@
 use open_cloud_api::{
-    AssignmentDetailResponse, AssignmentResource, AssignmentStatus, AssignmentSubmitResponse,
-    AssignmentSummary, AssignmentUploadResponse, AttendanceQrPayload, AttendanceStatusResponse,
-    AuthErrorCode, AuthErrorResponse, AuthFinishResponse, AuthSessionResponse, ClientCapabilities,
-    CourseActivityResponse, CourseDetailResponse, CourseListResponse, CourseResourceDetail,
-    CourseResourceDownloadResponse, CourseResourceSummary, CourseSite, GoingSite, RoleInfo,
-    RoleName, SessionUser,
+    AssignmentDetailResponse, AssignmentResource, AssignmentSource, AssignmentStatus,
+    AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse, AttendanceQrPayload,
+    AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthFinishResponse,
+    AuthSessionResponse, ClientCapabilities, CourseActivityResponse, CourseDetailResponse,
+    CourseListResponse, CourseResourceDetail, CourseResourceDownloadResponse,
+    CourseResourceSummary, CourseSite, GoingSite, RoleInfo, RoleName, SessionUser,
 };
 
 #[test]
@@ -148,7 +148,7 @@ fn serializes_assignment_summary_and_detail_without_tokens() {
         id: "work-1".to_string(),
         site_id: "site-1".to_string(),
         site_name: "软件测试".to_string(),
-        source: "course".to_string(),
+        source: AssignmentSource::Course,
         start_time: "2026-05-01 08:00:00".to_string(),
         status: AssignmentStatus::Pending,
         title: "实验报告".to_string(),
@@ -279,7 +279,7 @@ fn serializes_login_result_roles() {
             domain_id: "d".to_string(),
             domain_name: "教学空间".to_string(),
             id: "identity-1".to_string(),
-            role_aliase: "学生".to_string(),
+            role_alias: "学生".to_string(),
             role_id: "role-1".to_string(),
             role_name: RoleName::Student,
         }],

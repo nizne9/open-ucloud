@@ -16,7 +16,7 @@ pub use client::{OpenCloudClient, OpenCloudEndpoints};
 pub use courses::resolve_course_detail;
 pub use error::AuthError;
 pub use extensions::client_capabilities;
-pub use session::{refresh_session_if_needed, SessionManager};
+pub use session::{now_ms, refresh_session_if_needed, SessionManager};
 pub use transport::{
     DownloadCancelFlag, DownloadProgress, HttpBody, HttpClient, HttpMethod, HttpRequest,
     HttpResponse, HttpResponseHead, ReqwestHttpClient,
