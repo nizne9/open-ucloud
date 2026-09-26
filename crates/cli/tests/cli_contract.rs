@@ -186,11 +186,11 @@ fn capabilities_json_flag_is_explicit() {
 }
 
 #[test]
-fn capabilities_json_declares_qr_parsing_without_self_attendance() {
+fn capabilities_json_declares_self_attendance_and_qr_parsing() {
     let json = open_ucloud_cli::capabilities_report_json().expect("capabilities json serializes");
     let value: serde_json::Value = serde_json::from_str(&json).expect("valid json");
 
-    assert_eq!(value["selfAttendance"], false);
+    assert_eq!(value["selfAttendance"], true);
     assert_eq!(value["attendanceQrPayloadParsing"], true);
     assert!(value.get("accessToken").is_none());
     assert!(value.get("refreshToken").is_none());
@@ -240,8 +240,9 @@ fn attendance_status_command_captures_site_id() {
         cli.command,
         Commands::Attendance {
             site,
-            json: true
-        } if site == "site-1"
+            json: true,
+            command: None,
+        } if site.as_deref() == Some("site-1")
     ));
 }
 

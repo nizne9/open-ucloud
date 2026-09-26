@@ -1,6 +1,10 @@
-use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
+use crate::protocol::{
+    parse_ucloud_empty_success, parse_ucloud_envelope, value_to_string, UcloudJsonHeaders,
+};
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
-use open_ucloud_api::{AttendanceQrPayload, AuthErrorCode, GoingSite};
+use open_ucloud_api::{
+    AttendanceQrPayload, AttendanceQrResponse, AttendanceSignResponse, AuthErrorCode, GoingSite,
+};
 use serde::Deserialize;
 
 const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
@@ -36,6 +40,136 @@ where
         let data: RawGoingSiteList = parse_ucloud_envelope(response, "签到状态加载失败。")?;
         Ok(normalize_going_sites(data))
     }
+
+    /// Look up the attendance id for an in-progress course session.
+    pub async fn get_attendance_basic_id(
+        &self,
+        site_id: &str,
+        group_id: &str,
+        access_token: &str,
+    ) -> Result<String, AuthError> {
+        if site_id.is_empty() || group_id.is_empty() {
+            return Err(invalid_attendance_input("签到课程信息不完整。"));
+        }
+        let mut headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_vec();
+        headers.push(("content-type".to_string(), "application/json".to_string()));
+        let response = self
+            .http
+            .send(HttpRequest {
+                method: HttpMethod::Post,
+                url: self.endpoints.attendance_basic_url.clone(),
+                headers,
+                body: Some(HttpBody::text(
+                    serde_json::json!({ "groupId": group_id, "siteId": site_id }).to_string(),
+                )),
+            })
+            .await?;
+        let basic: RawCheckoutBasic = parse_ucloud_envelope(response, "签到信息加载失败。")?;
+        let attendance_id = value_to_string(basic.attendance_basic_info.id)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| invalid_attendance_input("未找到签到 ID。"))?;
+        Ok(attendance_id)
+    }
+
+    /// Fetch the clock/encryption parameter required by the sign payload.
+    pub async fn get_attendance_clock_param(
+        &self,
+        access_token: &str,
+    ) -> Result<String, AuthError> {
+        let headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_vec();
+        let response = self
+            .http
+            .send(HttpRequest {
+                method: HttpMethod::Get,
+                url: self.endpoints.clock_url.clone(),
+                headers,
+                body: None,
+            })
+            .await?;
+        let clock: RawClockResponse = parse_ucloud_envelope(response, "签到时间参数加载失败。")?;
+        value_to_string(clock.data)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| invalid_attendance_input("签到时间参数为空。"))
+    }
+
+    /// Submit attendance for a user-selected course with an active session.
+    ///
+    /// The platform reuses the group id as the sign payload's `classLessonId`
+    /// (per the 2026-05-06 attendance design); verify against a live session.
+    pub async fn sign_attendance(
+        &self,
+        site_id: &str,
+        group_id: &str,
+        user_id: &str,
+        access_token: &str,
+    ) -> Result<AttendanceSignResponse, AuthError> {
+        let attendance_id = self
+            .get_attendance_basic_id(site_id, group_id, access_token)
+            .await?;
+        let qr_code_create_time = self.get_attendance_clock_param(access_token).await?;
+        let body = sign_request_body(
+            &attendance_id,
+            group_id,
+            site_id,
+            user_id,
+            &qr_code_create_time,
+        );
+        let mut headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_vec();
+        headers.push(("content-type".to_string(), "application/json".to_string()));
+        let response = self
+            .http
+            .send(HttpRequest {
+                method: HttpMethod::Post,
+                url: self.endpoints.attendance_sign_url.clone(),
+                headers,
+                body: Some(HttpBody::text(body)),
+            })
+            .await?;
+        parse_ucloud_empty_success(response, "签到提交失败。")?;
+        Ok(AttendanceSignResponse {
+            ok: true,
+            site_id: site_id.to_string(),
+            group_id: group_id.to_string(),
+        })
+    }
+
+    /// Resolve the fields needed to render an in-progress attendance QR code.
+    pub async fn prepare_attendance_qr(
+        &self,
+        site_id: &str,
+        group_id: &str,
+        access_token: &str,
+    ) -> Result<AttendanceQrResponse, AuthError> {
+        let attendance_id = self
+            .get_attendance_basic_id(site_id, group_id, access_token)
+            .await?;
+        let create_time = self.get_attendance_clock_param(access_token).await?;
+        Ok(AttendanceQrResponse {
+            attendance_id,
+            site_id: site_id.to_string(),
+            group_id: group_id.to_string(),
+            create_time,
+        })
+    }
+}
+
+fn sign_request_body(
+    attendance_id: &str,
+    class_lesson_id: &str,
+    site_id: &str,
+    user_id: &str,
+    qr_code_create_time: &str,
+) -> String {
+    serde_json::json!({
+        "attendanceDetailInfo": {
+            "attendanceId": attendance_id,
+            "classLessonId": class_lesson_id,
+            "siteId": site_id,
+            "userId": user_id,
+        },
+        "qrCodeCreateTime": qr_code_create_time,
+    })
+    .to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -68,6 +202,24 @@ fn normalize_going_sites(payload: RawGoingSiteList) -> Vec<GoingSite> {
             Some(GoingSite { group_id, site_id })
         })
         .collect()
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct RawCheckoutBasic {
+    attendance_basic_info: RawAttendanceBasicInfo,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct RawAttendanceBasicInfo {
+    id: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct RawClockResponse {
+    data: serde_json::Value,
 }
 
 pub fn parse_attendance_qr_payload(value: &str) -> Result<AttendanceQrPayload, AuthError> {
@@ -105,6 +257,10 @@ pub fn parse_attendance_qr_payload(value: &str) -> Result<AttendanceQrPayload, A
         create_time: create_time.ok_or_else(invalid_attendance_qr_payload)?,
         class_lesson_id: class_lesson_id.ok_or_else(invalid_attendance_qr_payload)?,
     })
+}
+
+fn invalid_attendance_input(message: &str) -> AuthError {
+    AuthError::new(AuthErrorCode::InvalidInput, message)
 }
 
 fn invalid_attendance_qr_payload() -> AuthError {

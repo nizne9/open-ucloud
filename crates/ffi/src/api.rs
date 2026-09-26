@@ -490,7 +490,10 @@ pub fn session_summary(session_payload: String) -> Result<FfiAuthSessionResponse
 }
 
 pub fn capabilities() -> FfiClientCapabilities {
-    client_capabilities().into()
+    let mut capabilities = FfiClientCapabilities::from(client_capabilities());
+    // FFI deliberately omits the self sign-in surface; Flutter has no sign button.
+    capabilities.self_attendance = false;
+    capabilities
 }
 
 pub fn parse_attendance_qr_payload_text(
