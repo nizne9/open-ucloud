@@ -25,21 +25,6 @@ String _selectedResourceCourseName(_ResourcesPaneState state) {
   return '当前课程';
 }
 
-String _formatBytes(BigInt bytes) {
-  final value = bytes.toDouble();
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  var size = value;
-  var unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  final text = unitIndex == 0 || size >= 10
-      ? size.toStringAsFixed(0)
-      : size.toStringAsFixed(1);
-  return '$text ${units[unitIndex]}';
-}
-
 class _ResourcesPane extends ConsumerWidget {
   const _ResourcesPane();
 
@@ -215,29 +200,10 @@ class _ResourcesPane extends ConsumerWidget {
       Row(
         children: [
           Expanded(
-            child: DropdownButtonFormField<String>(
-              key: _courseDropdownKey(
-                'resource',
-                state.courses,
-                selectedCourseId,
-              ),
-              isExpanded: true,
-              initialValue: selectedCourseId,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: '课程',
-              ),
-              items: [
-                for (final course in state.courses)
-                  DropdownMenuItem(
-                    value: course.id,
-                    child: Text(
-                      course.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
+            child: _CourseDropdown(
+              scope: 'resource',
+              courses: state.courses,
+              selectedCourseId: selectedCourseId,
               onChanged: (value) {
                 if (value != null && value != state.selectedResourceCourseId) {
                   unawaited(

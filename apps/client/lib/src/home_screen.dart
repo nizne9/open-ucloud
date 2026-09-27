@@ -1220,18 +1220,28 @@ class _LabelValueRow extends StatelessWidget {
   }
 }
 
-IconData _assignmentIcon(FfiAssignmentStatus status) {
-  return switch (status) {
+extension FfiAssignmentStatusX on FfiAssignmentStatus {
+  String get label => switch (this) {
+    FfiAssignmentStatus.pending => '待提交',
+    FfiAssignmentStatus.submitted => '已提交',
+    FfiAssignmentStatus.expired => '已截止',
+  };
+
+  IconData get icon => switch (this) {
     FfiAssignmentStatus.pending => Icons.edit_note_outlined,
     FfiAssignmentStatus.submitted => Icons.task_alt,
     FfiAssignmentStatus.expired => Icons.event_busy_outlined,
   };
 }
 
-String _roleLabel(FfiRoleName role) {
-  return switch (role) {
+extension FfiRoleNameX on FfiRoleName {
+  String get label => switch (this) {
     FfiRoleName.student => '学生',
     FfiRoleName.teacher => '教师',
     FfiRoleName.assistant => '助教',
   };
 }
+
+IconData _assignmentIcon(FfiAssignmentStatus status) => status.icon;
+
+String _roleLabel(FfiRoleName role) => role.label;

@@ -213,29 +213,10 @@ class _AssignmentsPane extends ConsumerWidget {
       ),
       if (state.assignmentView == AssignmentView.course) ...[
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: _courseDropdownKey(
-            'assignment',
-            state.courses,
-            selectedCourseId,
-          ),
-          isExpanded: true,
-          initialValue: selectedCourseId,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            labelText: '课程',
-          ),
-          items: [
-            for (final course in state.courses)
-              DropdownMenuItem(
-                value: course.id,
-                child: Text(
-                  course.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
+        _CourseDropdown(
+          scope: 'assignment',
+          courses: state.courses,
+          selectedCourseId: selectedCourseId,
           onChanged: (value) {
             if (value != null && value != state.selectedAssignmentCourseId) {
               unawaited(_loadCourseAssignmentsGuarded(context, ref, value));
@@ -342,13 +323,7 @@ class _AssignmentsPane extends ConsumerWidget {
   }
 }
 
-String _assignmentStatusText(FfiAssignmentStatus status) {
-  return switch (status) {
-    FfiAssignmentStatus.pending => '待提交',
-    FfiAssignmentStatus.submitted => '已提交',
-    FfiAssignmentStatus.expired => '已截止',
-  };
-}
+String _assignmentStatusText(FfiAssignmentStatus status) => status.label;
 
 Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
   if (!await _prepareForAssignmentContextChange(context, ref)) {
