@@ -170,6 +170,13 @@ where
         ticket: &str,
         role: Option<RoleName>,
     ) -> Result<LoginResult, AuthError> {
+        let ticket = ticket.trim();
+        if ticket.is_empty() {
+            return Err(AuthError::new(
+                AuthErrorCode::InvalidInput,
+                "ticket 不能为空。",
+            ));
+        }
         let token_payload = self.exchange_ticket(ticket).await?;
         let roles = self.get_user_roles(&token_payload.refresh_token).await?;
         if roles.is_empty() {

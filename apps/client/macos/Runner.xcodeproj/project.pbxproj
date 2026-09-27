@@ -213,7 +213,7 @@
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
-				A10C0001228B24CF009A79C7 /* Bundle Open Cloud FFI */,
+				A10C0001228B24CF009A79C7 /* Bundle Open UCloud FFI */,
 			);
 			buildRules = (
 			);
@@ -320,7 +320,7 @@
 			shellPath = /bin/sh;
 			shellScript = "echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed\n";
 		};
-		A10C0001228B24CF009A79C7 /* Bundle Open Cloud FFI */ = {
+		A10C0001228B24CF009A79C7 /* Bundle Open UCloud FFI */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -331,7 +331,7 @@
 			inputPaths = (
 				"$(PROJECT_DIR)/Runner/Scripts/bundle_open_ucloud_ffi.sh",
 			);
-			name = "Bundle Open Cloud FFI";
+			name = "Bundle Open UCloud FFI";
 			outputFileListPaths = (
 			);
 			outputPaths = (

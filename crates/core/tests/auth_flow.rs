@@ -222,6 +222,25 @@ async fn login_with_ticket_exchanges_ticket_and_selects_role() {
     assert_eq!(requests.len(), 3);
 }
 
+#[tokio::test]
+async fn login_with_ticket_rejects_empty_ticket_without_a_request() {
+    let http = MockHttp::with(Vec::new());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
+
+    let err = client
+        .login_with_ticket("", None)
+        .await
+        .expect_err("empty ticket fails");
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
+
+    let err = client
+        .login_with_ticket("   ", None)
+        .await
+        .expect_err("whitespace ticket fails");
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
+    assert!(http.requests().is_empty());
+}
+
 #[test]
 fn parses_jwt_expiration_milliseconds() {
     assert_eq!(get_token_expiration_ms(&jwt_with_exp(42)), Some(42_000));

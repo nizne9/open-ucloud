@@ -402,13 +402,15 @@ where
             json,
         } => {
             if !interactive {
-                return Err(error(
-                    AuthErrorCode::InvalidInput,
-                    "login requires --interactive so credentials are not passed through shell history.",
-                )
-                .into());
+                return cli_error_response(
+                    error(
+                        AuthErrorCode::InvalidInput,
+                        "login requires --interactive so credentials are not passed through shell history.",
+                    ),
+                    json,
+                );
             }
-            login_interactive(&store, role, json).await?;
+            json_cli_result(login_interactive(&store, role, json).await, json)?;
             Ok(())
         }
         Commands::Session { json } => {
@@ -714,7 +716,7 @@ where
         Some(action) => {
             // Subcommands cannot be combined with the legacy outer options.
             if site.is_some() || outer_json {
-                let json = attendance_json_flag(&action);
+                let json = attendance_json_flag(&action) || outer_json;
                 return cli_error_response(
                     error(
                         AuthErrorCode::InvalidInput,

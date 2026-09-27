@@ -1,10 +1,11 @@
 use open_ucloud_api::{
     AssignmentDetailResponse, AssignmentResource, AssignmentSource, AssignmentStatus,
     AssignmentSubmitResponse, AssignmentSummary, AssignmentUploadResponse, AttendanceQrPayload,
-    AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthFinishResponse,
-    AuthSessionResponse, ClientCapabilities, CourseActivityResponse, CourseDetailResponse,
-    CourseListResponse, CourseResourceDetail, CourseResourceDownloadResponse,
-    CourseResourceSummary, CourseSite, GoingSite, RoleInfo, RoleName, SessionUser,
+    AttendanceQrResponse, AttendanceSignResponse, AttendanceStatusResponse, AuthErrorCode,
+    AuthErrorResponse, AuthFinishResponse, AuthSessionResponse, ClientCapabilities,
+    CourseActivityResponse, CourseDetailResponse, CourseListResponse, CourseResourceDetail,
+    CourseResourceDownloadResponse, CourseResourceSummary, CourseSite, GoingSite, RoleInfo,
+    RoleName, SessionUser,
 };
 
 #[test]
@@ -122,6 +123,42 @@ fn serializes_attendance_qr_payload_without_tokens() {
     assert_eq!(json["siteId"], "site-1");
     assert_eq!(json["createTime"], "2026-05-08+09:30:00");
     assert_eq!(json["classLessonId"], "group-1");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_attendance_sign_without_tokens() {
+    let response = AttendanceSignResponse {
+        ok: true,
+        site_id: "site-1".to_string(),
+        group_id: "group-1".to_string(),
+    };
+
+    let json = serde_json::to_value(response).expect("attendance sign response serializes");
+
+    assert_eq!(json["ok"], true);
+    assert_eq!(json["siteId"], "site-1");
+    assert_eq!(json["groupId"], "group-1");
+    assert!(json.get("accessToken").is_none());
+    assert!(json.get("refreshToken").is_none());
+}
+
+#[test]
+fn serializes_attendance_qr_response_without_tokens() {
+    let response = AttendanceQrResponse {
+        attendance_id: "att-1".to_string(),
+        site_id: "site-1".to_string(),
+        group_id: "group-1".to_string(),
+        create_time: "clock-1".to_string(),
+    };
+
+    let json = serde_json::to_value(response).expect("attendance qr response serializes");
+
+    assert_eq!(json["attendanceId"], "att-1");
+    assert_eq!(json["siteId"], "site-1");
+    assert_eq!(json["groupId"], "group-1");
+    assert_eq!(json["createTime"], "clock-1");
     assert!(json.get("accessToken").is_none());
     assert!(json.get("refreshToken").is_none());
 }

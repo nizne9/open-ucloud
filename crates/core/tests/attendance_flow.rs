@@ -63,6 +63,12 @@ async fn basic_id_rejects_empty_identifiers_without_a_request() {
         .await
         .expect_err("empty group fails");
     assert_eq!(err.code, AuthErrorCode::InvalidInput);
+
+    let err = client
+        .get_attendance_basic_id("   ", "group-1", "access-1")
+        .await
+        .expect_err("whitespace site fails");
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
     assert!(http.requests().is_empty());
 }
 
@@ -88,6 +94,12 @@ async fn sign_rejects_empty_identifiers_without_a_request() {
         .await
         .expect_err("empty user fails");
     assert_eq!(err.code, AuthErrorCode::InvalidInput);
+
+    let err = client
+        .sign_attendance("   ", "group-1", "user-1", "access-1")
+        .await
+        .expect_err("whitespace site fails");
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
     assert!(http.requests().is_empty());
 }
 
@@ -106,6 +118,12 @@ async fn prepare_qr_rejects_empty_identifiers_without_a_request() {
         .prepare_attendance_qr("site-1", "", "access-1")
         .await
         .expect_err("empty group fails");
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
+
+    let err = client
+        .prepare_attendance_qr("site-1", "   ", "access-1")
+        .await
+        .expect_err("whitespace group fails");
     assert_eq!(err.code, AuthErrorCode::InvalidInput);
     assert!(http.requests().is_empty());
 }

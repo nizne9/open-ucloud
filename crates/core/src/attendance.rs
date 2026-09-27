@@ -47,7 +47,7 @@ where
         group_id: &str,
         access_token: &str,
     ) -> Result<String, AuthError> {
-        if site_id.is_empty() || group_id.is_empty() {
+        if site_id.trim().is_empty() || group_id.trim().is_empty() {
             return Err(invalid_attendance_input("签到课程信息不完整。"));
         }
         let headers = UcloudJsonHeaders::new(SWORD_BASIC_AUTH, access_token).into_json_post_vec();
@@ -101,7 +101,7 @@ where
         user_id: &str,
         access_token: &str,
     ) -> Result<AttendanceSignResponse, AuthError> {
-        if site_id.is_empty() || group_id.is_empty() || user_id.is_empty() {
+        if site_id.trim().is_empty() || group_id.trim().is_empty() || user_id.trim().is_empty() {
             return Err(invalid_attendance_input("签到课程信息不完整。"));
         }
         // basic and clock are independent; fetch them concurrently to save a round trip.
@@ -141,7 +141,7 @@ where
         group_id: &str,
         access_token: &str,
     ) -> Result<AttendanceQrResponse, AuthError> {
-        if site_id.is_empty() || group_id.is_empty() {
+        if site_id.trim().is_empty() || group_id.trim().is_empty() {
             return Err(invalid_attendance_input("签到课程信息不完整。"));
         }
         let (attendance_id, create_time) = tokio::join!(

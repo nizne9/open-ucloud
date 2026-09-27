@@ -356,6 +356,42 @@ async fn attendance_subcommand_conflicts_with_legacy_options() {
 }
 
 #[tokio::test]
+async fn attendance_subcommand_conflicts_with_outer_json_preserves_json_error() {
+    let cli = Cli::try_parse_from([
+        "open-ucloud",
+        "attendance",
+        "--json",
+        "status",
+        "--site",
+        "site-1",
+    ])
+    .expect("mixed forms parse");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("conflicting forms fail");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::InvalidInput);
+    assert!(err.response().message.contains("conflict"));
+}
+
+#[tokio::test]
+async fn login_without_interactive_preserves_json_error() {
+    let cli = Cli::try_parse_from(["open-ucloud", "login", "--json"]).expect("login parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("non-interactive login fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::InvalidInput);
+    assert!(err.response().message.contains("--interactive"));
+}
+
+#[tokio::test]
 async fn attendance_sign_json_returns_failure_when_session_is_missing() {
     let cli = Cli::try_parse_from([
         "open-ucloud",
