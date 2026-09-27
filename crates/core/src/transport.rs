@@ -222,11 +222,8 @@ impl ReqwestHttpClient {
             .map_err(|error| AuthError::upstream(error.to_string()))?;
         Ok(Self { client })
     }
-}
 
-#[async_trait]
-impl HttpClient for ReqwestHttpClient {
-    async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
+    fn build_request(&self, request: &HttpRequest) -> reqwest::RequestBuilder {
         let method = match request.method {
             HttpMethod::Get => reqwest::Method::GET,
             HttpMethod::Post => reqwest::Method::POST,
@@ -235,13 +232,21 @@ impl HttpClient for ReqwestHttpClient {
         for (name, value) in &request.headers {
             builder = builder.header(name, value);
         }
-        if let Some(body) = request.body {
+        if let Some(body) = &request.body {
             builder = match body {
-                HttpBody::Text(value) => builder.body(value),
-                HttpBody::Bytes(value) => builder.body(value),
+                HttpBody::Text(value) => builder.body(value.clone()),
+                HttpBody::Bytes(value) => builder.body(value.clone()),
             };
         }
-        let response = builder
+        builder
+    }
+}
+
+#[async_trait]
+impl HttpClient for ReqwestHttpClient {
+    async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
+        let response = self
+            .build_request(&request)
             .timeout(API_REQUEST_TIMEOUT)
             .send()
             .await
@@ -259,21 +264,8 @@ impl HttpClient for ReqwestHttpClient {
         if cancel.is_cancelled() {
             return Err(cancelled_error());
         }
-        let method = match request.method {
-            HttpMethod::Get => reqwest::Method::GET,
-            HttpMethod::Post => reqwest::Method::POST,
-        };
-        let mut builder = self.client.request(method, &request.url);
-        for (name, value) in &request.headers {
-            builder = builder.header(name, value);
-        }
-        if let Some(body) = request.body {
-            builder = match body {
-                HttpBody::Text(value) => builder.body(value),
-                HttpBody::Bytes(value) => builder.body(value),
-            };
-        }
-        let response = builder
+        let response = self
+            .build_request(&request)
             .send()
             .await
             .map_err(|error| AuthError::upstream(error.to_string()))?;
@@ -320,14 +312,6 @@ impl HttpClient for ReqwestHttpClient {
         file_name: String,
         path: PathBuf,
     ) -> Result<HttpResponse, AuthError> {
-        let method = match request.method {
-            HttpMethod::Get => reqwest::Method::GET,
-            HttpMethod::Post => reqwest::Method::POST,
-        };
-        let mut builder = self.client.request(method, &request.url);
-        for (name, value) in &request.headers {
-            builder = builder.header(name, value);
-        }
         let mut form = reqwest::multipart::Form::new();
         for (name, value) in fields {
             form = form.text(name, value);
@@ -337,7 +321,8 @@ impl HttpClient for ReqwestHttpClient {
             .map_err(|error| AuthError::file_system(error.to_string()))?
             .file_name(file_name);
         form = form.part(file_field_name, file_part);
-        let response = builder
+        let response = self
+            .build_request(&request)
             .multipart(form)
             .timeout(MULTIPART_REQUEST_TIMEOUT)
             .send()
