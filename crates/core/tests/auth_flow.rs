@@ -165,6 +165,63 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
     assert!(refresh_body.contains(r#"name="identity""#));
 }
 
+#[tokio::test]
+async fn login_with_ticket_exchanges_ticket_and_selects_role() {
+    let access = jwt_with_exp(4_200);
+    let refresh = jwt_with_exp(9_200);
+    let http = MockHttp::with(vec![
+        response(
+            200,
+            &[],
+            &format!(
+                r#"{{
+                  "access_token":"first-access",
+                  "refresh_token":"{refresh}",
+                  "expires_in":3600,
+                  "account":"2024000000",
+                  "real_name":"Alice",
+                  "user_id":"u-1",
+                  "user_name":"2024000000"
+                }}"#
+            ),
+        ),
+        response(
+            200,
+            &[],
+            r#"{"data":[{"domainId":"d","domainName":"教学空间","id":"identity-1","roleAliase":"学生","roleId":"role-1","roleName":"学生"}]}"#,
+        ),
+        response(
+            200,
+            &[],
+            &format!(
+                r#"{{
+                  "access_token":"{access}",
+                  "refresh_token":"{refresh}",
+                  "expires_in":3600,
+                  "account":"2024000000",
+                  "real_name":"Alice",
+                  "user_id":"u-1",
+                  "user_name":"2024000000"
+                }}"#
+            ),
+        ),
+    ]);
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
+
+    let result = client
+        .login_with_ticket("ST-12345", Some(RoleName::Student))
+        .await
+        .expect("login with ticket succeeds");
+
+    assert_eq!(result.selected_role, RoleName::Student);
+    assert_eq!(result.user.real_name, "Alice");
+    assert_eq!(result.roles[0].id, "identity-1");
+    assert_eq!(result.access_token_expires_at_ms, 4_200_000);
+    assert_eq!(result.refresh_token_expires_at_ms, 9_200_000);
+    let requests = http.requests();
+    assert_eq!(requests.len(), 3);
+}
+
 #[test]
 fn parses_jwt_expiration_milliseconds() {
     assert_eq!(get_token_expiration_ms(&jwt_with_exp(42)), Some(42_000));
