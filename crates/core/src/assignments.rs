@@ -499,9 +499,6 @@ fn to_assignment_summary(
     fallback_site_name: &str,
 ) -> Option<AssignmentSummary> {
     let id = value_to_string_opt(record.id.clone())?;
-    if id.is_empty() {
-        return None;
-    }
     Some(AssignmentSummary {
         end_time: pick_string([record.assignment_end_time.clone(), record.end_time.clone()])
             .unwrap_or_default(),

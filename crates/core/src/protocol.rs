@@ -143,6 +143,8 @@ pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {
             let trimmed = value.trim();
             if trimmed.is_empty() {
                 None
+            } else if trimmed.len() == value.len() {
+                Some(value)
             } else {
                 Some(trimmed.to_string())
             }

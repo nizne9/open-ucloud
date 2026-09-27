@@ -688,6 +688,27 @@ fn formats_course_list_with_going_status() {
 }
 
 #[test]
+fn formats_course_list_records() {
+    let courses = vec![
+        open_ucloud_api::CourseSite {
+            id: "site-1".to_string(),
+            site_name: "软件测试".to_string(),
+        },
+        open_ucloud_api::CourseSite {
+            id: "site-2".to_string(),
+            site_name: "操作系统".to_string(),
+        },
+    ];
+
+    let output = open_ucloud_cli::format_course_list(&courses);
+    assert_eq!(output, "site-1\t软件测试\nsite-2\t操作系统\n");
+    assert_eq!(
+        open_ucloud_cli::format_course_list(&[]),
+        "No courses found.\n"
+    );
+}
+
+#[test]
 fn formats_course_detail_with_going_site() {
     let detail = open_ucloud_api::CourseDetailResponse {
         course: open_ucloud_api::CourseSite {

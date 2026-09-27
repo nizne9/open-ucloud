@@ -471,32 +471,23 @@ where
                     .map_err(to_response_error),
                 json,
             )?;
-            if json {
-                if with_going {
-                    let going_sites = json_cli_result(
-                        load_going_sites(&client, &courses, &session.access_token)
-                            .await
-                            .map_err(to_response_error),
-                        json,
-                    )?;
-                    print_json_or(
-                        &CourseActivityResponse {
-                            records: courses,
-                            going_sites,
-                        },
-                        json,
-                        String::new,
-                    )?;
-                } else {
-                    print_json_or(&CourseListResponse { records: courses }, json, String::new)?;
-                }
-            } else if with_going {
-                let going_sites = load_going_sites(&client, &courses, &session.access_token)
-                    .await
-                    .map_err(to_response_error)?;
-                print!("{}", format_course_list_with_going(&courses, &going_sites));
+            if with_going {
+                let going_sites = json_cli_result(
+                    load_going_sites(&client, &courses, &session.access_token)
+                        .await
+                        .map_err(to_response_error),
+                    json,
+                )?;
+                let response = CourseActivityResponse {
+                    records: courses,
+                    going_sites,
+                };
+                print_json_or(&response, json, || {
+                    format_course_list_with_going(&response.records, &response.going_sites)
+                })?;
             } else {
-                print_course_list(&courses);
+                let response = CourseListResponse { records: courses };
+                print_json_or(&response, json, || format_course_list(&response.records))?;
             }
             Ok(())
         }
@@ -1086,7 +1077,7 @@ where
     json_cli_result(load_access_session(store, client, now_ms()).await, json)
 }
 
-fn cli_error_to_cli_error(error_response: AuthErrorResponse, json: bool) -> CliError {
+fn to_cli_error(error_response: AuthErrorResponse, json: bool) -> CliError {
     if json {
         match print_json_error_response(&error_response) {
             Ok(()) => CliError::JsonErrorPrinted(error_response),
@@ -1098,11 +1089,11 @@ fn cli_error_to_cli_error(error_response: AuthErrorResponse, json: bool) -> CliE
 }
 
 fn json_cli_result<T>(result: Result<T, AuthErrorResponse>, json: bool) -> Result<T, CliError> {
-    result.map_err(|error_response| cli_error_to_cli_error(error_response, json))
+    result.map_err(|error_response| to_cli_error(error_response, json))
 }
 
 fn cli_error_response(error_response: AuthErrorResponse, json: bool) -> Result<(), CliError> {
-    Err(cli_error_to_cli_error(error_response, json))
+    Err(to_cli_error(error_response, json))
 }
 
 fn assignment_json_flag(command: &AssignmentCommands) -> bool {
@@ -1138,14 +1129,19 @@ fn resource_requires_yes(command: &ResourceCommands) -> bool {
     }
 }
 
-pub fn print_course_list(courses: &[CourseSite]) {
+pub fn format_course_list(courses: &[CourseSite]) -> String {
     if courses.is_empty() {
-        println!("No courses found.");
-        return;
+        return "No courses found.\n".to_string();
     }
+    let mut output = String::new();
     for course in courses {
-        println!("{}\t{}", course.id, course.site_name);
+        output.push_str(&format!("{}\t{}\n", course.id, course.site_name));
     }
+    output
+}
+
+pub fn print_course_list(courses: &[CourseSite]) {
+    print!("{}", format_course_list(courses));
 }
 
 fn format_capabilities(capabilities: &ClientCapabilities) -> String {

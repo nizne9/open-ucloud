@@ -405,7 +405,7 @@ pub fn sanitize_file_name(file_name: &str) -> String {
         .collect::<String>()
         .trim()
         .to_string();
-    if cleaned.is_empty() {
+    if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
         "download".to_string()
     } else {
         cleaned
@@ -460,6 +460,9 @@ mod tests {
     #[test]
     fn sanitizes_file_names() {
         assert_eq!(sanitize_file_name("  "), "download");
+        assert_eq!(sanitize_file_name("."), "download");
+        assert_eq!(sanitize_file_name(".."), "download");
+        assert_eq!(sanitize_file_name("  ..  "), "download");
         assert_eq!(sanitize_file_name("path/to/file.pdf"), "path_to_file.pdf");
         assert_eq!(
             sanitize_file_name(r"win\path\file.pdf"),
