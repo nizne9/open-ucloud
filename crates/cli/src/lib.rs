@@ -488,11 +488,7 @@ where
                         String::new,
                     )?;
                 } else {
-                    print_json_or(
-                        &CourseListResponse { records: courses },
-                        json,
-                        String::new,
-                    )?;
+                    print_json_or(&CourseListResponse { records: courses }, json, String::new)?;
                 }
             } else if with_going {
                 let going_sites = load_going_sites(&client, &courses, &session.access_token)
