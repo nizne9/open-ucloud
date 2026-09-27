@@ -101,6 +101,9 @@ where
         user_id: &str,
         access_token: &str,
     ) -> Result<AttendanceSignResponse, AuthError> {
+        if site_id.is_empty() || group_id.is_empty() || user_id.is_empty() {
+            return Err(invalid_attendance_input("签到课程信息不完整。"));
+        }
         // basic and clock are independent; fetch them concurrently to save a round trip.
         let (attendance_id, qr_code_create_time) = tokio::join!(
             self.get_attendance_basic_id(site_id, group_id, access_token),
@@ -138,6 +141,9 @@ where
         group_id: &str,
         access_token: &str,
     ) -> Result<AttendanceQrResponse, AuthError> {
+        if site_id.is_empty() || group_id.is_empty() {
+            return Err(invalid_attendance_input("签到课程信息不完整。"));
+        }
         let (attendance_id, create_time) = tokio::join!(
             self.get_attendance_basic_id(site_id, group_id, access_token),
             self.get_attendance_clock_param(access_token),
