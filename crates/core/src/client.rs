@@ -1,7 +1,7 @@
 use crate::HttpClient;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OpenCloudEndpoints {
+pub struct OpenUcloudEndpoints {
     pub login_url: String,
     pub assignment_detail_url: String,
     pub assignment_list_url: String,
@@ -10,6 +10,9 @@ pub struct OpenCloudEndpoints {
     pub assignment_upload_url: String,
     pub course_sites_url: String,
     pub going_sites_url: String,
+    pub attendance_basic_url: String,
+    pub attendance_sign_url: String,
+    pub clock_url: String,
     pub resource_by_id_url: String,
     pub resource_preview_url: String,
     pub resource_tree_url: String,
@@ -18,7 +21,7 @@ pub struct OpenCloudEndpoints {
     pub ucloud_referer: String,
 }
 
-impl Default for OpenCloudEndpoints {
+impl Default for OpenUcloudEndpoints {
     fn default() -> Self {
         Self {
             login_url:
@@ -36,6 +39,11 @@ impl Default for OpenCloudEndpoints {
                 .to_string(),
             going_sites_url: "https://apiucloud.bupt.edu.cn/blade-chat/web/chat/myCourse"
                 .to_string(),
+            attendance_basic_url:
+                "https://apiucloud.bupt.edu.cn/ykt-site/attendancebasicinfo/basic".to_string(),
+            attendance_sign_url: "https://apiucloud.bupt.edu.cn/ykt-site/attendancedetailinfo/sign"
+                .to_string(),
+            clock_url: "https://apiucloud.bupt.edu.cn/ykt-site/common/v2/clock".to_string(),
             resource_by_id_url: "https://apiucloud.bupt.edu.cn/blade-source/resource/list/byId"
                 .to_string(),
             resource_preview_url: "https://apiucloud.bupt.edu.cn/blade-source/resource/preview-url"
@@ -51,16 +59,16 @@ impl Default for OpenCloudEndpoints {
 }
 
 #[derive(Clone)]
-pub struct OpenCloudClient<C> {
-    pub(crate) endpoints: OpenCloudEndpoints,
+pub struct OpenUcloudClient<C> {
+    pub(crate) endpoints: OpenUcloudEndpoints,
     pub(crate) http: C,
 }
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {
-    pub fn new(http: C, endpoints: OpenCloudEndpoints) -> Self {
+    pub fn new(http: C, endpoints: OpenUcloudEndpoints) -> Self {
         Self { endpoints, http }
     }
 }

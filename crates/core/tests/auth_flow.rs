@@ -1,54 +1,12 @@
-use async_trait::async_trait;
-use open_cloud_api::{AuthErrorCode, RoleName};
-use open_cloud_core::{
-    get_token_expiration_ms, resolve_course_detail, AuthError, HttpBody, HttpClient, HttpRequest,
-    HttpResponse, OpenCloudClient, OpenCloudEndpoints, SessionManager,
+use open_ucloud_api::{AuthErrorCode, RoleName};
+use open_ucloud_core::{
+    get_token_expiration_ms, resolve_course_detail, HttpBody, HttpRequest, OpenUcloudClient,
+    OpenUcloudEndpoints, SessionManager,
 };
-use open_cloud_store::{AuthSession, MemorySessionStore, SessionStore};
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use open_ucloud_store::{AuthSession, MemorySessionStore, SessionStore};
 
-#[derive(Clone, Default)]
-struct MockHttp {
-    responses: Arc<Mutex<VecDeque<HttpResponse>>>,
-    requests: Arc<Mutex<Vec<HttpRequest>>>,
-}
-
-impl MockHttp {
-    fn with(responses: Vec<HttpResponse>) -> Self {
-        Self {
-            responses: Arc::new(Mutex::new(VecDeque::from(responses))),
-            requests: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    fn requests(&self) -> Vec<HttpRequest> {
-        self.requests.lock().expect("requests lock").clone()
-    }
-}
-
-#[async_trait]
-impl HttpClient for MockHttp {
-    async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError> {
-        self.requests.lock().expect("requests lock").push(request);
-        self.responses
-            .lock()
-            .expect("responses lock")
-            .pop_front()
-            .ok_or_else(|| AuthError::upstream("missing mock response"))
-    }
-}
-
-fn response(status: u16, headers: &[(&str, &str)], body: &str) -> HttpResponse {
-    HttpResponse {
-        status,
-        headers: headers
-            .iter()
-            .map(|(name, value)| (name.to_string(), value.to_string()))
-            .collect(),
-        body: body.as_bytes().to_vec(),
-    }
-}
+mod common;
+use common::{response_with_headers as response, MockHttp};
 
 fn body_text(request: &HttpRequest) -> &str {
     match request.body.as_ref().expect("request body") {
@@ -82,12 +40,12 @@ async fn start_login_flow_extracts_execution_and_captcha() {
         ),
         response(200, &[("content-type", "image/png")], "png"),
     ]);
-    let endpoints = OpenCloudEndpoints {
+    let endpoints = OpenUcloudEndpoints {
         login_url: "https://login.example.edu/cas/login?service=https://cloud.example.edu"
             .to_string(),
-        ..OpenCloudEndpoints::default()
+        ..OpenUcloudEndpoints::default()
     };
-    let client = OpenCloudClient::new(http.clone(), endpoints);
+    let client = OpenUcloudClient::new(http.clone(), endpoints);
 
     let flow = client.start_login("2024000000").await.expect("flow starts");
 
@@ -114,8 +72,8 @@ async fn finish_login_flow_maps_invalid_captcha() {
         &[],
         r#"<div id="errorDiv" class="alert alert-danger"><p><strong>Bad captcha.</strong></p></div>"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
-    let flow = open_cloud_core::LoginFlow {
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
+    let flow = open_ucloud_core::LoginFlow {
         captcha_id: Some("cap-1".to_string()),
         captcha_image: None,
         cookie: "JSESSIONID=abc".to_string(),
@@ -173,8 +131,8 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
             ),
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
-    let flow = open_cloud_core::LoginFlow {
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
+    let flow = open_ucloud_core::LoginFlow {
         captcha_id: None,
         captcha_image: None,
         cookie: "JSESSIONID=abc".to_string(),
@@ -205,6 +163,82 @@ async fn finish_login_flow_exchanges_ticket_and_selects_role() {
     assert!(refresh_body.contains(r#"name="grant_type""#));
     assert!(refresh_body.contains("refresh_token"));
     assert!(refresh_body.contains(r#"name="identity""#));
+}
+
+#[tokio::test]
+async fn login_with_ticket_exchanges_ticket_and_selects_role() {
+    let access = jwt_with_exp(4_200);
+    let refresh = jwt_with_exp(9_200);
+    let http = MockHttp::with(vec![
+        response(
+            200,
+            &[],
+            &format!(
+                r#"{{
+                  "access_token":"first-access",
+                  "refresh_token":"{refresh}",
+                  "expires_in":3600,
+                  "account":"2024000000",
+                  "real_name":"Alice",
+                  "user_id":"u-1",
+                  "user_name":"2024000000"
+                }}"#
+            ),
+        ),
+        response(
+            200,
+            &[],
+            r#"{"data":[{"domainId":"d","domainName":"教学空间","id":"identity-1","roleAliase":"学生","roleId":"role-1","roleName":"学生"}]}"#,
+        ),
+        response(
+            200,
+            &[],
+            &format!(
+                r#"{{
+                  "access_token":"{access}",
+                  "refresh_token":"{refresh}",
+                  "expires_in":3600,
+                  "account":"2024000000",
+                  "real_name":"Alice",
+                  "user_id":"u-1",
+                  "user_name":"2024000000"
+                }}"#
+            ),
+        ),
+    ]);
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
+
+    let result = client
+        .login_with_ticket("ST-12345", Some(RoleName::Student))
+        .await
+        .expect("login with ticket succeeds");
+
+    assert_eq!(result.selected_role, RoleName::Student);
+    assert_eq!(result.user.real_name, "Alice");
+    assert_eq!(result.roles[0].id, "identity-1");
+    assert_eq!(result.access_token_expires_at_ms, 4_200_000);
+    assert_eq!(result.refresh_token_expires_at_ms, 9_200_000);
+    let requests = http.requests();
+    assert_eq!(requests.len(), 3);
+}
+
+#[tokio::test]
+async fn login_with_ticket_rejects_empty_ticket_without_a_request() {
+    let http = MockHttp::with(Vec::new());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
+
+    let err = client
+        .login_with_ticket("", None)
+        .await
+        .expect_err("empty ticket fails");
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
+
+    let err = client
+        .login_with_ticket("   ", None)
+        .await
+        .expect_err("whitespace ticket fails");
+    assert_eq!(err.code, AuthErrorCode::InvalidInput);
+    assert!(http.requests().is_empty());
 }
 
 #[test]
@@ -239,7 +273,7 @@ async fn session_manager_refreshes_expiring_access_token() {
             ),
         ),
     ]);
-    let auth = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let auth = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let store = MemorySessionStore::default();
     store.create(
         "s-1".to_string(),
@@ -249,7 +283,7 @@ async fn session_manager_refreshes_expiring_access_token() {
             refresh_token: jwt_with_exp(1_000),
             refresh_token_expires_at_ms: 1_000_000,
             role: RoleName::Student,
-            user: open_cloud_api::SessionUser {
+            user: open_ucloud_api::SessionUser {
                 account: "2024000000".to_string(),
                 real_name: "Alice".to_string(),
                 user_id: "u-1".to_string(),
@@ -287,7 +321,7 @@ async fn get_student_courses_requests_documented_endpoint_and_filters_records() 
           {"id":"site-3","siteName":""}
         ]}}"#,
     )]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let courses = client
         .get_student_courses("u-1", "access-token")
@@ -301,7 +335,7 @@ async fn get_student_courses_requests_documented_endpoint_and_filters_records() 
     assert_eq!(courses[1].site_name, "操作系统");
 
     let request = http.requests().pop().expect("course request");
-    assert_eq!(request.method, open_cloud_core::HttpMethod::Get);
+    assert_eq!(request.method, open_ucloud_core::HttpMethod::Get);
     assert!(request
         .url
         .starts_with("https://apiucloud.bupt.edu.cn/ykt-site/site/list/student/current?"));
@@ -360,7 +394,7 @@ async fn get_student_courses_paginates_and_deduplicates_ids() {
             ]}}"#,
         ),
     ]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let courses = client
         .get_student_courses("u-1", "access-token")
@@ -389,7 +423,7 @@ async fn get_student_courses_accepts_array_payload() {
         &[],
         r#"{"data":[{"id":"site-1","siteName":"软件测试"}]}"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let courses = client
         .get_student_courses("u-1", "access-token")
@@ -407,7 +441,7 @@ async fn get_student_courses_maps_upstream_failure() {
         &[],
         r#"{"success":false,"message":"课程加载失败","data":[]}"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -425,7 +459,7 @@ async fn get_student_courses_preserves_failure_message_without_data() {
         &[],
         r#"{"success":false,"msg":"登录已过期"}"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -443,7 +477,7 @@ async fn get_student_courses_preserves_failure_msg_over_fallback() {
         &[],
         r#"{"success":false,"msg":"角色无权访问"}"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -457,7 +491,7 @@ async fn get_student_courses_preserves_failure_msg_over_fallback() {
 #[tokio::test]
 async fn get_student_courses_reports_fallback_when_success_data_is_missing() {
     let http = MockHttp::with(vec![response(200, &[], r#"{"success":true}"#)]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -471,7 +505,7 @@ async fn get_student_courses_reports_fallback_when_success_data_is_missing() {
 #[tokio::test]
 async fn get_student_courses_reports_http_status_failures() {
     let http = MockHttp::with(vec![response(502, &[], r#"bad gateway"#)]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .get_student_courses("u-1", "access-token")
@@ -494,7 +528,7 @@ async fn get_going_sites_requests_my_course_endpoint_and_filters_records() {
           {"groupId":"group-4","siteId":""}
         ]}}"#,
     )]);
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let going_sites = client
         .get_going_sites(&["1001".to_string(), "site-2".to_string()], "access-token")
@@ -508,7 +542,7 @@ async fn get_going_sites_requests_my_course_endpoint_and_filters_records() {
     assert_eq!(going_sites[1].site_id, "site-2");
 
     let request = http.requests().pop().expect("going sites request");
-    assert_eq!(request.method, open_cloud_core::HttpMethod::Post);
+    assert_eq!(request.method, open_ucloud_core::HttpMethod::Post);
     assert!(request
         .url
         .starts_with("https://apiucloud.bupt.edu.cn/blade-chat/web/chat/myCourse?"));
@@ -533,7 +567,7 @@ async fn get_going_sites_requests_my_course_endpoint_and_filters_records() {
 #[tokio::test]
 async fn get_going_sites_skips_request_when_no_course_ids_exist() {
     let http = MockHttp::default();
-    let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
     let going_sites = client
         .get_going_sites(&[], "access-token")
@@ -551,7 +585,7 @@ async fn get_going_sites_maps_upstream_failure() {
         &[],
         r#"{"success":false,"msg":"签到状态加载失败"}"#,
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .get_going_sites(&["1001".to_string()], "access-token")
@@ -564,7 +598,7 @@ async fn get_going_sites_maps_upstream_failure() {
 
 #[test]
 fn parse_attendance_qr_payload_accepts_official_checkwork_value() {
-    let payload = open_cloud_core::parse_attendance_qr_payload(
+    let payload = open_ucloud_core::parse_attendance_qr_payload(
         "checkwork|id=attendance-1&siteId=site-1&createTime=2026-05-08+09:30:00&classLessonId=group-1",
     )
     .expect("payload parses");
@@ -577,36 +611,36 @@ fn parse_attendance_qr_payload_accepts_official_checkwork_value() {
 
 #[test]
 fn parse_attendance_qr_payload_rejects_incomplete_or_unsupported_values() {
-    let missing = open_cloud_core::parse_attendance_qr_payload(
+    let missing = open_ucloud_core::parse_attendance_qr_payload(
         "checkwork|id=attendance-1&siteId=site-1&createTime=clock-1",
     )
     .expect_err("missing class lesson is rejected");
     assert_eq!(missing.message, "签到二维码内容无效或不完整。");
 
-    assert!(open_cloud_core::parse_attendance_qr_payload(
+    assert!(open_ucloud_core::parse_attendance_qr_payload(
         "checkwork|id=attendance-1&siteId=site-1&createTime=clock-1&classLessonId=group-1&extra=1",
     )
     .is_err());
-    assert!(open_cloud_core::parse_attendance_qr_payload(
+    assert!(open_ucloud_core::parse_attendance_qr_payload(
         "checkwork|id=attendance-1&siteId=site-1&createTime=clock-1&classLessonId=group-1&id=other",
     )
     .is_err());
-    assert!(open_cloud_core::parse_attendance_qr_payload("site-1:group-1").is_err());
+    assert!(open_ucloud_core::parse_attendance_qr_payload("site-1:group-1").is_err());
 }
 
 #[test]
 fn resolve_course_detail_matches_course_and_going_site() {
     let courses = vec![
-        open_cloud_api::CourseSite {
+        open_ucloud_api::CourseSite {
             id: "site-1".to_string(),
             site_name: "软件测试".to_string(),
         },
-        open_cloud_api::CourseSite {
+        open_ucloud_api::CourseSite {
             id: "site-2".to_string(),
             site_name: "操作系统".to_string(),
         },
     ];
-    let going_sites = vec![open_cloud_api::GoingSite {
+    let going_sites = vec![open_ucloud_api::GoingSite {
         group_id: "group-1".to_string(),
         site_id: "site-2".to_string(),
     }];
@@ -625,7 +659,7 @@ fn resolve_course_detail_matches_course_and_going_site() {
 
 #[test]
 fn resolve_course_detail_reports_missing_course() {
-    let courses = vec![open_cloud_api::CourseSite {
+    let courses = vec![open_ucloud_api::CourseSite {
         id: "site-1".to_string(),
         site_name: "软件测试".to_string(),
     }];
@@ -639,7 +673,7 @@ fn resolve_course_detail_reports_missing_course() {
 #[tokio::test]
 async fn refresh_user_info_maps_401_to_session_expired() {
     let http = MockHttp::with(vec![response(401, &[], "unauthorized")]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .refresh_user_info("refresh-token", None, &[])
@@ -656,7 +690,7 @@ async fn role_lookup_rate_limit_preserves_retry_after() {
         &[("Retry-After", "30")],
         "too many requests",
     )]);
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
 
     let err = client
         .get_user_roles("token")

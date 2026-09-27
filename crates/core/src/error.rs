@@ -1,4 +1,4 @@
-use open_cloud_api::AuthErrorCode;
+use open_ucloud_api::AuthErrorCode;
 use thiserror::Error;
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]

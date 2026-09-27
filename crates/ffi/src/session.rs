@@ -1,5 +1,5 @@
-use open_cloud_core::{refresh_session_if_needed, AuthError, HttpClient, OpenCloudClient};
-use open_cloud_store::AuthSession;
+use open_ucloud_core::{refresh_session_if_needed, AuthError, HttpClient, OpenUcloudClient};
+use open_ucloud_store::AuthSession;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
 
@@ -11,7 +11,7 @@ pub(crate) struct SessionCoordinator {
 impl SessionCoordinator {
     pub(crate) async fn resolve<C>(
         &self,
-        client: &OpenCloudClient<C>,
+        client: &OpenUcloudClient<C>,
         incoming: AuthSession,
         now_ms: u64,
     ) -> Result<AuthSession, AuthError>

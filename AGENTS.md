@@ -26,16 +26,16 @@ Once the workspace exists, prefer:
 - `cargo fmt --all`
 - `cargo clippy --workspace --all-targets`
 - `cargo test --workspace`
-- `cargo run -p open-cloud-cli -- --help`
+- `cargo run -p open-ucloud-cli -- --help`
 - `flutter test` for Flutter changes
 
 Document new required commands in `README.md` and `docs/quality.md`.
 
 ## Style & Commits
 
-Use short directory names and full package names. Example: `crates/core` publishes as `open-cloud-core` and imports as `open_cloud_core`.
+Use short directory names and full package names. Example: `crates/core` publishes as `open-ucloud-core` and imports as `open_ucloud_core`.
 
-Rust follows `rustfmt`; Flutter/Dart follows `dart format`. CLI commands should be verb-first, for example `open-cloud courses --json`.
+Rust follows `rustfmt`; Flutter/Dart follows `dart format`. CLI commands should be verb-first, for example `open-ucloud courses --json`.
 
 Use the existing concise conventional-style commit messages, for example `feat: add login facade`.
 

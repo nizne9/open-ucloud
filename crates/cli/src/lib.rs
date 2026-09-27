@@ -1,16 +1,17 @@
 use clap::{Parser, Subcommand};
-use open_cloud_api::{
+use open_ucloud_api::{
     AssignmentDetailResponse, AssignmentListResponse, AssignmentSubmitResponse, AssignmentSummary,
-    AssignmentUploadResponse, AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse,
-    AuthSessionResponse, ClientCapabilities, CourseActivityResponse, CourseDetailResponse,
-    CourseListResponse, CourseResourceDetail, CourseResourceDownloadResponse,
-    CourseResourceSummary, CourseResourcesResponse, CourseSite, GoingSite, RoleName,
+    AssignmentUploadResponse, AttendanceQrResponse, AttendanceSignResponse,
+    AttendanceStatusResponse, AuthErrorCode, AuthErrorResponse, AuthSessionResponse,
+    ClientCapabilities, CourseActivityResponse, CourseDetailResponse, CourseListResponse,
+    CourseResourceDetail, CourseResourceDownloadResponse, CourseResourceSummary,
+    CourseResourcesResponse, CourseSite, GoingSite, RoleName,
 };
-use open_cloud_core::{
+use open_ucloud_core::{
     client_capabilities, now_ms, refresh_session_if_needed, resolve_course_detail,
-    DownloadCancelFlag, DownloadProgress, OpenCloudClient, OpenCloudEndpoints, ReqwestHttpClient,
+    DownloadCancelFlag, DownloadProgress, OpenUcloudClient, OpenUcloudEndpoints, ReqwestHttpClient,
 };
-use open_cloud_store::{
+use open_ucloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
     CredentialBackend, CredentialProbe, CredentialProbeStatus, SecureSessionStore, StoreError,
     SystemCredentialBackend, SystemSecureSessionStore,
@@ -21,7 +22,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 #[derive(Debug, Parser)]
-#[command(name = "open-cloud", version, about = "Client-first Open UCloud CLI")]
+#[command(name = "open-ucloud", version, about = "Client-first Open UCloud CLI")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -66,12 +67,15 @@ pub enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Show read-only attendance status for a course.
+    /// Show attendance status, submit a check-in, or prepare a QR payload.
     Attendance {
+        /// Read-only status for a course (legacy form without a subcommand).
         #[arg(long)]
-        site: String,
+        site: Option<String>,
         #[arg(long)]
         json: bool,
+        #[command(subcommand)]
+        command: Option<AttendanceCommands>,
     },
     /// List, inspect, upload, and submit assignments.
     Assignments {
@@ -87,6 +91,37 @@ pub enum Commands {
     Logout {
         #[arg(long)]
         yes: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AttendanceCommands {
+    /// Show read-only attendance status for a course.
+    Status {
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Submit attendance for a course with an active session.
+    Sign {
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        group: String,
+        #[arg(long)]
+        yes: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Prepare the QR payload for an in-progress attendance session.
+    Qr {
+        #[arg(long)]
+        site: String,
+        #[arg(long)]
+        group: String,
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -286,7 +321,7 @@ fn doctor_report_from_diagnostics(diagnostics: DoctorDiagnostics) -> String {
     let backend = diagnostics.credential_backend.as_str();
     let persistence = diagnostics.credential_persistence.as_str();
     let mut lines = vec![
-        "open-cloud: ok".to_string(),
+        "open-ucloud: ok".to_string(),
         "session storage: system credential store".to_string(),
         format!("credential backend: {backend}"),
         format!("credential persistence: {persistence}"),
@@ -316,7 +351,7 @@ fn doctor_report_from_diagnostics(diagnostics: DoctorDiagnostics) -> String {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DoctorDiagnostics {
-    open_cloud: &'static str,
+    open_ucloud: &'static str,
     session_storage: &'static str,
     credential_backend: String,
     credential_persistence: String,
@@ -328,7 +363,7 @@ struct DoctorDiagnostics {
 impl DoctorDiagnostics {
     fn from_probe(backend: &str, persistence: &str, credential_probe: CredentialProbe) -> Self {
         Self {
-            open_cloud: "ok",
+            open_ucloud: "ok",
             session_storage: "system credential store",
             credential_backend: backend.to_string(),
             credential_persistence: persistence.to_string(),
@@ -367,13 +402,15 @@ where
             json,
         } => {
             if !interactive {
-                return Err(error(
-                    AuthErrorCode::InvalidInput,
-                    "login requires --interactive so credentials are not passed through shell history.",
-                )
-                .into());
+                return cli_error_response(
+                    error(
+                        AuthErrorCode::InvalidInput,
+                        "login requires --interactive so credentials are not passed through shell history.",
+                    ),
+                    json,
+                );
             }
-            login_interactive(&store, role, json).await?;
+            json_cli_result(login_interactive(&store, role, json).await, json)?;
             Ok(())
         }
         Commands::Session { json } => {
@@ -424,8 +461,8 @@ where
             Ok(())
         }
         Commands::Courses { json, with_going } => {
-            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-            let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+            let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
+            let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
                 Ok(session) => session,
                 Err(error_response) if json => {
@@ -488,8 +525,8 @@ where
             Ok(())
         }
         Commands::Course { site_id, json } => {
-            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-            let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+            let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
+            let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
                 Ok(session) => session,
                 Err(error_response) if json => {
@@ -520,39 +557,11 @@ where
             }
             Ok(())
         }
-        Commands::Attendance { site, json } => {
-            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-            let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
-            let session = match load_access_session(&store, &client, now_ms()).await {
-                Ok(session) => session,
-                Err(error_response) if json => {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                Err(error_response) => return Err(error_response.into()),
-            };
-            let status = match load_attendance_status(&client, &session, &site)
-                .await
-                .map_err(to_response_error)
-            {
-                Ok(status) => status,
-                Err(error_response) if json => {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                Err(error_response) => return Err(error_response.into()),
-            };
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&status)
-                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-                );
-            } else {
-                print!("{}", format_attendance_status(&status));
-            }
-            Ok(())
-        }
+        Commands::Attendance {
+            site,
+            json,
+            command,
+        } => handle_attendance(command, site, json, &store).await,
         Commands::Assignments { command } => handle_assignment_command(command, &store).await,
         Commands::Resources { command } => handle_resource_command(command, &store).await,
         Commands::Logout { yes } => {
@@ -579,7 +588,7 @@ async fn login_interactive(
     let password = rpassword::prompt_password("Password: ")
         .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string()))?;
     let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let flow = client
         .start_login(&username)
         .await
@@ -644,7 +653,7 @@ fn prompt(label: &str) -> Result<String, AuthErrorResponse> {
     Ok(value.trim().to_string())
 }
 
-fn to_response_error(error_value: open_cloud_core::AuthError) -> AuthErrorResponse {
+fn to_response_error(error_value: open_ucloud_core::AuthError) -> AuthErrorResponse {
     AuthErrorResponse {
         code: error_value.code,
         message: error_value.message,
@@ -670,12 +679,12 @@ where
 
 pub async fn load_access_session<B, C>(
     store: &SecureSessionStore<B>,
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     now_ms: u64,
 ) -> Result<AuthSession, AuthErrorResponse>
 where
     B: CredentialBackend,
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let Some(session) = store.load_current(now_ms).map_err(store_error)? else {
         return Err(error(
@@ -691,6 +700,136 @@ where
         store.save_current(&refreshed).map_err(store_error)?;
     }
     Ok(refreshed)
+}
+
+async fn handle_attendance<B>(
+    command: Option<AttendanceCommands>,
+    site: Option<String>,
+    outer_json: bool,
+    store: &SecureSessionStore<B>,
+) -> Result<(), CliError>
+where
+    B: CredentialBackend,
+{
+    // Legacy `attendance --site <id>` is equivalent to `attendance status --site <id>`.
+    let action = match command {
+        Some(action) => {
+            // Subcommands cannot be combined with the legacy outer options.
+            if site.is_some() || outer_json {
+                let json = attendance_json_flag(&action) || outer_json;
+                return cli_error_response(
+                    error(
+                        AuthErrorCode::InvalidInput,
+                        "attendance subcommands conflict with the legacy --site/--json options.",
+                    ),
+                    json,
+                );
+            }
+            action
+        }
+        None => AttendanceCommands::Status {
+            site: match site {
+                Some(site) => site,
+                None => {
+                    return cli_error_response(
+                        error(
+                            AuthErrorCode::InvalidInput,
+                            "attendance requires a subcommand or --site <site-id>.",
+                        ),
+                        outer_json,
+                    )
+                }
+            },
+            json: outer_json,
+        },
+    };
+    let json = attendance_json_flag(&action);
+    if attendance_requires_yes(&action) {
+        return cli_error_response(
+            error(
+                AuthErrorCode::InvalidInput,
+                "attendance sign is mutating; rerun with --yes.",
+            ),
+            json,
+        );
+    }
+    let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
+    let session = load_access_session_or_print(store, &client, json).await?;
+    match action {
+        AttendanceCommands::Status { site, json } => {
+            let status = json_cli_result(
+                load_attendance_status(&client, &session, &site)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
+            print_json_or(&status, json, || format_attendance_status(&status))?;
+        }
+        AttendanceCommands::Sign {
+            site, group, json, ..
+        } => {
+            let response = json_cli_result(
+                client
+                    .sign_attendance(&site, &group, &session.user.user_id, &session.access_token)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
+            print_json_or(&response, json, || format_attendance_sign(&response))?;
+        }
+        AttendanceCommands::Qr { site, group, json } => {
+            let response = json_cli_result(
+                client
+                    .prepare_attendance_qr(&site, &group, &session.access_token)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
+            print_json_or(&response, json, || format_attendance_qr(&response))?;
+        }
+    }
+    Ok(())
+}
+
+fn attendance_json_flag(command: &AttendanceCommands) -> bool {
+    match command {
+        AttendanceCommands::Status { json, .. }
+        | AttendanceCommands::Sign { json, .. }
+        | AttendanceCommands::Qr { json, .. } => *json,
+    }
+}
+
+fn attendance_requires_yes(command: &AttendanceCommands) -> bool {
+    matches!(command, AttendanceCommands::Sign { yes: false, .. })
+}
+
+fn print_json_or<T: Serialize>(
+    value: &T,
+    json: bool,
+    human: impl FnOnce() -> String,
+) -> Result<(), CliError> {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(value)
+                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
+        );
+    } else {
+        print!("{}", human());
+    }
+    Ok(())
+}
+
+pub fn format_attendance_sign(response: &AttendanceSignResponse) -> String {
+    format!("signed\t{}\t{}\n", response.site_id, response.group_id)
+}
+
+pub fn format_attendance_qr(response: &AttendanceQrResponse) -> String {
+    format!(
+        "attendanceId: {}\nsiteId: {}\ngroupId: {}\ncreateTime: {}\n",
+        response.attendance_id, response.site_id, response.group_id, response.create_time
+    )
 }
 
 async fn handle_assignment_command<B>(
@@ -710,8 +849,8 @@ where
             json,
         );
     }
-    let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let session = load_access_session_or_print(store, &client, json).await?;
     match command {
         AssignmentCommands::List {
@@ -770,7 +909,7 @@ where
                     .map_err(to_response_error),
                 json,
             )?;
-            if detail.status == open_cloud_api::AssignmentStatus::Expired {
+            if detail.status == open_ucloud_api::AssignmentStatus::Expired {
                 return cli_error_response(
                     error(
                         AuthErrorCode::InvalidInput,
@@ -858,8 +997,8 @@ where
             json,
         );
     }
-    let http = ReqwestHttpClient::new().map_err(to_response_error)?;
-    let client = OpenCloudClient::new(http, OpenCloudEndpoints::default());
+    let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let session = load_access_session_or_print(store, &client, json).await?;
     match command {
         ResourceCommands::List {
@@ -986,12 +1125,12 @@ where
 
 async fn load_access_session_or_print<B, C>(
     store: &SecureSessionStore<B>,
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     json: bool,
 ) -> Result<AuthSession, CliError>
 where
     B: CredentialBackend,
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     match load_access_session(store, client, now_ms()).await {
         Ok(session) => Ok(session),
@@ -1198,7 +1337,7 @@ fn print_resource_detail(detail: &CourseResourceDetail, json: bool) -> Result<()
     if json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&open_cloud_api::CourseResourceDetailResponse {
+            serde_json::to_string_pretty(&open_ucloud_api::CourseResourceDetailResponse {
                 detail: detail.clone()
             })
             .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
@@ -1300,12 +1439,12 @@ pub fn format_resource_detail(detail: &CourseResourceDetail) -> String {
 }
 
 async fn download_resource_to_dir<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     detail: &CourseResourceDetail,
     out_dir: &Path,
 ) -> Result<PathBuf, AuthErrorResponse>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let url = detail.download_url.as_deref().ok_or_else(|| {
         error(
@@ -1378,7 +1517,7 @@ trait AssignmentStatusLabel {
     fn as_str(&self) -> &'static str;
 }
 
-impl AssignmentStatusLabel for open_cloud_api::AssignmentStatus {
+impl AssignmentStatusLabel for open_ucloud_api::AssignmentStatus {
     fn as_str(&self) -> &'static str {
         match self {
             Self::Pending => "pending",
@@ -1389,12 +1528,12 @@ impl AssignmentStatusLabel for open_cloud_api::AssignmentStatus {
 }
 
 async fn load_going_sites<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     courses: &[CourseSite],
     access_token: &str,
-) -> Result<Vec<GoingSite>, open_cloud_core::AuthError>
+) -> Result<Vec<GoingSite>, open_ucloud_core::AuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let site_ids = courses
         .iter()
@@ -1404,12 +1543,12 @@ where
 }
 
 async fn load_course_detail<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     session: &AuthSession,
     site_id: &str,
-) -> Result<CourseDetailResponse, open_cloud_core::AuthError>
+) -> Result<CourseDetailResponse, open_ucloud_core::AuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let courses = client
         .get_student_courses(&session.user.user_id, &session.access_token)
@@ -1425,12 +1564,12 @@ where
 }
 
 async fn load_attendance_status<C>(
-    client: &OpenCloudClient<C>,
+    client: &OpenUcloudClient<C>,
     session: &AuthSession,
     site_id: &str,
-) -> Result<AttendanceStatusResponse, open_cloud_core::AuthError>
+) -> Result<AttendanceStatusResponse, open_ucloud_core::AuthError>
 where
-    C: open_cloud_core::HttpClient,
+    C: open_ucloud_core::HttpClient,
 {
     let detail = load_course_detail(client, session, site_id).await?;
     let going_site = detail.going_site;
@@ -1477,7 +1616,7 @@ fn error(code: AuthErrorCode, message: impl Into<String>) -> AuthErrorResponse {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use open_cloud_core::{AuthError, HttpClient, HttpRequest, HttpResponse};
+    use open_ucloud_core::{AuthError, HttpClient, HttpRequest, HttpResponse};
     use std::collections::VecDeque;
     use std::sync::{Arc, Mutex};
 
@@ -1527,7 +1666,7 @@ mod tests {
             refresh_token: "refresh".to_string(),
             refresh_token_expires_at_ms: 240_000,
             role: RoleName::Student,
-            user: open_cloud_api::SessionUser {
+            user: open_ucloud_api::SessionUser {
                 account: "2024000000".to_string(),
                 real_name: "Alice".to_string(),
                 user_id: "u-1".to_string(),
@@ -1545,7 +1684,7 @@ mod tests {
             ),
             response(502, r#"{"success":false,"msg":"going unavailable"}"#),
         ]);
-        let client = OpenCloudClient::new(http.clone(), OpenCloudEndpoints::default());
+        let client = OpenUcloudClient::new(http.clone(), OpenUcloudEndpoints::default());
 
         let err = load_course_detail(&client, &session(), "missing")
             .await

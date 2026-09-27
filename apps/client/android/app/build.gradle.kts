@@ -123,9 +123,9 @@ android {
         }
     }
 
-    sourceSets["debug"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openCloudFfiJniLibs/debug"))
-    sourceSets["profile"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openCloudFfiJniLibs/profile"))
-    sourceSets["release"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openCloudFfiJniLibs/release"))
+    sourceSets["debug"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/debug"))
+    sourceSets["profile"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/profile"))
+    sourceSets["release"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/release"))
 }
 
 flutter {
@@ -176,7 +176,7 @@ val hostExecutableNames =
     } else {
         listOf("%s")
     }
-val openCloudFfiAndroidTargets =
+val openUcloudFfiAndroidTargets =
     mapOf(
         "arm64-v8a" to Pair("aarch64-linux-android", "aarch64-linux-android$androidApiLevel-clang"),
         "armeabi-v7a" to Pair("armv7-linux-androideabi", "armv7a-linux-androideabi$androidApiLevel-clang"),
@@ -189,21 +189,21 @@ fun androidLlvmTool(baseName: String) =
         .firstOrNull { it.isFile }
         ?: error("Android NDK tool $baseName was not found in ${androidLlvmBin.absolutePath}")
 
-fun registerOpenCloudFfiAndroidTask(
+fun registerOpenUcloudFfiAndroidTask(
     buildType: String,
     cargoRelease: Boolean,
 ) {
     val capitalizedBuildType = buildType.replaceFirstChar { it.titlecase(Locale.ROOT) }
     val cargoProfile = if (cargoRelease) "release" else "debug"
-    val outputDir = layout.buildDirectory.dir("generated/openCloudFfiJniLibs/$buildType")
+    val outputDir = layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/$buildType")
 
-    tasks.register("buildOpenCloudFfi${capitalizedBuildType}Android") {
+    tasks.register("buildOpenUcloudFfi${capitalizedBuildType}Android") {
         group = "build"
         description = "Builds the Open UCloud Rust FFI library for Android $buildType APKs."
 
-        inputs.property("openCloudFfiBuildType", buildType)
-        inputs.property("openCloudFfiCargoProfile", cargoProfile)
-        inputs.property("openCloudFfiNdkHostTag", androidNdkHostTag)
+        inputs.property("openUcloudFfiBuildType", buildType)
+        inputs.property("openUcloudFfiCargoProfile", cargoProfile)
+        inputs.property("openUcloudFfiNdkHostTag", androidNdkHostTag)
         inputs.file(repoRoot.resolve("Cargo.toml"))
         inputs.file(repoRoot.resolve("Cargo.lock"))
         inputs.dir(repoRoot.resolve("crates"))
@@ -214,7 +214,7 @@ fun registerOpenCloudFfiAndroidTask(
                 "Android NDK ${flutter.ndkVersion} was not found at $androidNdkDir"
             }
 
-            openCloudFfiAndroidTargets.forEach { (abi, targetConfig) ->
+            openUcloudFfiAndroidTargets.forEach { (abi, targetConfig) ->
                 val (rustTarget, linkerName) = targetConfig
                 val linker = androidLlvmTool(linkerName)
                 val ar = androidLlvmTool("llvm-ar")
@@ -222,7 +222,7 @@ fun registerOpenCloudFfiAndroidTask(
                 val linkerEnv =
                     "CARGO_TARGET_${rustTarget.uppercase(Locale.ROOT).replace('-', '_')}_LINKER"
                 val cargoArgs =
-                    mutableListOf("build", "-p", "open-cloud-ffi", "--target", rustTarget).apply {
+                    mutableListOf("build", "-p", "open-ucloud-ffi", "--target", rustTarget).apply {
                         if (cargoRelease) {
                             add("--release")
                         }
@@ -238,7 +238,7 @@ fun registerOpenCloudFfiAndroidTask(
                 }
 
                 val sourceLibrary =
-                    repoRoot.resolve("target/$rustTarget/$cargoProfile/libopen_cloud_ffi.so")
+                    repoRoot.resolve("target/$rustTarget/$cargoProfile/libopen_ucloud_ffi.so")
                 require(sourceLibrary.isFile) {
                     "Rust FFI build did not produce $sourceLibrary"
                 }
@@ -252,27 +252,27 @@ fun registerOpenCloudFfiAndroidTask(
     }
 }
 
-registerOpenCloudFfiAndroidTask(buildType = "debug", cargoRelease = false)
-registerOpenCloudFfiAndroidTask(buildType = "profile", cargoRelease = true)
-registerOpenCloudFfiAndroidTask(buildType = "release", cargoRelease = true)
+registerOpenUcloudFfiAndroidTask(buildType = "debug", cargoRelease = false)
+registerOpenUcloudFfiAndroidTask(buildType = "profile", cargoRelease = true)
+registerOpenUcloudFfiAndroidTask(buildType = "release", cargoRelease = true)
 
 tasks.matching { task ->
     task.name.startsWith("mergeDebug") &&
         (task.name.endsWith("JniLibFolders") || task.name.endsWith("NativeLibs"))
 }.configureEach {
-    dependsOn("buildOpenCloudFfiDebugAndroid")
+    dependsOn("buildOpenUcloudFfiDebugAndroid")
 }
 
 tasks.matching { task ->
     task.name.startsWith("mergeProfile") &&
         (task.name.endsWith("JniLibFolders") || task.name.endsWith("NativeLibs"))
 }.configureEach {
-    dependsOn("buildOpenCloudFfiProfileAndroid")
+    dependsOn("buildOpenUcloudFfiProfileAndroid")
 }
 
 tasks.matching { task ->
     task.name.startsWith("mergeRelease") &&
         (task.name.endsWith("JniLibFolders") || task.name.endsWith("NativeLibs"))
 }.configureEach {
-    dependsOn("buildOpenCloudFfiReleaseAndroid")
+    dependsOn("buildOpenUcloudFfiReleaseAndroid")
 }

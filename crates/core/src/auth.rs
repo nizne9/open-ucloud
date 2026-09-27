@@ -1,9 +1,9 @@
 use crate::protocol::{http_status_error, PORTAL_BASIC_AUTH};
 use crate::transport::multipart_boundary;
-use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
+use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
 use base64::Engine;
 use cookie::Cookie;
-use open_cloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
+use open_ucloud_api::{AuthErrorCode, RoleInfo, RoleName, SessionUser};
 use scraper::{Html, Selector};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -28,7 +28,7 @@ pub struct LoginResult {
     pub user: SessionUser,
 }
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {
@@ -157,7 +157,27 @@ where
             })
             .ok_or_else(|| AuthError::upstream("无法从回调中提取 ticket。"))?;
 
-        let token_payload = self.exchange_ticket(&ticket).await?;
+        self.login_with_ticket(&ticket, role).await
+    }
+
+    /// Finish authentication from a CAS service ticket.
+    ///
+    /// `ticket` is the one-time `ST-...` value carried by the UCloud callback
+    /// URL after the unified-authentication login succeeds. No password,
+    /// captcha, or login cookie is needed.
+    pub async fn login_with_ticket(
+        &self,
+        ticket: &str,
+        role: Option<RoleName>,
+    ) -> Result<LoginResult, AuthError> {
+        let ticket = ticket.trim();
+        if ticket.is_empty() {
+            return Err(AuthError::new(
+                AuthErrorCode::InvalidInput,
+                "ticket 不能为空。",
+            ));
+        }
+        let token_payload = self.exchange_ticket(ticket).await?;
         let roles = self.get_user_roles(&token_payload.refresh_token).await?;
         if roles.is_empty() {
             return Err(AuthError::new(

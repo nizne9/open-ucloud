@@ -1,10 +1,10 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
-project(open_cloud_client LANGUAGES CXX)
+project(open_ucloud_client LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "open_cloud_client")
+set(BINARY_NAME "open_ucloud_client")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -58,29 +58,29 @@ add_subdirectory("runner")
 include(flutter/generated_plugins.cmake)
 
 set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
-set(OPEN_CLOUD_FFI_DEBUG_LIBRARY
-  "${REPO_ROOT}/target/debug/open_cloud_ffi.dll")
-set(OPEN_CLOUD_FFI_RELEASE_LIBRARY
-  "${REPO_ROOT}/target/release/open_cloud_ffi.dll")
-set(OPEN_CLOUD_FFI_LIBRARY
-  "$<IF:$<CONFIG:Debug>,${OPEN_CLOUD_FFI_DEBUG_LIBRARY},${OPEN_CLOUD_FFI_RELEASE_LIBRARY}>")
+set(OPEN_UCLOUD_FFI_DEBUG_LIBRARY
+  "${REPO_ROOT}/target/debug/open_ucloud_ffi.dll")
+set(OPEN_UCLOUD_FFI_RELEASE_LIBRARY
+  "${REPO_ROOT}/target/release/open_ucloud_ffi.dll")
+set(OPEN_UCLOUD_FFI_LIBRARY
+  "$<IF:$<CONFIG:Debug>,${OPEN_UCLOUD_FFI_DEBUG_LIBRARY},${OPEN_UCLOUD_FFI_RELEASE_LIBRARY}>")
 
-set(OPEN_CLOUD_FFI_MISSING_MESSAGE
-  "Missing open_cloud_ffi.dll. Run `cargo build -p open-cloud-ffi` for "
-  "debug Flutter Windows builds or `cargo build --release -p open-cloud-ffi` "
+set(OPEN_UCLOUD_FFI_MISSING_MESSAGE
+  "Missing open_ucloud_ffi.dll. Run `cargo build -p open-ucloud-ffi` for "
+  "debug Flutter Windows builds or `cargo build --release -p open-ucloud-ffi` "
   "for profile/release Flutter Windows builds before building the Windows "
   "client.")
 
 if(NOT IS_MULTICONFIG)
   if(CMAKE_BUILD_TYPE MATCHES "Debug")
-    set(OPEN_CLOUD_FFI_CONFIG_LIBRARY "${OPEN_CLOUD_FFI_DEBUG_LIBRARY}")
+    set(OPEN_UCLOUD_FFI_CONFIG_LIBRARY "${OPEN_UCLOUD_FFI_DEBUG_LIBRARY}")
   else()
-    set(OPEN_CLOUD_FFI_CONFIG_LIBRARY "${OPEN_CLOUD_FFI_RELEASE_LIBRARY}")
+    set(OPEN_UCLOUD_FFI_CONFIG_LIBRARY "${OPEN_UCLOUD_FFI_RELEASE_LIBRARY}")
   endif()
 
-  if(NOT EXISTS "${OPEN_CLOUD_FFI_CONFIG_LIBRARY}")
+  if(NOT EXISTS "${OPEN_UCLOUD_FFI_CONFIG_LIBRARY}")
     message(FATAL_ERROR
-      "Missing ${OPEN_CLOUD_FFI_CONFIG_LIBRARY}. ${OPEN_CLOUD_FFI_MISSING_MESSAGE}")
+      "Missing ${OPEN_UCLOUD_FFI_CONFIG_LIBRARY}. ${OPEN_UCLOUD_FFI_MISSING_MESSAGE}")
   endif()
 endif()
 
@@ -115,13 +115,13 @@ if(PLUGIN_BUNDLED_LIBRARIES)
 endif()
 
 install(CODE "
-  set(OPEN_CLOUD_FFI_LIBRARY \"${OPEN_CLOUD_FFI_LIBRARY}\")
-  if(NOT EXISTS \"\${OPEN_CLOUD_FFI_LIBRARY}\")
+  set(OPEN_UCLOUD_FFI_LIBRARY \"${OPEN_UCLOUD_FFI_LIBRARY}\")
+  if(NOT EXISTS \"\${OPEN_UCLOUD_FFI_LIBRARY}\")
     message(FATAL_ERROR
-      \"Missing \${OPEN_CLOUD_FFI_LIBRARY}. ${OPEN_CLOUD_FFI_MISSING_MESSAGE}\")
+      \"Missing \${OPEN_UCLOUD_FFI_LIBRARY}. ${OPEN_UCLOUD_FFI_MISSING_MESSAGE}\")
   endif()
   " COMPONENT Runtime)
-install(FILES "${OPEN_CLOUD_FFI_LIBRARY}"
+install(FILES "${OPEN_UCLOUD_FFI_LIBRARY}"
   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 

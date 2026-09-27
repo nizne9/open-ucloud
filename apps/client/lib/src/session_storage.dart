@@ -1,11 +1,11 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:open_cloud_ffi/open_cloud_ffi.dart';
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart';
 
-class SecureOpenCloudSessionStorage implements OpenCloudSessionStorage {
-  SecureOpenCloudSessionStorage({FlutterSecureStorage? storage})
+class SecureOpenUcloudSessionStorage implements OpenUcloudSessionStorage {
+  SecureOpenUcloudSessionStorage({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _sessionPayloadKey = 'open_cloud.session_payload.v1';
+  static const _sessionPayloadKey = 'open_ucloud.session_payload.v1';
 
   final FlutterSecureStorage _storage;
 

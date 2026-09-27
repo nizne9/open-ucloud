@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:open_cloud_client/src/assignment_content_view.dart';
+import 'package:open_ucloud_client/src/assignment_content_view.dart';
 
 void main() {
   Future<void> pumpContent(WidgetTester tester, String content) async {

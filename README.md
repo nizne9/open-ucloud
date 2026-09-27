@@ -12,33 +12,36 @@ The initial direction is:
 Current workspace:
 
 - `crates/api`: public DTOs, role names, session responses, and auth error codes.
-- `crates/core`: `OpenCloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, assignments, resources, and session access refresh.
+- `crates/core`: `OpenUcloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, assignments, resources, and session access refresh.
 - `crates/store`: memory session storage plus system credential-store backed session persistence.
-- `crates/cli`: `open-cloud` command-line harness.
+- `crates/cli`: `open-ucloud` command-line harness.
 - `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication, course, assignment, and resource DTOs.
 - `apps/client`: Linux-first Flutter client shell with Linux, Android, Windows, and macOS platform runners for login, secure session storage, course listing, assignments, and resources.
 
 The first CLI login is intentionally interactive and persists its session through the system credential store:
 
 ```bash
-cargo run -p open-cloud-cli -- doctor
-cargo run -p open-cloud-cli -- doctor --json
-cargo run -p open-cloud-cli -- login --interactive
-cargo run -p open-cloud-cli -- session --json
-cargo run -p open-cloud-cli -- courses --json
-cargo run -p open-cloud-cli -- courses --with-going --json
-cargo run -p open-cloud-cli -- course <site-id> --json
-cargo run -p open-cloud-cli -- attendance --site <site-id> --json
-cargo run -p open-cloud-cli -- assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
-cargo run -p open-cloud-cli -- assignments undone --json
-cargo run -p open-cloud-cli -- assignments detail <assignment-id> --json
-cargo run -p open-cloud-cli -- assignments upload <assignment-id> --file <path> --yes --json
-cargo run -p open-cloud-cli -- assignments submit <assignment-id> [--content <text>|--content-file <path>] [--attachment <resource-id>] --yes --json
-cargo run -p open-cloud-cli -- resources list --site <site-id> [--site-name <name>] --json
-cargo run -p open-cloud-cli -- resources detail <resource-id> --site <site-id> [--site-name <name>] --json
-cargo run -p open-cloud-cli -- resources download <resource-id> --site <site-id> [--site-name <name>] --out-dir <dir> --json
-cargo run -p open-cloud-cli -- resources download-course --site <site-id> [--site-name <name>] --out-dir <dir> --yes --json
-cargo run -p open-cloud-cli -- logout --yes
+cargo run -p open-ucloud-cli -- doctor
+cargo run -p open-ucloud-cli -- doctor --json
+cargo run -p open-ucloud-cli -- login --interactive
+cargo run -p open-ucloud-cli -- session --json
+cargo run -p open-ucloud-cli -- courses --json
+cargo run -p open-ucloud-cli -- courses --with-going --json
+cargo run -p open-ucloud-cli -- course <site-id> --json
+cargo run -p open-ucloud-cli -- attendance --site <site-id> --json
+cargo run -p open-ucloud-cli -- attendance status --site <site-id> --json
+cargo run -p open-ucloud-cli -- attendance sign --site <site-id> --group <group-id> --yes --json
+cargo run -p open-ucloud-cli -- attendance qr --site <site-id> --group <group-id> --json
+cargo run -p open-ucloud-cli -- assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
+cargo run -p open-ucloud-cli -- assignments undone --json
+cargo run -p open-ucloud-cli -- assignments detail <assignment-id> --json
+cargo run -p open-ucloud-cli -- assignments upload <assignment-id> --file <path> --yes --json
+cargo run -p open-ucloud-cli -- assignments submit <assignment-id> [--content <text>|--content-file <path>] [--attachment <resource-id>] --yes --json
+cargo run -p open-ucloud-cli -- resources list --site <site-id> [--site-name <name>] --json
+cargo run -p open-ucloud-cli -- resources detail <resource-id> --site <site-id> [--site-name <name>] --json
+cargo run -p open-ucloud-cli -- resources download <resource-id> --site <site-id> [--site-name <name>] --out-dir <dir> --json
+cargo run -p open-ucloud-cli -- resources download-course --site <site-id> [--site-name <name>] --out-dir <dir> --yes --json
+cargo run -p open-ucloud-cli -- logout --yes
 ```
 
 `login` does not accept passwords as flags. Stored sessions use the platform credential store through `keyring`; if the platform backend is unavailable or locked, the CLI reports `SECURE_STORAGE_UNAVAILABLE` and does not fall back to plaintext files.
@@ -61,17 +64,17 @@ and run the client:
 
 ```bash
 sudo apt-get install clang cmake libgtk-3-dev libsecret-1-dev ninja-build pkg-config
-cargo build -p open-cloud-ffi
+cargo build -p open-ucloud-ffi
 cd apps/client
 flutter run -d linux
 ```
 
 Windows desktop builds must run on a Windows host with Flutter's Windows
 desktop toolchain installed. Build the Rust FFI DLL first so the Flutter
-Windows bundle can copy it next to `open_cloud_client.exe`:
+Windows bundle can copy it next to `open_ucloud_client.exe`:
 
 ```bash
-cargo build -p open-cloud-ffi
+cargo build -p open-ucloud-ffi
 cd apps/client
 flutter build windows --debug
 ```
@@ -79,7 +82,7 @@ flutter build windows --debug
 For release builds:
 
 ```bash
-cargo build --release -p open-cloud-ffi
+cargo build --release -p open-ucloud-ffi
 cd apps/client
 flutter build windows --release
 ```
@@ -89,7 +92,7 @@ toolchain installed. Build the Rust FFI dylib first, then build the Flutter
 bundle:
 
 ```bash
-cargo build -p open-cloud-ffi
+cargo build -p open-ucloud-ffi
 cd apps/client
 flutter build macos --debug
 ```
@@ -97,7 +100,7 @@ flutter build macos --debug
 For release/profile packaging, use the release Rust dylib:
 
 ```bash
-cargo build --release -p open-cloud-ffi
+cargo build --release -p open-ucloud-ffi
 cd apps/client
 flutter build macos --release
 ```
@@ -134,12 +137,12 @@ Linux releases are split by credential backend instead of silently pretending ev
 
 | Artifact | Build command | Backend | Persistence | Best for |
 | --- | --- | --- | --- | --- |
-| `open-cloud-linux-keyutils` | `cargo build --release -p open-cloud-cli` | Linux keyutils | Until reboot | WSL, headless servers, and low-dependency CLI use |
-| `open-cloud-linux-secret-service` | `cargo build --release -p open-cloud-cli --features linux-secret-service` | Secret Service | Until delete | Native Linux desktops with a running secret store |
+| `open-ucloud-linux-keyutils` | `cargo build --release -p open-ucloud-cli` | Linux keyutils | Until reboot | WSL, headless servers, and low-dependency CLI use |
+| `open-ucloud-linux-secret-service` | `cargo build --release -p open-ucloud-cli --features linux-secret-service` | Secret Service | Until delete | Native Linux desktops with a running secret store |
 
 The Secret Service artifact requires a DBus session and a provider such as GNOME Keyring, KWallet, or KeePassXC with an unlocked collection. Building it may also require `libdbus-1-dev` and `pkg-config`; use `--features linux-secret-service-vendored` only when the release environment intentionally needs vendored native dependencies.
 
-Use `open-cloud doctor` to confirm the actual `credential backend`, `credential persistence`, and runtime `credential status` of the binary being run. The runtime probe uses a temporary `doctor-probe` credential entry, not the stored login session.
+Use `open-ucloud doctor` to confirm the actual `credential backend`, `credential persistence`, and runtime `credential status` of the binary being run. The runtime probe uses a temporary `doctor-probe` credential entry, not the stored login session.
 
 ## CI and Release Artifacts
 

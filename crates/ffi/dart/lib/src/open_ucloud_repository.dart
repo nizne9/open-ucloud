@@ -3,7 +3,7 @@
 /// Flutter clients should implement this with platform secure storage such as
 /// Keychain or Keystore. The payload is opaque to Dart and must be passed back
 /// to Rust unchanged.
-abstract interface class OpenCloudSessionStorage {
+abstract interface class OpenUcloudSessionStorage {
   Future<String?> readSessionPayload();
 
   Future<void> writeSessionPayload(String payload);

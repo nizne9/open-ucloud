@@ -2,77 +2,77 @@ import 'dart:io';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show ExternalLibrary;
-import 'package:open_cloud_ffi/open_cloud_ffi.dart' as open_cloud_ffi;
+import 'package:open_ucloud_ffi/open_ucloud_ffi.dart' as open_ucloud_ffi;
 import 'package:path/path.dart' as p;
 
-abstract interface class OpenCloudGateway {
+abstract interface class OpenUcloudGateway {
   Future<void> init();
 
-  Future<open_cloud_ffi.FfiAuthStartResponse> authStart(String username);
+  Future<open_ucloud_ffi.FfiAuthStartResponse> authStart(String username);
 
-  Future<open_cloud_ffi.FfiAuthFinishResponse> authFinish(
-    open_cloud_ffi.FfiAuthFinishRequest request,
-    open_cloud_ffi.FfiLoginFlow flow,
+  Future<open_ucloud_ffi.FfiAuthFinishResponse> authFinish(
+    open_ucloud_ffi.FfiAuthFinishRequest request,
+    open_ucloud_ffi.FfiLoginFlow flow,
   );
 
-  Future<open_cloud_ffi.FfiAuthSessionResponse> sessionSummary(
+  Future<open_ucloud_ffi.FfiAuthSessionResponse> sessionSummary(
     String sessionPayload,
   );
 
-  Future<open_cloud_ffi.FfiClientCapabilities> capabilities();
+  Future<open_ucloud_ffi.FfiClientCapabilities> capabilities();
 
-  Future<open_cloud_ffi.FfiAttendanceQrPayload> parseAttendanceQrPayloadText(
+  Future<open_ucloud_ffi.FfiAttendanceQrPayload> parseAttendanceQrPayloadText(
     String payload,
   );
 
-  Future<open_cloud_ffi.FfiCourseResponse> courses({
+  Future<open_ucloud_ffi.FfiCourseResponse> courses({
     required String sessionPayload,
     required bool withGoing,
   });
 
-  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsUndone({
+  Future<open_ucloud_ffi.FfiAssignmentListResponse> assignmentsUndone({
     required String sessionPayload,
   });
 
-  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsForCourse({
+  Future<open_ucloud_ffi.FfiAssignmentListResponse> assignmentsForCourse({
     required String sessionPayload,
     required String siteId,
     required String siteName,
     required String keyword,
   });
 
-  Future<open_cloud_ffi.FfiAssignmentDetailResponse> assignmentDetail({
+  Future<open_ucloud_ffi.FfiAssignmentDetailResponse> assignmentDetail({
     required String sessionPayload,
     required String assignmentId,
   });
 
-  Future<open_cloud_ffi.FfiAssignmentUploadResponse> assignmentUpload({
+  Future<open_ucloud_ffi.FfiAssignmentUploadResponse> assignmentUpload({
     required String sessionPayload,
     required String assignmentId,
     required String filePath,
   });
 
-  Future<open_cloud_ffi.FfiAssignmentSubmitResponse> assignmentSubmit({
+  Future<open_ucloud_ffi.FfiAssignmentSubmitResponse> assignmentSubmit({
     required String sessionPayload,
     required String assignmentId,
     required String content,
     required List<String> attachmentIds,
   });
 
-  Future<open_cloud_ffi.FfiCourseResourcesResponse> resourcesForCourse({
+  Future<open_ucloud_ffi.FfiCourseResourcesResponse> resourcesForCourse({
     required String sessionPayload,
     required String siteId,
     required String siteName,
   });
 
-  Future<open_cloud_ffi.FfiCourseResourceDetailResponse> resourceDetail({
+  Future<open_ucloud_ffi.FfiCourseResourceDetailResponse> resourceDetail({
     required String sessionPayload,
     required String resourceId,
     required String siteId,
     required String siteName,
   });
 
-  Future<open_cloud_ffi.FfiDownloadTaskStartResponse> resourceDownloadStart({
+  Future<open_ucloud_ffi.FfiDownloadTaskStartResponse> resourceDownloadStart({
     required String sessionPayload,
     required String resourceId,
     required String siteId,
@@ -80,7 +80,7 @@ abstract interface class OpenCloudGateway {
     required String outputPath,
   });
 
-  Future<open_cloud_ffi.FfiDownloadTaskStartResponse>
+  Future<open_ucloud_ffi.FfiDownloadTaskStartResponse>
   resourceDownloadCourseStart({
     required String sessionPayload,
     required String siteId,
@@ -88,20 +88,20 @@ abstract interface class OpenCloudGateway {
     required String outputDir,
   });
 
-  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskStatus({
+  Future<open_ucloud_ffi.FfiDownloadTaskStatus> downloadTaskStatus({
     required String taskId,
   });
 
-  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskCancel({
+  Future<open_ucloud_ffi.FfiDownloadTaskStatus> downloadTaskCancel({
     required String taskId,
   });
 
   Future<void> downloadTaskDispose({required String taskId});
 
-  Future<open_cloud_ffi.FfiLogoutResponse> logout();
+  Future<open_ucloud_ffi.FfiLogoutResponse> logout();
 }
 
-class FfiOpenCloudGateway implements OpenCloudGateway {
+class FfiOpenUcloudGateway implements OpenUcloudGateway {
   bool _initialized = false;
 
   @override
@@ -112,9 +112,9 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
 
     final libraryPath = _findBundledLibraryPath() ?? _findDebugLibraryPath();
     if (libraryPath == null) {
-      await open_cloud_ffi.RustLib.init();
+      await open_ucloud_ffi.RustLib.init();
     } else {
-      await open_cloud_ffi.RustLib.init(
+      await open_ucloud_ffi.RustLib.init(
         externalLibrary: ExternalLibrary.open(libraryPath),
       );
     }
@@ -122,63 +122,63 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiAuthStartResponse> authStart(String username) {
-    return open_cloud_ffi.authStart(username: username);
+  Future<open_ucloud_ffi.FfiAuthStartResponse> authStart(String username) {
+    return open_ucloud_ffi.authStart(username: username);
   }
 
   @override
-  Future<open_cloud_ffi.FfiAuthFinishResponse> authFinish(
-    open_cloud_ffi.FfiAuthFinishRequest request,
-    open_cloud_ffi.FfiLoginFlow flow,
+  Future<open_ucloud_ffi.FfiAuthFinishResponse> authFinish(
+    open_ucloud_ffi.FfiAuthFinishRequest request,
+    open_ucloud_ffi.FfiLoginFlow flow,
   ) {
-    return open_cloud_ffi.authFinish(request: request, flow: flow);
+    return open_ucloud_ffi.authFinish(request: request, flow: flow);
   }
 
   @override
-  Future<open_cloud_ffi.FfiAuthSessionResponse> sessionSummary(
+  Future<open_ucloud_ffi.FfiAuthSessionResponse> sessionSummary(
     String sessionPayload,
   ) {
-    return open_cloud_ffi.sessionSummary(sessionPayload: sessionPayload);
+    return open_ucloud_ffi.sessionSummary(sessionPayload: sessionPayload);
   }
 
   @override
-  Future<open_cloud_ffi.FfiClientCapabilities> capabilities() {
-    return open_cloud_ffi.capabilities();
+  Future<open_ucloud_ffi.FfiClientCapabilities> capabilities() {
+    return open_ucloud_ffi.capabilities();
   }
 
   @override
-  Future<open_cloud_ffi.FfiAttendanceQrPayload> parseAttendanceQrPayloadText(
+  Future<open_ucloud_ffi.FfiAttendanceQrPayload> parseAttendanceQrPayloadText(
     String payload,
   ) {
-    return open_cloud_ffi.parseAttendanceQrPayloadText(payload: payload);
+    return open_ucloud_ffi.parseAttendanceQrPayloadText(payload: payload);
   }
 
   @override
-  Future<open_cloud_ffi.FfiCourseResponse> courses({
+  Future<open_ucloud_ffi.FfiCourseResponse> courses({
     required String sessionPayload,
     required bool withGoing,
   }) {
-    return open_cloud_ffi.courses(
+    return open_ucloud_ffi.courses(
       sessionPayload: sessionPayload,
       withGoing: withGoing,
     );
   }
 
   @override
-  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsUndone({
+  Future<open_ucloud_ffi.FfiAssignmentListResponse> assignmentsUndone({
     required String sessionPayload,
   }) {
-    return open_cloud_ffi.assignmentsUndone(sessionPayload: sessionPayload);
+    return open_ucloud_ffi.assignmentsUndone(sessionPayload: sessionPayload);
   }
 
   @override
-  Future<open_cloud_ffi.FfiAssignmentListResponse> assignmentsForCourse({
+  Future<open_ucloud_ffi.FfiAssignmentListResponse> assignmentsForCourse({
     required String sessionPayload,
     required String siteId,
     required String siteName,
     required String keyword,
   }) {
-    return open_cloud_ffi.assignmentsForCourse(
+    return open_ucloud_ffi.assignmentsForCourse(
       sessionPayload: sessionPayload,
       siteId: siteId,
       siteName: siteName,
@@ -187,23 +187,23 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiAssignmentDetailResponse> assignmentDetail({
+  Future<open_ucloud_ffi.FfiAssignmentDetailResponse> assignmentDetail({
     required String sessionPayload,
     required String assignmentId,
   }) {
-    return open_cloud_ffi.assignmentDetail(
+    return open_ucloud_ffi.assignmentDetail(
       sessionPayload: sessionPayload,
       assignmentId: assignmentId,
     );
   }
 
   @override
-  Future<open_cloud_ffi.FfiAssignmentUploadResponse> assignmentUpload({
+  Future<open_ucloud_ffi.FfiAssignmentUploadResponse> assignmentUpload({
     required String sessionPayload,
     required String assignmentId,
     required String filePath,
   }) {
-    return open_cloud_ffi.assignmentUpload(
+    return open_ucloud_ffi.assignmentUpload(
       sessionPayload: sessionPayload,
       assignmentId: assignmentId,
       filePath: filePath,
@@ -211,13 +211,13 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiAssignmentSubmitResponse> assignmentSubmit({
+  Future<open_ucloud_ffi.FfiAssignmentSubmitResponse> assignmentSubmit({
     required String sessionPayload,
     required String assignmentId,
     required String content,
     required List<String> attachmentIds,
   }) {
-    return open_cloud_ffi.assignmentSubmit(
+    return open_ucloud_ffi.assignmentSubmit(
       sessionPayload: sessionPayload,
       assignmentId: assignmentId,
       content: content,
@@ -226,12 +226,12 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiCourseResourcesResponse> resourcesForCourse({
+  Future<open_ucloud_ffi.FfiCourseResourcesResponse> resourcesForCourse({
     required String sessionPayload,
     required String siteId,
     required String siteName,
   }) {
-    return open_cloud_ffi.resourcesForCourse(
+    return open_ucloud_ffi.resourcesForCourse(
       sessionPayload: sessionPayload,
       siteId: siteId,
       siteName: siteName,
@@ -239,13 +239,13 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiCourseResourceDetailResponse> resourceDetail({
+  Future<open_ucloud_ffi.FfiCourseResourceDetailResponse> resourceDetail({
     required String sessionPayload,
     required String resourceId,
     required String siteId,
     required String siteName,
   }) {
-    return open_cloud_ffi.resourceDetail(
+    return open_ucloud_ffi.resourceDetail(
       sessionPayload: sessionPayload,
       resourceId: resourceId,
       siteId: siteId,
@@ -254,14 +254,14 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiDownloadTaskStartResponse> resourceDownloadStart({
+  Future<open_ucloud_ffi.FfiDownloadTaskStartResponse> resourceDownloadStart({
     required String sessionPayload,
     required String resourceId,
     required String siteId,
     required String siteName,
     required String outputPath,
   }) {
-    return open_cloud_ffi.resourceDownloadStart(
+    return open_ucloud_ffi.resourceDownloadStart(
       sessionPayload: sessionPayload,
       resourceId: resourceId,
       siteId: siteId,
@@ -271,14 +271,14 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiDownloadTaskStartResponse>
+  Future<open_ucloud_ffi.FfiDownloadTaskStartResponse>
   resourceDownloadCourseStart({
     required String sessionPayload,
     required String siteId,
     required String siteName,
     required String outputDir,
   }) {
-    return open_cloud_ffi.resourceDownloadCourseStart(
+    return open_ucloud_ffi.resourceDownloadCourseStart(
       sessionPayload: sessionPayload,
       siteId: siteId,
       siteName: siteName,
@@ -287,27 +287,27 @@ class FfiOpenCloudGateway implements OpenCloudGateway {
   }
 
   @override
-  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskStatus({
+  Future<open_ucloud_ffi.FfiDownloadTaskStatus> downloadTaskStatus({
     required String taskId,
   }) {
-    return open_cloud_ffi.downloadTaskStatus(taskId: taskId);
+    return open_ucloud_ffi.downloadTaskStatus(taskId: taskId);
   }
 
   @override
-  Future<open_cloud_ffi.FfiDownloadTaskStatus> downloadTaskCancel({
+  Future<open_ucloud_ffi.FfiDownloadTaskStatus> downloadTaskCancel({
     required String taskId,
   }) {
-    return open_cloud_ffi.downloadTaskCancel(taskId: taskId);
+    return open_ucloud_ffi.downloadTaskCancel(taskId: taskId);
   }
 
   @override
   Future<void> downloadTaskDispose({required String taskId}) {
-    return open_cloud_ffi.downloadTaskDispose(taskId: taskId);
+    return open_ucloud_ffi.downloadTaskDispose(taskId: taskId);
   }
 
   @override
-  Future<open_cloud_ffi.FfiLogoutResponse> logout() {
-    return open_cloud_ffi.logout();
+  Future<open_ucloud_ffi.FfiLogoutResponse> logout() {
+    return open_ucloud_ffi.logout();
   }
 }
 
@@ -349,15 +349,15 @@ String? _findBundledLibraryPath() {
 
 String bundledMacOsLibraryPathForExecutable(String executablePath) {
   final contentsDir = p.dirname(p.dirname(executablePath));
-  return p.join(contentsDir, 'Frameworks', 'libopen_cloud_ffi.dylib');
+  return p.join(contentsDir, 'Frameworks', 'libopen_ucloud_ffi.dylib');
 }
 
 String? _debugLibraryName() {
   if (Platform.isLinux) {
-    return 'libopen_cloud_ffi.so';
+    return 'libopen_ucloud_ffi.so';
   }
   if (Platform.isMacOS) {
-    return 'libopen_cloud_ffi.dylib';
+    return 'libopen_ucloud_ffi.dylib';
   }
   return null;
 }

@@ -10,10 +10,10 @@ Once the workspace exists, expected verification is:
 cargo fmt --all
 cargo clippy --workspace --all-targets
 cargo test --workspace
-cargo run -p open-cloud-cli -- --help
-cargo run -p open-cloud-cli -- assignments --help
-cargo run -p open-cloud-cli -- resources --help
-cargo run -p open-cloud-cli -- doctor
+cargo run -p open-ucloud-cli -- --help
+cargo run -p open-ucloud-cli -- assignments --help
+cargo run -p open-ucloud-cli -- resources --help
+cargo run -p open-ucloud-cli -- doctor
 ```
 
 Flutter work should also run:
@@ -34,17 +34,17 @@ Windows desktop client builds must run on a Windows host. Verify that the Rust
 FFI DLL is built before Flutter and copied into the executable directory:
 
 ```bash
-cargo build -p open-cloud-ffi
+cargo build -p open-ucloud-ffi
 cd apps/client
 flutter build windows --debug
 ```
 
-The debug output directory should contain `open_cloud_client.exe`,
-`flutter_windows.dll`, `open_cloud_ffi.dll`, and `data/`. Release builds use the
+The debug output directory should contain `open_ucloud_client.exe`,
+`flutter_windows.dll`, `open_ucloud_ffi.dll`, and `data/`. Release builds use the
 release Rust DLL:
 
 ```bash
-cargo build --release -p open-cloud-ffi
+cargo build --release -p open-ucloud-ffi
 cd apps/client
 flutter build windows --release
 ```
@@ -53,7 +53,7 @@ macOS desktop client builds must run on a macOS host. Verify that the Rust FFI
 dylib is built before Flutter and copied into the app bundle:
 
 ```bash
-cargo build -p open-cloud-ffi
+cargo build -p open-ucloud-ffi
 cd apps/client
 flutter build macos --debug
 ```
@@ -61,13 +61,13 @@ flutter build macos --debug
 The debug app bundle should contain:
 
 ```text
-build/macos/Build/Products/Debug/open_cloud_client.app/Contents/Frameworks/libopen_cloud_ffi.dylib
+build/macos/Build/Products/Debug/open_ucloud_client.app/Contents/Frameworks/libopen_ucloud_ffi.dylib
 ```
 
 Release builds use the release Rust dylib:
 
 ```bash
-cargo build --release -p open-cloud-ffi
+cargo build --release -p open-ucloud-ffi
 cd apps/client
 flutter build macos --release
 ```
@@ -78,7 +78,7 @@ Android client changes should also verify the Rust FFI library is packaged:
 rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 cd apps/client
 flutter build apk --debug
-unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libopen_cloud_ffi.so
+unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libopen_ucloud_ffi.so
 ```
 
 Android release APKs must use the project release signing keystore. Local
@@ -110,10 +110,10 @@ Linux release artifacts must make credential persistence explicit:
 
 | Artifact | Build command | Expected `doctor` fields |
 | --- | --- | --- |
-| `open-cloud-linux-keyutils` | `cargo build --release -p open-cloud-cli` | `credential backend: keyutils`, `credential persistence: until-reboot`, and `credential status: available` in a working runtime |
-| `open-cloud-linux-secret-service` | `cargo build --release -p open-cloud-cli --features linux-secret-service` | `credential backend: secret-service`, `credential persistence: until-delete`, and `credential status: available` in a working desktop runtime |
+| `open-ucloud-linux-keyutils` | `cargo build --release -p open-ucloud-cli` | `credential backend: keyutils`, `credential persistence: until-reboot`, and `credential status: available` in a working runtime |
+| `open-ucloud-linux-secret-service` | `cargo build --release -p open-ucloud-cli --features linux-secret-service` | `credential backend: secret-service`, `credential persistence: until-delete`, and `credential status: available` in a working desktop runtime |
 
-Run `cargo run -p open-cloud-cli -- doctor` for the default Linux package. Verify the Secret Service build on a native Linux desktop with a DBus session, a Secret Service provider such as GNOME Keyring, KWallet, or KeePassXC, and an unlocked collection. Build hosts may need `libdbus-1-dev` and `pkg-config`; use `linux-secret-service-vendored` only for a release environment that intentionally vendors native dependencies.
+Run `cargo run -p open-ucloud-cli -- doctor` for the default Linux package. Verify the Secret Service build on a native Linux desktop with a DBus session, a Secret Service provider such as GNOME Keyring, KWallet, or KeePassXC, and an unlocked collection. Build hosts may need `libdbus-1-dev` and `pkg-config`; use `linux-secret-service-vendored` only for a release environment that intentionally vendors native dependencies.
 
 ## CI/CD Artifact Boundary
 

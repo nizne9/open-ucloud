@@ -33,17 +33,17 @@ extension AppThemeModeX on AppThemeMode {
   }
 }
 
-abstract class OpenCloudThemeModeStorage {
+abstract class OpenUcloudThemeModeStorage {
   Future<String?> readThemeMode();
 
   Future<void> writeThemeMode(String value);
 }
 
-class SecureOpenCloudThemeModeStorage implements OpenCloudThemeModeStorage {
-  SecureOpenCloudThemeModeStorage({FlutterSecureStorage? storage})
+class SecureOpenUcloudThemeModeStorage implements OpenUcloudThemeModeStorage {
+  SecureOpenUcloudThemeModeStorage({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _themeModeKey = 'open_cloud.theme_mode.v1';
+  static const _themeModeKey = 'open_ucloud.theme_mode.v1';
 
   final FlutterSecureStorage _storage;
 
@@ -58,8 +58,8 @@ class SecureOpenCloudThemeModeStorage implements OpenCloudThemeModeStorage {
   }
 }
 
-final themeModeStorageProvider = Provider<OpenCloudThemeModeStorage>(
-  (_) => SecureOpenCloudThemeModeStorage(),
+final themeModeStorageProvider = Provider<OpenUcloudThemeModeStorage>(
+  (_) => SecureOpenUcloudThemeModeStorage(),
 );
 
 final themeModeControllerProvider =

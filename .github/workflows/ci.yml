@@ -46,9 +46,9 @@ jobs:
 
       - name: Smoke-test CLI commands
         run: |
-          cargo run -p open-cloud-cli -- --help
-          cargo run -p open-cloud-cli -- doctor
-          cargo run -p open-cloud-cli -- capabilities --json
+          cargo run -p open-ucloud-cli -- --help
+          cargo run -p open-ucloud-cli -- doctor
+          cargo run -p open-ucloud-cli -- capabilities --json
 
   msrv:
     name: Rust 1.88 MSRV

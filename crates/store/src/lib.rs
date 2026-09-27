@@ -1,13 +1,13 @@
-use open_cloud_api::{RoleName, SessionUser};
+use open_ucloud_api::{RoleName, SessionUser};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
-pub const OPEN_CLOUD_KEYRING_SERVICE: &str = "open-cloud";
-pub const OPEN_CLOUD_KEYRING_ACCOUNT: &str = "default-session";
-pub const OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT: &str = "doctor-probe";
-const OPEN_CLOUD_KEYRING_DOCTOR_PROBE_PASSWORD: &str = "open-cloud-doctor-probe";
+pub const OPEN_UCLOUD_KEYRING_SERVICE: &str = "open-ucloud";
+pub const OPEN_UCLOUD_KEYRING_ACCOUNT: &str = "default-session";
+pub const OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT: &str = "doctor-probe";
+const OPEN_UCLOUD_KEYRING_DOCTOR_PROBE_PASSWORD: &str = "open-ucloud-doctor-probe";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AuthSession {
@@ -126,7 +126,7 @@ impl CredentialProbeStatus {
 
 fn sanitize_probe_reason(reason: String) -> String {
     reason
-        .replace(OPEN_CLOUD_KEYRING_DOCTOR_PROBE_PASSWORD, "[redacted]")
+        .replace(OPEN_UCLOUD_KEYRING_DOCTOR_PROBE_PASSWORD, "[redacted]")
         .replace(['\r', '\n'], " ")
 }
 
@@ -147,8 +147,8 @@ where
         let payload = serde_json::to_string(session)
             .map_err(|error| StoreError::Decode(error.to_string()))?;
         self.backend.set_password(
-            OPEN_CLOUD_KEYRING_SERVICE,
-            OPEN_CLOUD_KEYRING_ACCOUNT,
+            OPEN_UCLOUD_KEYRING_SERVICE,
+            OPEN_UCLOUD_KEYRING_ACCOUNT,
             &payload,
         )
     }
@@ -156,7 +156,7 @@ where
     pub fn load_current(&self, now_ms: u64) -> Result<Option<AuthSession>, StoreError> {
         let Some(payload) = self
             .backend
-            .get_password(OPEN_CLOUD_KEYRING_SERVICE, OPEN_CLOUD_KEYRING_ACCOUNT)?
+            .get_password(OPEN_UCLOUD_KEYRING_SERVICE, OPEN_UCLOUD_KEYRING_ACCOUNT)?
         else {
             return Ok(None);
         };
@@ -171,7 +171,7 @@ where
 
     pub fn clear_current(&self) -> Result<(), StoreError> {
         self.backend
-            .delete_password(OPEN_CLOUD_KEYRING_SERVICE, OPEN_CLOUD_KEYRING_ACCOUNT)
+            .delete_password(OPEN_UCLOUD_KEYRING_SERVICE, OPEN_UCLOUD_KEYRING_ACCOUNT)
     }
 }
 
@@ -209,37 +209,37 @@ where
     B: CredentialBackend,
 {
     if let Err(error) = backend.set_password(
-        OPEN_CLOUD_KEYRING_SERVICE,
-        OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT,
-        OPEN_CLOUD_KEYRING_DOCTOR_PROBE_PASSWORD,
+        OPEN_UCLOUD_KEYRING_SERVICE,
+        OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT,
+        OPEN_UCLOUD_KEYRING_DOCTOR_PROBE_PASSWORD,
     ) {
         return CredentialProbe::unavailable(error.to_string());
     }
 
     match backend.get_password(
-        OPEN_CLOUD_KEYRING_SERVICE,
-        OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT,
+        OPEN_UCLOUD_KEYRING_SERVICE,
+        OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT,
     ) {
-        Ok(Some(value)) if value == OPEN_CLOUD_KEYRING_DOCTOR_PROBE_PASSWORD => {}
+        Ok(Some(value)) if value == OPEN_UCLOUD_KEYRING_DOCTOR_PROBE_PASSWORD => {}
         Ok(_) => {
             let _ = backend.delete_password(
-                OPEN_CLOUD_KEYRING_SERVICE,
-                OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT,
+                OPEN_UCLOUD_KEYRING_SERVICE,
+                OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT,
             );
             return CredentialProbe::unavailable("credential probe read did not match write");
         }
         Err(error) => {
             let _ = backend.delete_password(
-                OPEN_CLOUD_KEYRING_SERVICE,
-                OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT,
+                OPEN_UCLOUD_KEYRING_SERVICE,
+                OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT,
             );
             return CredentialProbe::unavailable(error.to_string());
         }
     }
 
     if let Err(error) = backend.delete_password(
-        OPEN_CLOUD_KEYRING_SERVICE,
-        OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT,
+        OPEN_UCLOUD_KEYRING_SERVICE,
+        OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT,
     ) {
         return CredentialProbe::unavailable(error.to_string());
     }

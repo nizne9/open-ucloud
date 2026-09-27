@@ -1,6 +1,6 @@
 use crate::protocol::{parse_ucloud_envelope, value_to_string, UcloudJsonHeaders};
-use crate::{AuthError, HttpClient, HttpMethod, HttpRequest, OpenCloudClient};
-use open_cloud_api::{AuthErrorCode, CourseDetailResponse, CourseSite, GoingSite};
+use crate::{AuthError, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
+use open_ucloud_api::{AuthErrorCode, CourseDetailResponse, CourseSite, GoingSite};
 use serde::Deserialize;
 use std::collections::HashSet;
 
@@ -8,7 +8,7 @@ const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
 const COURSE_PAGE_SIZE: u32 = 100;
 const MAX_COURSE_PAGES: u32 = 100;
 
-impl<C> OpenCloudClient<C>
+impl<C> OpenUcloudClient<C>
 where
     C: HttpClient,
 {

@@ -171,6 +171,23 @@ pub struct AttendanceQrPayload {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AttendanceSignResponse {
+    pub ok: bool,
+    pub site_id: String,
+    pub group_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttendanceQrResponse {
+    pub attendance_id: String,
+    pub site_id: String,
+    pub group_id: String,
+    pub create_time: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ClientCapabilities {
     pub self_attendance: bool,
     pub attendance_qr_payload_parsing: bool,

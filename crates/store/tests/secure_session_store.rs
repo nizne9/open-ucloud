@@ -1,8 +1,8 @@
-use open_cloud_api::{RoleName, SessionUser};
-use open_cloud_store::{
+use open_ucloud_api::{RoleName, SessionUser};
+use open_ucloud_store::{
     credential_probe, system_credential_backend, system_credential_persistence, AuthSession,
     CredentialBackend, CredentialProbeStatus, SecureSessionStore, StoreError,
-    OPEN_CLOUD_KEYRING_ACCOUNT, OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT, OPEN_CLOUD_KEYRING_SERVICE,
+    OPEN_UCLOUD_KEYRING_ACCOUNT, OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT, OPEN_UCLOUD_KEYRING_SERVICE,
 };
 use std::sync::{Arc, Mutex};
 
@@ -13,21 +13,21 @@ struct MockCredentialBackend {
 
 impl CredentialBackend for MockCredentialBackend {
     fn get_password(&self, service: &str, account: &str) -> Result<Option<String>, StoreError> {
-        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
-        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        assert_eq!(service, OPEN_UCLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_UCLOUD_KEYRING_ACCOUNT);
         Ok(self.value.lock().expect("mock lock").clone())
     }
 
     fn set_password(&self, service: &str, account: &str, password: &str) -> Result<(), StoreError> {
-        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
-        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        assert_eq!(service, OPEN_UCLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_UCLOUD_KEYRING_ACCOUNT);
         *self.value.lock().expect("mock lock") = Some(password.to_string());
         Ok(())
     }
 
     fn delete_password(&self, service: &str, account: &str) -> Result<(), StoreError> {
-        assert_eq!(service, OPEN_CLOUD_KEYRING_SERVICE);
-        assert_eq!(account, OPEN_CLOUD_KEYRING_ACCOUNT);
+        assert_eq!(service, OPEN_UCLOUD_KEYRING_SERVICE);
+        assert_eq!(account, OPEN_UCLOUD_KEYRING_ACCOUNT);
         *self.value.lock().expect("mock lock") = None;
         Ok(())
     }
@@ -80,8 +80,8 @@ fn corrupt_current_session_returns_decode_error_without_secret_text() {
     let backend = MockCredentialBackend::default();
     backend
         .set_password(
-            OPEN_CLOUD_KEYRING_SERVICE,
-            OPEN_CLOUD_KEYRING_ACCOUNT,
+            OPEN_UCLOUD_KEYRING_SERVICE,
+            OPEN_UCLOUD_KEYRING_ACCOUNT,
             "not-json-refresh-token-like-secret",
         )
         .expect("mock set");
@@ -207,24 +207,24 @@ fn credential_probe_uses_ephemeral_doctor_entry_not_session_entry() {
         [
             (
                 "set".to_string(),
-                OPEN_CLOUD_KEYRING_SERVICE.to_string(),
-                OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT.to_string()
+                OPEN_UCLOUD_KEYRING_SERVICE.to_string(),
+                OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT.to_string()
             ),
             (
                 "get".to_string(),
-                OPEN_CLOUD_KEYRING_SERVICE.to_string(),
-                OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT.to_string()
+                OPEN_UCLOUD_KEYRING_SERVICE.to_string(),
+                OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT.to_string()
             ),
             (
                 "delete".to_string(),
-                OPEN_CLOUD_KEYRING_SERVICE.to_string(),
-                OPEN_CLOUD_KEYRING_DOCTOR_ACCOUNT.to_string()
+                OPEN_UCLOUD_KEYRING_SERVICE.to_string(),
+                OPEN_UCLOUD_KEYRING_DOCTOR_ACCOUNT.to_string()
             )
         ]
     );
     assert!(operations
         .iter()
-        .all(|(_, _, account)| account != OPEN_CLOUD_KEYRING_ACCOUNT));
+        .all(|(_, _, account)| account != OPEN_UCLOUD_KEYRING_ACCOUNT));
 }
 
 #[test]
@@ -244,5 +244,5 @@ fn credential_probe_reports_unavailable_reason_without_probe_secret() {
         .reason
         .as_deref()
         .unwrap_or_default()
-        .contains("open-cloud-doctor-probe"));
+        .contains("open-ucloud-doctor-probe"));
 }

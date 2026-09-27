@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "io.github.nizne9" "\0"
-            VALUE "FileDescription", "open_cloud_client" "\0"
+            VALUE "FileDescription", "open_ucloud_client" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "open_cloud_client" "\0"
+            VALUE "InternalName", "open_ucloud_client" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 io.github.nizne9. All rights reserved." "\0"
-            VALUE "OriginalFilename", "open_cloud_client.exe" "\0"
-            VALUE "ProductName", "open_cloud_client" "\0"
+            VALUE "OriginalFilename", "open_ucloud_client.exe" "\0"
+            VALUE "ProductName", "open_ucloud_client" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

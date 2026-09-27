@@ -1,5 +1,5 @@
 [package]
-name = "open-cloud-core"
+name = "open-ucloud-core"
 version = "0.2.0"
 edition.workspace = true
 license.workspace = true
@@ -12,8 +12,8 @@ base64.workspace = true
 chrono.workspace = true
 cookie.workspace = true
 futures-util.workspace = true
-open-cloud-api = { path = "../api" }
-open-cloud-store = { path = "../store", default-features = false }
+open-ucloud-api = { path = "../api" }
+open-ucloud-store = { path = "../store", default-features = false }
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -1,10 +1,10 @@
 # Architecture
 
-Open Cloud is client-first. The first reusable harness is Rust core plus CLI; Flutter is the primary user client; Web is optional and must remain an adapter.
+Open UCloud is client-first. The first reusable harness is Rust core plus CLI; Flutter is the primary user client; Web is optional and must remain an adapter.
 
 ## Module Boundaries
 
-- `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, read-only attendance state, user-supplied attendance QR payload parsing, public capability defaults, assignments, and resources.
+- `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, attendance state and user-triggered check-in, user-supplied attendance QR payload parsing, in-progress attendance QR preparation, public capability defaults, assignments, and resources.
 - `crates/api/`: stable DTOs, command/response shapes, and error codes shared by CLI, FFI, and future adapters.
 - `crates/store/`: storage abstractions and implementations for in-memory session storage, system credential-store persistence, and credential backend diagnostics.
 - `crates/cli/`: agent-friendly command-line client. It is the first integration surface and smoke-test harness for core.
@@ -23,13 +23,13 @@ polling cannot overwrite secure storage with an older payload.
 
 `crates/core/src/lib.rs` is a public facade only. Keep implementation details in focused modules:
 
-- `client.rs`: `OpenCloudClient` and endpoint configuration shared by core operations.
+- `client.rs`: `OpenUcloudClient` and endpoint configuration shared by core operations.
 - `transport.rs`: HTTP request/response abstractions and the reqwest adapter.
 - `error.rs`: core error type and stable API error-code mapping.
 - `auth.rs`: login, ticket exchange, role lookup, and token refresh protocol.
 - `session.rs`: session refresh orchestration using store abstractions.
 - `courses.rs`: course list loading and course detail resolution.
-- `attendance.rs`: check-in/attendance state loading and pure parsing for user-supplied `checkwork|...` QR payload text.
+- `attendance.rs`: check-in/attendance state loading, user check-in submission, attendance QR parameter preparation, and pure parsing for user-supplied `checkwork|...` QR payload text.
 - `extensions.rs`: client capability defaults shared by adapters.
 - `assignments.rs`: assignment list/detail normalization, attachment upload, and assignment submit protocol.
 - `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, and streamed, non-overwriting file downloads.
@@ -47,7 +47,7 @@ Flutter keeps immutable public presentation state in `client_state.dart` and orc
 
 The project is a personal client and self-hosted entry point for regular Open UCloud account use.
 
-Attendance-related core support currently covers course activity status and parsing `checkwork|...` QR payload text for clients that need to display it.
+Attendance-related core support covers course activity status, explicit check-in submission, attendance QR parameter preparation, and parsing `checkwork|...` QR payload text for clients that need to display it.
 
 Capability reporting keeps these surfaces explicit: `selfAttendance` describes whether a self-attendance flow is available in the current build, while `attendanceQrPayloadParsing` describes whether adapters can offer pasted QR payload parsing.
 

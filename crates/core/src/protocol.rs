@@ -1,5 +1,5 @@
 use crate::{AuthError, HttpResponse};
-use open_cloud_api::AuthErrorCode;
+use open_ucloud_api::AuthErrorCode;
 use serde::Deserialize;
 
 pub(crate) const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
@@ -109,6 +109,12 @@ impl<'a> UcloudJsonHeaders<'a> {
             ("Blade-Auth".to_string(), self.access_token.to_string()),
         ]
     }
+
+    pub(crate) fn into_json_post_vec(self) -> Vec<(String, String)> {
+        let mut headers = self.into_vec();
+        headers.push(("content-type".to_string(), "application/json".to_string()));
+        headers
+    }
 }
 
 pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {
@@ -122,7 +128,7 @@ pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use open_cloud_api::AuthErrorCode;
+    use open_ucloud_api::AuthErrorCode;
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize, Eq, PartialEq)]

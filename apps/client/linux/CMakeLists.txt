@@ -4,10 +4,10 @@ project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "open_cloud_client")
+set(BINARY_NAME "open_ucloud_client")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
-set(APPLICATION_ID "org.opencloud.open_cloud_client")
+set(APPLICATION_ID "io.github.nizne9.open_ucloud_client")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -76,17 +76,17 @@ include(flutter/generated_plugins.cmake)
 
 set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../..")
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
-  set(OPEN_CLOUD_FFI_LIBRARY
-    "${REPO_ROOT}/target/debug/libopen_cloud_ffi.so")
+  set(OPEN_UCLOUD_FFI_LIBRARY
+    "${REPO_ROOT}/target/debug/libopen_ucloud_ffi.so")
 else()
-  set(OPEN_CLOUD_FFI_LIBRARY
-    "${REPO_ROOT}/target/release/libopen_cloud_ffi.so")
+  set(OPEN_UCLOUD_FFI_LIBRARY
+    "${REPO_ROOT}/target/release/libopen_ucloud_ffi.so")
 endif()
 
-if(NOT EXISTS "${OPEN_CLOUD_FFI_LIBRARY}")
+if(NOT EXISTS "${OPEN_UCLOUD_FFI_LIBRARY}")
   message(FATAL_ERROR
-    "Missing ${OPEN_CLOUD_FFI_LIBRARY}. Run `cargo build -p open-cloud-ffi` "
-    "for debug builds or `cargo build --release -p open-cloud-ffi` for "
+    "Missing ${OPEN_UCLOUD_FFI_LIBRARY}. Run `cargo build -p open-ucloud-ffi` "
+    "for debug builds or `cargo build --release -p open-ucloud-ffi` for "
     "profile/release Flutter builds before building the Linux client.")
 endif()
 
@@ -122,7 +122,7 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
-install(FILES "${OPEN_CLOUD_FFI_LIBRARY}"
+install(FILES "${OPEN_UCLOUD_FFI_LIBRARY}"
   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
