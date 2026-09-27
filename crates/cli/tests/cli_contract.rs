@@ -356,6 +356,53 @@ async fn attendance_subcommand_conflicts_with_legacy_options() {
 }
 
 #[tokio::test]
+async fn attendance_sign_json_returns_failure_when_session_is_missing() {
+    let cli = Cli::try_parse_from([
+        "open-ucloud",
+        "attendance",
+        "sign",
+        "--site",
+        "site-1",
+        "--group",
+        "group-1",
+        "--yes",
+        "--json",
+    ])
+    .expect("sign parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing session fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
+async fn attendance_qr_json_returns_failure_when_session_is_missing() {
+    let cli = Cli::try_parse_from([
+        "open-ucloud",
+        "attendance",
+        "qr",
+        "--site",
+        "site-1",
+        "--group",
+        "group-1",
+        "--json",
+    ])
+    .expect("qr parses");
+    let store = SecureSessionStore::new(MockCredentialBackend::default());
+
+    let err = open_ucloud_cli::run_cli_with_store(cli, store)
+        .await
+        .expect_err("missing session fails");
+
+    assert!(err.json_error_was_printed());
+    assert_eq!(err.response().code, AuthErrorCode::SessionExpired);
+}
+
+#[tokio::test]
 async fn assignments_json_returns_failure_when_session_is_missing() {
     let cli = Cli::try_parse_from(["open-ucloud", "assignments", "undone", "--json"])
         .expect("assignments parses");
@@ -634,6 +681,36 @@ fn formats_attendance_status_without_group_id() {
     let output = open_ucloud_cli::format_attendance_status(&status);
 
     assert_eq!(output, "site-1\t软件测试\tidle\n");
+}
+
+#[test]
+fn formats_attendance_sign_record() {
+    let sign = open_ucloud_api::AttendanceSignResponse {
+        ok: true,
+        site_id: "site-1".to_string(),
+        group_id: "group-1".to_string(),
+    };
+
+    let output = open_ucloud_cli::format_attendance_sign(&sign);
+
+    assert_eq!(output, "signed\tsite-1\tgroup-1\n");
+}
+
+#[test]
+fn formats_attendance_qr_record() {
+    let qr = open_ucloud_api::AttendanceQrResponse {
+        attendance_id: "att-1".to_string(),
+        site_id: "site-1".to_string(),
+        group_id: "group-1".to_string(),
+        create_time: "clock-1".to_string(),
+    };
+
+    let output = open_ucloud_cli::format_attendance_qr(&qr);
+
+    assert_eq!(
+        output,
+        "attendanceId: att-1\nsiteId: site-1\ngroupId: group-1\ncreateTime: clock-1\n"
+    );
 }
 
 #[test]

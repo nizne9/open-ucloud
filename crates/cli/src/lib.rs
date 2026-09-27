@@ -459,7 +459,7 @@ where
             Ok(())
         }
         Commands::Courses { json, with_going } => {
-            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+            let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
             let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
                 Ok(session) => session,
@@ -523,7 +523,7 @@ where
             Ok(())
         }
         Commands::Course { site_id, json } => {
-            let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+            let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
             let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
             let session = match load_access_session(&store, &client, now_ms()).await {
                 Ok(session) => session,
@@ -751,7 +751,7 @@ where
             json,
         );
     }
-    let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+    let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
     let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let session = load_access_session_or_print(store, &client, json).await?;
     match action {
@@ -819,11 +819,11 @@ fn print_json_or<T: Serialize>(
     Ok(())
 }
 
-fn format_attendance_sign(response: &AttendanceSignResponse) -> String {
+pub fn format_attendance_sign(response: &AttendanceSignResponse) -> String {
     format!("signed\t{}\t{}\n", response.site_id, response.group_id)
 }
 
-fn format_attendance_qr(response: &AttendanceQrResponse) -> String {
+pub fn format_attendance_qr(response: &AttendanceQrResponse) -> String {
     format!(
         "attendanceId: {}\nsiteId: {}\ngroupId: {}\ncreateTime: {}\n",
         response.attendance_id, response.site_id, response.group_id, response.create_time
@@ -847,7 +847,7 @@ where
             json,
         );
     }
-    let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+    let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
     let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let session = load_access_session_or_print(store, &client, json).await?;
     match command {
@@ -995,7 +995,7 @@ where
             json,
         );
     }
-    let http = ReqwestHttpClient::new().map_err(to_response_error)?;
+    let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
     let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
     let session = load_access_session_or_print(store, &client, json).await?;
     match command {
