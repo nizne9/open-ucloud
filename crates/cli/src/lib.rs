@@ -463,56 +463,36 @@ where
         Commands::Courses { json, with_going } => {
             let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
             let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
-            let session = match load_access_session(&store, &client, now_ms()).await {
-                Ok(session) => session,
-                Err(error_response) if json => {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                Err(error_response) => return Err(error_response.into()),
-            };
-            let courses = match client
-                .get_student_courses(&session.user.user_id, &session.access_token)
-                .await
-                .map_err(to_response_error)
-            {
-                Ok(courses) => courses,
-                Err(error_response) if json => {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                Err(error_response) => return Err(error_response.into()),
-            };
+            let session = load_access_session_or_print(&store, &client, json).await?;
+            let courses = json_cli_result(
+                client
+                    .get_student_courses(&session.user.user_id, &session.access_token)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
             if json {
                 if with_going {
-                    let going_sites =
-                        match load_going_sites(&client, &courses, &session.access_token)
+                    let going_sites = json_cli_result(
+                        load_going_sites(&client, &courses, &session.access_token)
                             .await
-                            .map_err(to_response_error)
-                        {
-                            Ok(going_sites) => going_sites,
-                            Err(error_response) => {
-                                print_json_error_response(&error_response)?;
-                                return Err(CliError::JsonErrorPrinted(error_response));
-                            }
-                        };
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&CourseActivityResponse {
+                            .map_err(to_response_error),
+                        json,
+                    )?;
+                    print_json_or(
+                        &CourseActivityResponse {
                             records: courses,
-                            going_sites
-                        })
-                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-                    );
+                            going_sites,
+                        },
+                        json,
+                        String::new,
+                    )?;
                 } else {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&CourseListResponse { records: courses })
-                            .map_err(|err| error(
-                                AuthErrorCode::UnknownAuthError,
-                                err.to_string()
-                            ))?
-                    );
+                    print_json_or(
+                        &CourseListResponse { records: courses },
+                        json,
+                        String::new,
+                    )?;
                 }
             } else if with_going {
                 let going_sites = load_going_sites(&client, &courses, &session.access_token)
@@ -527,34 +507,14 @@ where
         Commands::Course { site_id, json } => {
             let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
             let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
-            let session = match load_access_session(&store, &client, now_ms()).await {
-                Ok(session) => session,
-                Err(error_response) if json => {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                Err(error_response) => return Err(error_response.into()),
-            };
-            let detail = match load_course_detail(&client, &session, &site_id)
-                .await
-                .map_err(to_response_error)
-            {
-                Ok(detail) => detail,
-                Err(error_response) if json => {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                Err(error_response) => return Err(error_response.into()),
-            };
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&detail)
-                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-                );
-            } else {
-                print!("{}", format_course_detail(&detail));
-            }
+            let session = load_access_session_or_print(&store, &client, json).await?;
+            let detail = json_cli_result(
+                load_course_detail(&client, &session, &site_id)
+                    .await
+                    .map_err(to_response_error),
+                json,
+            )?;
+            print_json_or(&detail, json, || format_course_detail(&detail))?;
             Ok(())
         }
         Commands::Attendance {
@@ -918,11 +878,6 @@ where
                     json,
                 );
             }
-            let bytes = json_cli_result(
-                std::fs::read(&file)
-                    .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string())),
-                json,
-            )?;
             let file_name = file
                 .file_name()
                 .and_then(|name| name.to_str())
@@ -930,10 +885,10 @@ where
             let file_name = json_cli_result(file_name, json)?;
             let response = json_cli_result(
                 client
-                    .upload_assignment_file(
+                    .upload_assignment_file_path(
                         &detail,
                         file_name,
-                        &bytes,
+                        &file,
                         &session.user.user_id,
                         &session.access_token,
                     )
@@ -1132,32 +1087,26 @@ where
     B: CredentialBackend,
     C: open_ucloud_core::HttpClient,
 {
-    match load_access_session(store, client, now_ms()).await {
-        Ok(session) => Ok(session),
-        Err(error_response) if json => {
-            print_json_error_response(&error_response)?;
-            Err(CliError::JsonErrorPrinted(error_response))
+    json_cli_result(load_access_session(store, client, now_ms()).await, json)
+}
+
+fn cli_error_to_cli_error(error_response: AuthErrorResponse, json: bool) -> CliError {
+    if json {
+        match print_json_error_response(&error_response) {
+            Ok(()) => CliError::JsonErrorPrinted(error_response),
+            Err(err) => err.into(),
         }
-        Err(error_response) => Err(error_response.into()),
+    } else {
+        error_response.into()
     }
 }
 
 fn json_cli_result<T>(result: Result<T, AuthErrorResponse>, json: bool) -> Result<T, CliError> {
-    match result {
-        Ok(value) => Ok(value),
-        Err(error_response) => match cli_error_response(error_response, json) {
-            Err(error) => Err(error),
-            Ok(()) => unreachable!("cli_error_response always returns an error"),
-        },
-    }
+    result.map_err(|error_response| cli_error_to_cli_error(error_response, json))
 }
 
 fn cli_error_response(error_response: AuthErrorResponse, json: bool) -> Result<(), CliError> {
-    if json {
-        print_json_error_response(&error_response)?;
-        return Err(CliError::JsonErrorPrinted(error_response));
-    }
-    Err(error_response.into())
+    Err(cli_error_to_cli_error(error_response, json))
 }
 
 fn assignment_json_flag(command: &AssignmentCommands) -> bool {
@@ -1263,107 +1212,55 @@ pub fn format_attendance_status(status: &AttendanceStatusResponse) -> String {
 }
 
 fn print_assignment_list(response: &AssignmentListResponse, json: bool) -> Result<(), CliError> {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(response)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-        return Ok(());
-    }
-    print!("{}", format_assignment_list(&response.records));
-    Ok(())
+    print_json_or(response, json, || format_assignment_list(&response.records))
 }
 
 fn print_assignment_detail(detail: &AssignmentDetailResponse, json: bool) -> Result<(), CliError> {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(detail)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-        return Ok(());
-    }
-    print!("{}", format_assignment_detail(detail));
-    Ok(())
+    print_json_or(detail, json, || format_assignment_detail(detail))
 }
 
 fn print_assignment_upload(
     response: &AssignmentUploadResponse,
     json: bool,
 ) -> Result<(), CliError> {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(response)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-    } else {
-        println!("{}\t{}", response.resource_id, response.file_name);
-    }
-    Ok(())
+    print_json_or(response, json, || {
+        format!("{}\t{}\n", response.resource_id, response.file_name)
+    })
 }
 
 fn print_assignment_submit(
     response: &AssignmentSubmitResponse,
     json: bool,
 ) -> Result<(), CliError> {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(response)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-    } else {
-        println!("assignment submitted");
-    }
-    Ok(())
+    print_json_or(response, json, || "assignment submitted\n".to_string())
 }
 
 fn print_resource_list(response: &CourseResourcesResponse, json: bool) -> Result<(), CliError> {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(response)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-        return Ok(());
-    }
-    print!("{}", format_resource_list(&response.records));
-    Ok(())
+    print_json_or(response, json, || format_resource_list(&response.records))
 }
 
 fn print_resource_detail(detail: &CourseResourceDetail, json: bool) -> Result<(), CliError> {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&open_ucloud_api::CourseResourceDetailResponse {
-                detail: detail.clone()
-            })
-            .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-        return Ok(());
-    }
-    print!("{}", format_resource_detail(detail));
-    Ok(())
+    print_json_or(
+        &open_ucloud_api::CourseResourceDetailResponse {
+            detail: detail.clone(),
+        },
+        json,
+        || format_resource_detail(detail),
+    )
 }
 
 fn print_download_response(
     response: &CourseResourceDownloadResponse,
     json: bool,
 ) -> Result<(), CliError> {
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(response)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-    } else {
+    print_json_or(response, json, || {
+        let mut out = String::new();
         for path in &response.written_paths {
-            println!("{path}");
+            out.push_str(path);
+            out.push('\n');
         }
-    }
-    Ok(())
+        out
+    })
 }
 
 pub fn format_assignment_list(assignments: &[AssignmentSummary]) -> String {
@@ -1468,49 +1365,7 @@ where
 }
 
 pub fn next_download_path(out_dir: &Path, file_name: &str) -> Result<PathBuf, AuthErrorResponse> {
-    let clean_name = sanitize_file_name(file_name);
-    let candidate = out_dir.join(&clean_name);
-    if !candidate.exists() {
-        return Ok(candidate);
-    }
-    let path = Path::new(&clean_name);
-    let stem = path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.is_empty())
-        .unwrap_or("download");
-    let extension = path.extension().and_then(|value| value.to_str());
-    for index in 1..10_000 {
-        let name = match extension {
-            Some(extension) => format!("{stem} ({index}).{extension}"),
-            None => format!("{stem} ({index})"),
-        };
-        let candidate = out_dir.join(name);
-        if !candidate.exists() {
-            return Ok(candidate);
-        }
-    }
-    Err(error(
-        AuthErrorCode::FileSystem,
-        "could not allocate a non-overwriting download path.",
-    ))
-}
-
-fn sanitize_file_name(file_name: &str) -> String {
-    let cleaned = file_name
-        .chars()
-        .map(|ch| match ch {
-            '/' | '\\' | '\0' => '_',
-            other => other,
-        })
-        .collect::<String>()
-        .trim()
-        .to_string();
-    if cleaned.is_empty() {
-        "download".to_string()
-    } else {
-        cleaned
-    }
+    open_ucloud_core::next_download_path_in_dir(out_dir, file_name).map_err(to_response_error)
 }
 
 trait AssignmentStatusLabel {
