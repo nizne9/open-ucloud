@@ -410,42 +410,22 @@ where
                     json,
                 );
             }
-            json_cli_result(login_interactive(&store, role, json).await, json)?;
+            let session = json_cli_result(login_interactive(&store, role).await, json)?;
+            print_json_or(&session, json, || format_logged_in_session(&session))?;
             Ok(())
         }
         Commands::Session { json } => {
-            let session = match load_persisted_session(&store, now_ms()) {
-                Ok(session) => session,
-                Err(error_response) if json => {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                Err(error_response) => return Err(error_response.into()),
-            };
-            let Some(response) = session else {
-                let error_response = error(
-                    AuthErrorCode::SessionExpired,
-                    "No persisted session is available. Run login --interactive first.",
-                );
-                if json {
-                    print_json_error_response(&error_response)?;
-                    return Err(CliError::JsonErrorPrinted(error_response));
-                }
-                return Err(error_response.into());
-            };
-            if json {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&response)
-                        .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-                );
-            } else {
-                println!(
-                    "Logged in as {} ({})",
-                    response.user.real_name,
-                    response.selected_role.as_str()
-                );
-            }
+            let session = json_cli_result(load_persisted_session(&store, now_ms()), json)?
+                .ok_or_else(|| {
+                    to_cli_error(
+                        error(
+                            AuthErrorCode::SessionExpired,
+                            "No persisted session is available. Run login --interactive first.",
+                        ),
+                        json,
+                    )
+                })?;
+            print_json_or(&session, json, || format_logged_in_session(&session))?;
             Ok(())
         }
         Commands::Capabilities { json } => {
@@ -526,11 +506,18 @@ where
     }
 }
 
+fn format_logged_in_session(session: &AuthSessionResponse) -> String {
+    format!(
+        "Logged in as {} ({})\n",
+        session.user.real_name,
+        session.selected_role.as_str()
+    )
+}
+
 async fn login_interactive(
     store: &SecureSessionStore<impl CredentialBackend>,
     role: Option<RoleName>,
-    json: bool,
-) -> Result<(), AuthErrorResponse> {
+) -> Result<AuthSessionResponse, AuthErrorResponse> {
     let username = prompt("Username: ")?;
     let password = rpassword::prompt_password("Password: ")
         .map_err(|err| error(AuthErrorCode::FileSystem, err.to_string()))?;
@@ -563,24 +550,10 @@ async fn login_interactive(
             user: result.user.clone(),
         })
         .map_err(store_error)?;
-    let response = AuthSessionResponse {
+    Ok(AuthSessionResponse {
         selected_role: result.selected_role,
         user: result.user,
-    };
-    if json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&response)
-                .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
-        );
-    } else {
-        println!(
-            "Logged in as {} ({})",
-            response.user.real_name,
-            response.selected_role.as_str()
-        );
-    }
-    Ok(())
+    })
 }
 
 fn parse_role(value: &str) -> Result<RoleName, String> {

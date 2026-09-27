@@ -15,7 +15,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::Path;
 
-pub const MAX_ASSIGNMENT_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
+pub const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
 const ASSIGNMENT_PAGE_SIZE: u32 = 100;
 const MAX_ASSIGNMENT_PAGES: u32 = 100;
 const PREVIEW_URL_CONCURRENCY: usize = 4;
@@ -289,7 +289,13 @@ where
         let metadata = tokio::fs::metadata(path)
             .await
             .map_err(|error| AuthError::file_system(error.to_string()))?;
-        validate_assignment_upload_metadata(file_name, metadata.len() as usize)?;
+        if !metadata.is_file() {
+            return Err(AuthError::new(
+                AuthErrorCode::InvalidInput,
+                "上传路径不是普通文件。",
+            ));
+        }
+        validate_assignment_upload_metadata(file_name, metadata.len())?;
         let response = self
             .http
             .send_multipart_file(
@@ -568,10 +574,10 @@ fn resolve_assignment_status(record: &RawAssignmentSummary) -> AssignmentStatus 
 }
 
 fn validate_assignment_upload(file_name: &str, bytes: &[u8]) -> Result<(), AuthError> {
-    validate_assignment_upload_metadata(file_name, bytes.len())
+    validate_assignment_upload_metadata(file_name, bytes.len() as u64)
 }
 
-fn validate_assignment_upload_metadata(file_name: &str, size: usize) -> Result<(), AuthError> {
+fn validate_assignment_upload_metadata(file_name: &str, size: u64) -> Result<(), AuthError> {
     if file_name.contains(['\r', '\n']) {
         return Err(AuthError::new(
             AuthErrorCode::InvalidFileName,

@@ -155,11 +155,16 @@ pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {
 }
 
 pub(crate) fn pick_string<const N: usize>(values: [Option<String>; N]) -> Option<String> {
-    values
-        .into_iter()
-        .flatten()
-        .map(|value| value.trim().to_string())
-        .find(|value| !value.is_empty())
+    values.into_iter().flatten().find_map(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else if trimmed.len() == value.len() {
+            Some(value)
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }
 
 #[cfg(test)]
@@ -347,7 +352,7 @@ mod tests {
                 None,
                 Some("".to_string()),
                 Some("   ".to_string()),
-                Some("found".to_string())
+                Some("  found  ".to_string())
             ]),
             Some("found".to_string())
         );

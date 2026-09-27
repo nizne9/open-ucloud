@@ -395,21 +395,37 @@ fn pick_u64<const N: usize>(values: [Option<serde_json::Value>; N]) -> Option<u6
     })
 }
 
+const WINDOWS_RESERVED_NAMES: &[&str] = &[
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
 pub fn sanitize_file_name(file_name: &str) -> String {
     let cleaned = file_name
         .chars()
         .map(|ch| match ch {
-            '/' | '\\' | '\0' => '_',
+            '/' | '\\' | '\0' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            ch if (ch as u32) < 32 => '_',
             other => other,
         })
         .collect::<String>()
         .trim()
+        .trim_end_matches(['.', ' '])
+        .trim()
         .to_string();
     if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
-        "download".to_string()
-    } else {
-        cleaned
+        return "download".to_string();
     }
+    let stem = Path::new(&cleaned)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase());
+    if let Some(stem) = stem {
+        if WINDOWS_RESERVED_NAMES.contains(&stem.as_str()) {
+            return format!("_{cleaned}");
+        }
+    }
+    cleaned
 }
 
 pub fn next_download_path_reserved(
@@ -463,11 +479,24 @@ mod tests {
         assert_eq!(sanitize_file_name("."), "download");
         assert_eq!(sanitize_file_name(".."), "download");
         assert_eq!(sanitize_file_name("  ..  "), "download");
+        assert_eq!(sanitize_file_name("..."), "download");
         assert_eq!(sanitize_file_name("path/to/file.pdf"), "path_to_file.pdf");
         assert_eq!(
             sanitize_file_name(r"win\path\file.pdf"),
             "win_path_file.pdf"
         );
+        assert_eq!(
+            sanitize_file_name("Lecture 1: Intro?.pdf"),
+            "Lecture 1_ Intro_.pdf"
+        );
+        assert_eq!(
+            sanitize_file_name("Assignment <1> *final* | v2.pdf"),
+            "Assignment _1_ _final_ _ v2.pdf"
+        );
+        assert_eq!(sanitize_file_name("Report.pdf..."), "Report.pdf");
+        assert_eq!(sanitize_file_name("con.txt"), "_con.txt");
+        assert_eq!(sanitize_file_name("NUL"), "_NUL");
+        assert_eq!(sanitize_file_name(".gitignore"), ".gitignore");
         assert_eq!(sanitize_file_name("regular.pdf"), "regular.pdf");
     }
 
