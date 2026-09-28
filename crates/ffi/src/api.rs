@@ -4,13 +4,13 @@ use open_ucloud_api::{
     AuthErrorCode, AuthErrorResponse, CourseResourceDetail, CourseResourceSummary,
 };
 use open_ucloud_core::{
-    client_capabilities, next_download_path, next_download_path_reserved, now_ms,
-    parse_attendance_qr_payload, sanitize_file_name, DownloadCancelFlag, DownloadProgress,
-    LoginFlow, OpenUcloudClient, OpenUcloudEndpoints, ReqwestHttpClient,
+    client_capabilities, next_download_path, now_ms, parse_attendance_qr_payload,
+    sanitize_file_name, DownloadCancelFlag, DownloadPathAllocator, DownloadProgress, LoginFlow,
+    OpenUcloudClient, OpenUcloudEndpoints, ReqwestHttpClient,
 };
 use open_ucloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -1246,13 +1246,12 @@ fn course_download_targets(
     output_dir: &Path,
     details: Vec<CourseResourceDetail>,
 ) -> Result<Vec<(CourseResourceDetail, PathBuf)>, FfiAuthError> {
-    let mut reserved = HashSet::new();
+    let mut allocator = DownloadPathAllocator::new();
     details
         .into_iter()
         .map(|detail| {
             let requested = output_dir.join(sanitize_file_name(&detail.name));
-            let target =
-                next_download_path_reserved(&requested, &mut reserved).map_err(to_ffi_error)?;
+            let target = allocator.next_path(&requested).map_err(to_ffi_error)?;
             Ok((detail, target))
         })
         .collect()

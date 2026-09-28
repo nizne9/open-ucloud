@@ -429,39 +429,53 @@ pub fn sanitize_file_name(file_name: &str) -> String {
     cleaned
 }
 
-pub fn next_download_path_reserved(
-    requested_path: &Path,
-    reserved: &mut HashSet<PathBuf>,
-) -> Result<PathBuf, AuthError> {
-    if !requested_path.exists() && reserved.insert(requested_path.to_path_buf()) {
-        return Ok(requested_path.to_path_buf());
-    }
-    let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = requested_path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.is_empty())
-        .unwrap_or("download");
-    let extension = requested_path.extension().and_then(|value| value.to_str());
-    for index in 1..10_000 {
-        let file_name = match extension {
-            Some(extension) if !extension.is_empty() => format!("{stem} ({index}).{extension}"),
-            _ => format!("{stem} ({index})"),
-        };
-        let candidate = parent.join(file_name);
-        if !candidate.exists() && reserved.insert(candidate.clone()) {
-            return Ok(candidate);
+/// Allocates non-overwriting download paths for one batch of downloads.
+///
+/// Allocation skips paths that already exist on disk and paths handed out
+/// earlier by the same allocator, so a batch with duplicate file names
+/// still writes each file exactly once.
+#[derive(Default)]
+pub struct DownloadPathAllocator {
+    reserved: HashSet<PathBuf>,
+}
+
+impl DownloadPathAllocator {
+    pub fn new() -> Self {
+        Self {
+            reserved: HashSet::new(),
         }
     }
-    Err(AuthError::new(
-        AuthErrorCode::FileSystem,
-        "could not allocate a non-overwriting download path.",
-    ))
+
+    pub fn next_path(&mut self, requested_path: &Path) -> Result<PathBuf, AuthError> {
+        if !requested_path.exists() && self.reserved.insert(requested_path.to_path_buf()) {
+            return Ok(requested_path.to_path_buf());
+        }
+        let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
+        let stem = requested_path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("download");
+        let extension = requested_path.extension().and_then(|value| value.to_str());
+        for index in 1..10_000 {
+            let file_name = match extension {
+                Some(extension) if !extension.is_empty() => format!("{stem} ({index}).{extension}"),
+                _ => format!("{stem} ({index})"),
+            };
+            let candidate = parent.join(file_name);
+            if !candidate.exists() && self.reserved.insert(candidate.clone()) {
+                return Ok(candidate);
+            }
+        }
+        Err(AuthError::new(
+            AuthErrorCode::FileSystem,
+            "could not allocate a non-overwriting download path.",
+        ))
+    }
 }
 
 pub fn next_download_path(requested_path: &Path) -> Result<PathBuf, AuthError> {
-    let mut reserved = HashSet::new();
-    next_download_path_reserved(requested_path, &mut reserved)
+    DownloadPathAllocator::new().next_path(requested_path)
 }
 
 pub fn next_download_path_in_dir(out_dir: &Path, file_name: &str) -> Result<PathBuf, AuthError> {
@@ -524,10 +538,10 @@ mod tests {
         let next_in_dir = next_download_path_in_dir(&dir, "doc.txt").expect("next in dir");
         assert_eq!(next_in_dir, dir.join("doc (1).txt"));
 
-        let mut reserved = HashSet::new();
-        let r1 = next_download_path_reserved(&base_file, &mut reserved).expect("reserved 1");
+        let mut allocator = DownloadPathAllocator::new();
+        let r1 = allocator.next_path(&base_file).expect("reserved 1");
         assert_eq!(r1, dir.join("doc (1).txt"));
-        let r2 = next_download_path_reserved(&base_file, &mut reserved).expect("reserved 2");
+        let r2 = allocator.next_path(&base_file).expect("reserved 2");
         assert_eq!(r2, dir.join("doc (2).txt"));
 
         let _ = std::fs::remove_dir_all(&dir);
