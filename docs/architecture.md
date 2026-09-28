@@ -32,7 +32,7 @@ polling cannot overwrite secure storage with an older payload.
 - `attendance.rs`: check-in/attendance state loading, user check-in submission, attendance QR parameter preparation, and pure parsing for user-supplied `checkwork|...` QR payload text.
 - `extensions.rs`: client capability defaults shared by adapters.
 - `assignments.rs`: assignment list/detail normalization, attachment upload, and assignment submit protocol.
-- `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, and streamed, non-overwriting file downloads.
+- `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, streamed non-overwriting file downloads, and the download filename sanitization and collision-free path allocation shared by the CLI and FFI adapters.
 - `protocol.rs`: shared UCloud response envelope parsing and primitive value normalization.
 
 Do not move shared transport, client, error, or protocol helpers back into a business module just because one module uses them first.
