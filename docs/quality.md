@@ -1,154 +1,165 @@
-# Quality Gates
+# Quality Assurance & Verification Gates
 
-Quality gates are part of the harness. They make agent work repeatable and keep boundaries from drifting.
+Quality gates ensure that autonomous agents and human developers can make changes safely, predictably, and without introducing architectural drift or security regressions.
 
-## Baseline Commands
+---
 
-Once the workspace exists, expected verification is:
+## 1. Baseline Verification Gates
+
+Before submitting pull requests or merging branches, every workspace change must satisfy the baseline verification suite.
+
+### Rust Workspace Verification
 
 ```bash
-cargo fmt --all
+# 1. Format check
+cargo fmt --all -- --check
+
+# 2. Strict static analysis (warnings treated as errors in CI)
 cargo clippy --workspace --all-targets
+
+# 3. Unit and integration tests
 cargo test --workspace
+
+# 4. CLI harness smoke tests
 cargo run -p open-ucloud-cli -- --help
+cargo run -p open-ucloud-cli -- doctor
 cargo run -p open-ucloud-cli -- assignments --help
 cargo run -p open-ucloud-cli -- resources --help
-cargo run -p open-ucloud-cli -- doctor
 ```
 
-Flutter work should also run:
+### Flutter Workspace Verification
 
 ```bash
 cd apps/client
+
+# 1. Dependency resolution
 flutter pub get
+
+# 2. Static analysis
 dart analyze
+
+# 3. Widget & unit tests
 flutter test
+
+cd ../..
 ```
 
-Linux desktop client builds also need the standard Flutter Linux desktop
-toolchain and GTK/libsecret development headers on the build host, for example
-`clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, and
-`libsecret-1-dev` on Ubuntu.
+---
 
-Windows desktop client builds must run on a Windows host. Verify that the Rust
-FFI DLL is built before Flutter and copied into the executable directory:
+## 2. Platform-Specific Build & Packaging Gates
 
+### 2.1. Linux Desktop
+
+Build hosts require GTK 3, libsecret, and native compilation tools:
 ```bash
-cargo build -p open-ucloud-ffi
-cd apps/client
-flutter build windows --debug
+sudo apt-get install -y clang cmake libgtk-3-dev libsecret-1-dev ninja-build pkg-config
 ```
 
-The debug output directory should contain `open_ucloud_client.exe`,
-`flutter_windows.dll`, `open_ucloud_ffi.dll`, and `data/`. Release builds use the
-release Rust DLL:
+#### Credential Packaging Matrix
 
-```bash
+Linux release artifacts must make credential persistence explicit:
+
+| Artifact Name | Build Command | Credential Backend | Persistence | Recommended Use |
+| --- | --- | --- | --- | --- |
+| `open-ucloud-linux-keyutils` | `cargo build --release -p open-ucloud-cli` | Linux Kernel `keyutils` | Until reboot | Headless servers, CI runners, WSL |
+| `open-ucloud-linux-secret-service` | `cargo build --release -p open-ucloud-cli --features linux-secret-service` | FreeDesktop Secret Service | Until deleted | Native Linux desktops (GNOME, KDE) |
+
+- **Verification**: Run `open-ucloud doctor` to confirm `credentialBackend`, `credentialPersistence`, and `credentialStatus`.
+- **Diagnostics Isolation**: The `doctor` command tests credential access using an isolated, temporary `doctor-probe` key. It must never read, overwrite, or delete real session tokens.
+
+---
+
+### 2.2. Windows Desktop
+
+Windows builds must be executed on a Windows host with Visual Studio C++ build tools and the Flutter Windows desktop toolchain:
+
+```powershell
+# 1. Build Rust FFI dynamic library
 cargo build --release -p open-ucloud-ffi
+
+# 2. Build Flutter Windows bundle
 cd apps/client
 flutter build windows --release
 ```
 
-macOS desktop client builds must run on a macOS host. Verify that the Rust FFI
-dylib is built before Flutter and copied into the app bundle:
+- **Verification**: Ensure `build/windows/x64/runner/Release/` contains `open_ucloud_client.exe`, `flutter_windows.dll`, and `open_ucloud_ffi.dll`.
+
+---
+
+### 2.3. macOS Desktop
+
+macOS builds must be executed on a macOS host with Xcode and Flutter macOS toolchains:
 
 ```bash
-cargo build -p open-ucloud-ffi
-cd apps/client
-flutter build macos --debug
-```
-
-The debug app bundle should contain:
-
-```text
-build/macos/Build/Products/Debug/open_ucloud_client.app/Contents/Frameworks/libopen_ucloud_ffi.dylib
-```
-
-Release builds use the release Rust dylib:
-
-```bash
+# 1. Build Rust FFI dynamic library
 cargo build --release -p open-ucloud-ffi
+
+# 2. Build Flutter macOS bundle
 cd apps/client
 flutter build macos --release
 ```
 
-Android client changes should also verify the Rust FFI library is packaged:
+- **Verification**: Ensure the bundle contains `open_ucloud_client.app/Contents/Frameworks/libopen_ucloud_ffi.dylib`.
+
+---
+
+### 2.4. Android Client
+
+Android builds require the Android SDK, NDK, and Rust Android toolchain targets:
 
 ```bash
+# 1. Add toolchain targets
 rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+# 2. Build debug APK
 cd apps/client
 flutter build apk --debug
+
+# 3. Verify Rust FFI shared library is packaged inside the APK
 unzip -l build/app/outputs/flutter-apk/app-debug.apk | grep libopen_ucloud_ffi.so
 ```
 
-Android release APKs must use the project release signing keystore. Local
-release builds read `apps/client/android/key.properties`; GitHub Releases read
-the equivalent values from the `android-release` Environment secrets. Release
-builds must fail when signing configuration is absent instead of falling back to
-the debug keystore.
+#### Android Signing & Security Policies
 
-Android manifests must keep application backup disabled. The legacy full-backup
-rules and Android 12+ data-extraction rules both exclude all application domains
-so secure-session material and local student data are not copied through cloud
-backup or device transfer.
+- **Release Signing**: Production APKs must use the project release keystore configured via `apps/client/android/key.properties` (or GitHub Actions `android-release` Environment secrets). If signing configuration is absent, release builds must fail explicitly rather than falling back to debug keys.
+- **Backup Exclusion**: Android manifests (`AndroidManifest.xml`) must disable full application backup (`android:allowBackup="false"`) and data extraction rules to prevent session tokens from leaking via Google Drive cloud backup or adb transfer.
 
-Widget tests should cover current user-visible behavior and active regressions.
-When a UI element is removed, delete tests that only assert the old label or
-card is absent unless the absence is the product behavior being protected.
+---
 
-FFI API changes should also regenerate Flutter Rust Bridge bindings:
+## 3. FFI & Code Generation Standards
+
+Whenever functions, structs, or types in `crates/ffi` change:
 
 ```bash
+# Regenerate Dart bindings and FFI bridges
 flutter_rust_bridge_codegen generate
 ```
 
-Document any new required command in this file and `README.md`.
+- All Dart bindings must be committed along with Rust FFI changes.
+- FFI facades must remain DTO-oriented; never expose Rust lifetimes, traits, or complex generics to Dart.
 
-## Linux Release Credential Matrix
+---
 
-Linux release artifacts must make credential persistence explicit:
+## 4. Security, MSRV & Dependency Governance
 
-| Artifact | Build command | Expected `doctor` fields |
-| --- | --- | --- |
-| `open-ucloud-linux-keyutils` | `cargo build --release -p open-ucloud-cli` | `credential backend: keyutils`, `credential persistence: until-reboot`, and `credential status: available` in a working runtime |
-| `open-ucloud-linux-secret-service` | `cargo build --release -p open-ucloud-cli --features linux-secret-service` | `credential backend: secret-service`, `credential persistence: until-delete`, and `credential status: available` in a working desktop runtime |
+### Minimum Supported Rust Version (MSRV)
 
-Run `cargo run -p open-ucloud-cli -- doctor` for the default Linux package. Verify the Secret Service build on a native Linux desktop with a DBus session, a Secret Service provider such as GNOME Keyring, KWallet, or KeePassXC, and an unlocked collection. Build hosts may need `libdbus-1-dev` and `pkg-config`; use `linux-secret-service-vendored` only for a release environment that intentionally vendors native dependencies.
+- The project enforces **Rust 1.88** as its official MSRV.
+- **Rationale**: Flutter Rust Bridge 2.12 requires modern Rust FFI features, while patched releases of the `time` crate addressing denial-of-service security advisories require Rust 1.88.
+- CI includes a dedicated MSRV verification job.
 
-## CI/CD Artifact Boundary
+### Dependency Auditing & Action Pinning
 
-GitHub Actions separates verification, temporary packages, and formal releases:
+- **Cargo Audit**: CI runs a locked `cargo-audit` step to intercept vulnerable dependencies.
+- **Dependabot**: Configured for weekly automated checks across Cargo crates, Pub packages, and GitHub Actions.
+- **GitHub Actions Pinning**: All third-party GitHub Actions must be pinned to full immutable 40-character commit SHAs, accompanied by a trailing major version comment (e.g., `uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4`).
 
-- `.github/workflows/ci.yml` runs baseline Rust and Flutter verification for pull requests and pushes to `main`.
-- `.github/workflows/build-artifacts.yml` builds temporary Actions artifacts for `main` and manual test runs. These artifacts are retained for 14 days and are development test packages, not official release packages.
-- `.github/workflows/release.yml` publishes only from existing `v*` tags. The upload job is the only job with `contents: write`; all build jobs remain `contents: read`. The Android release job uses the protected `android-release` Environment before accessing signing secrets.
+---
 
-Release assets include CLI packages for Linux keyutils, Linux Secret Service, Windows, and macOS, unsigned Flutter desktop client packages for Linux, Windows, and macOS, and release-signed Android APKs split by ABI. Each asset must have a matching `.sha256` file.
+## 5. Structural Invariants
 
-The Android artifact produced by the build workflow is a `debug-signed` APK for development testing only and must not be treated as a formal release asset.
-
-All third-party workflow actions are pinned to reviewed full commit SHAs, with the corresponding major version retained in a line comment for readability. Dependabot checks Cargo, Pub, and GitHub Actions dependencies weekly. CI separately checks the declared Rust 1.88 MSRV and runs a fixed, locked `cargo-audit` release so stable-toolchain success cannot hide an MSRV regression or a known vulnerable Rust dependency.
-
-Rust 1.88 is the security-compatible floor for the current dependency set: Flutter Rust Bridge 2.12 already requires post-1.78 FFI syntax, while patched `time` releases addressing known denial-of-service advisories require 1.88. Direct dependencies are pinned to reviewed releases, and compatible transitive selections remain in `Cargo.lock`; dependency updates must pass both the MSRV and audit jobs before merge.
-
-## Structural Expectations
-
-- `core` must not depend on CLI, FFI, Flutter, Web, or UI state.
-- `ffi` exposes a facade with DTOs, not internal Rust types.
-- `cli --json` output and error codes are stable contracts.
-- Storage must avoid plaintext credentials by default.
-- Logs must redact usernames, tokens, cookies, passwords, and upstream session data.
-- CLI login must remain interactive unless a future secure credential handoff is explicitly designed.
-- Assignment upload, assignment submit, and full-course resource download must keep explicit `--yes` gates.
-- Resource downloads must require `--out-dir` and avoid overwriting existing files.
-- Secure session persistence must use the platform credential store and return a stable error when unavailable; do not add plaintext fallback storage for tokens.
-
-## Future Mechanical Checks
-
-Add structural tests or custom lints once the workspace is initialized:
-
-- dependency direction checks between crates
-- CLI JSON snapshot tests
-- file-size or module-size warnings
-- secret scanning for fixtures and logs beyond GitHub's repository-level scanning
-- documentation freshness checks for command names and module boundaries
+1. **Dependency Direction**: `crates/core` must never import UI concepts, CLI dependencies, or Flutter Bridge libraries.
+2. **Strict Redaction**: User credentials, passwords, session tokens, and raw cookies must be redacted from all stdout/stderr logging.
+3. **Mandatory `--yes` Gates**: Live mutating operations (`assignments upload`, `assignments submit`, `resources download-course`, `logout`) must reject unattended execution unless explicitly approved with `--yes`.
+4. **Non-Overwriting File Allocation**: File downloads must require `--out-dir` and allocate collision-free names rather than clobbering existing files.
+5. **No Plaintext Fallback**: If secure keyrings are unavailable, raise `SECURE_STORAGE_UNAVAILABLE`; never write tokens to plain text files.

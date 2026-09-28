@@ -1,60 +1,131 @@
-# Architecture
+# System Architecture
 
-Open UCloud is client-first. The first reusable harness is Rust core plus CLI; Flutter is the primary user client; Web is optional and must remain an adapter.
+Open UCloud is designed as a **client-first, multi-platform ecosystem** for interacting with university UCloud learning management systems. Rather than relying on fragile web scraping or heavyweight embedded browser runtimes, Open UCloud establishes a clean separation between high-performance business logic in Rust and modern reactive user interfaces in Flutter.
 
-## Module Boundaries
+---
 
-- `crates/core/`: business facts and operations. It currently owns upstream protocol handling, authentication, token refresh, courses, attendance state and user-triggered check-in, user-supplied attendance QR payload parsing, in-progress attendance QR preparation, public capability defaults, assignments, and resources.
-- `crates/api/`: stable DTOs, command/response shapes, and error codes shared by CLI, FFI, and future adapters.
-- `crates/store/`: storage abstractions and implementations for in-memory session storage, system credential-store persistence, and credential backend diagnostics.
-- `crates/cli/`: agent-friendly command-line client. It is the first integration surface and smoke-test harness for core.
-- `crates/ffi/`: Dart-facing facade for Flutter. It must hide Rust lifetimes, traits, generics, and internal session types.
-- `apps/client/`: Flutter UI, navigation, local presentation state, permissions, and platform UX.
+## 1. Architectural Philosophy
 
-The current implemented harness contains `api`, `core`, `store`, `cli`, `ffi`, and the first Linux-focused Flutter client shell.
+1. **Client-First & Rust-Anchored**: The core business logic, protocol handlers, authentication flows, and network transports reside entirely in the Rust core (`crates/core`). This core provides a durable, testable, and high-performance foundation.
+2. **First Harness via CLI**: The command-line interface (`crates/cli`) serves as the first verification and integration surface, providing an agent-friendly, scriptable environment with stable contracts.
+3. **Flutter as Primary UI**: Flutter (`apps/client`) provides a responsive, native multi-platform client across Linux, Android, Windows, and macOS, communicating with Rust through Flutter Rust Bridge (`crates/ffi`).
+4. **Adapter-Only Extension**: Alternative clients (such as Web) are strictly downstream adapters. No presentation concerns or web-specific models may leak into the core.
+5. **Strict DTO Boundaries**: Data crosses layer boundaries exclusively as Data Transfer Objects (DTOs) defined in `crates/api`. Rust lifetimes, traits, generics, and internal session types are never exposed to consumers.
 
-The FFI adapter coordinates session refreshes inside Rust. Concurrent Dart calls
-may carry the same opaque session payload, but only one refresh chain may run for
-that principal; later calls reconcile with the newest in-process session before
-performing business requests. Download tasks refresh before they are spawned so
-polling cannot overwrite secure storage with an older payload.
+---
 
-## Core Internal Boundaries
+## 2. High-Level Architecture Diagram
 
-`crates/core/src/lib.rs` is a public facade only. Keep implementation details in focused modules:
+```mermaid
+flowchart TD
+    subgraph Presentation["Presentation Layer"]
+        CLI["open-ucloud CLI<br/>(Terminal / Agent Harness)"]
+        FlutterApp["Flutter UI Shell<br/>(Riverpod Presentation State)"]
+    end
 
-- `client.rs`: `OpenUcloudClient` and endpoint configuration shared by core operations.
-- `transport.rs`: HTTP request/response abstractions and the reqwest adapter.
-- `error.rs`: core error type and stable API error-code mapping.
-- `auth.rs`: login, ticket exchange, role lookup, and token refresh protocol.
-- `session.rs`: session refresh orchestration using store abstractions.
-- `courses.rs`: course list loading and course detail resolution.
-- `attendance.rs`: check-in/attendance state loading, user check-in submission, attendance QR parameter preparation, and pure parsing for user-supplied `checkwork|...` QR payload text.
-- `extensions.rs`: client capability defaults shared by adapters.
-- `assignments.rs`: assignment list/detail normalization, attachment upload, and assignment submit protocol.
-- `resources.rs`: course resource tree flattening, resource detail resolution, preview/download URL lookup, streamed non-overwriting file downloads, and the download filename sanitization and collision-free path allocation shared by the CLI and FFI adapters.
-- `protocol.rs`: shared UCloud response envelope parsing and primitive value normalization.
+    subgraph Adapters["Adapters & Bridge Layer"]
+        FFI["open-ucloud-ffi<br/>(Flutter Rust Bridge Facade)"]
+        KeyringStore["open-ucloud-store<br/>(OS Keyring & Memory Stores)"]
+    end
 
-Do not move shared transport, client, error, or protocol helpers back into a business module just because one module uses them first.
+    subgraph DomainCore["Domain & Business Core"]
+        CoreLib["open-ucloud-core<br/>(Facade & Client Coordination)"]
+        
+        subgraph Subsystems["Core Subsystems"]
+            AuthMod["auth & session<br/>(Unified Auth, Ticket Exchange, JWT)"]
+            CourseMod["courses & attendance<br/>(Activity Status, Check-in, QR)"]
+            AssignMod["assignments & resources<br/>(Uploads, Submissions, Streaming)"]
+            TransMod["transport & protocol<br/>(Reqwest, Envelopes, Error Normalization)"]
+        end
+        
+        APIDTO["open-ucloud-api<br/>(Stable DTOs & Error Codes)"]
+    end
 
-## Dependency Direction
+    subgraph Upstream["Upstream Infrastructure"]
+        UCloudService["University UCloud Platform & Unified Auth"]
+        OSKeyring["Native OS Credential Store<br/>(keyutils / Secret Service / Keychain / Credential Manager)"]
+    end
 
-Core must not depend on CLI, FFI, Flutter, Web, or UI concepts. API must stay DTO-oriented. Store must expose interfaces that core can use without knowing platform details. Adapters depend inward on API/core/store.
+    CLI --> CoreLib
+    CLI --> KeyringStore
+    FlutterApp --> FFI
+    FFI --> CoreLib
+    CoreLib --> APIDTO
+    CoreLib --> KeyringStore
+    KeyringStore --> OSKeyring
+    CoreLib --> Subsystems
+    Subsystems --> TransMod
+    TransMod --> UCloudService
+```
 
-Flutter keeps immutable public presentation state in `client_state.dart` and orchestration in `client_controller.dart`. Login passwords are never fields on Riverpod state; the controller holds them only for the active authentication flow and clears them on success, cancellation, terminal failure, logout, session expiry, and provider disposal.
+---
 
-## Product Scope
+## 3. Monorepo Crate & Package Boundaries
 
-The project is a personal client and self-hosted entry point for regular Open UCloud account use.
+The workspace enforces strict separation across crates:
 
-Attendance-related core support covers course activity status, explicit check-in submission, attendance QR parameter preparation, and parsing `checkwork|...` QR payload text for clients that need to display it.
+| Package | Directory | Primary Role | Allowed Inward Dependencies | Forbidden Dependencies |
+| --- | --- | --- | --- | --- |
+| `open-ucloud-api` | `crates/api` | Stable DTOs, request/response models, and error codes. | None (pure data schemas) | `core`, `store`, `cli`, `ffi`, Flutter |
+| `open-ucloud-core` | `crates/core` | Business operations, upstream protocol parsing, auth lifecycle. | `open-ucloud-api`, `open-ucloud-store` | `cli`, `ffi`, Flutter, UI concepts |
+| `open-ucloud-store` | `crates/store` | Credential storage abstraction, keyring bindings, memory store. | None | `core`, `cli`, `ffi`, Flutter |
+| `open-ucloud-cli` | `crates/cli` | Terminal CLI harness, argument parsing, JSON serialization. | `api`, `core`, `store` | `ffi`, Flutter |
+| `open-ucloud-ffi` | `crates/ffi` | Flutter Rust Bridge facade for Dart integration. | `api`, `core`, `store` | `cli`, Flutter UI |
+| `open_ucloud_client` | `apps/client` | Flutter desktop and mobile application. | `open-ucloud-ffi` (via generated Dart code) | Direct Rust crates |
 
-Capability reporting keeps these surfaces explicit: `selfAttendance` describes whether a self-attendance flow is available in the current build, while `attendanceQrPayloadParsing` describes whether adapters can offer pasted QR payload parsing.
+---
 
-## Current Auth Core
+## 4. Core Internal Boundaries (`crates/core`)
 
-The Rust core owns the real login chain: unified auth page initialization, optional captcha image loading, credential POST, ticket extraction, UCloud token exchange, role lookup, role-scoped refresh, JWT expiration parsing, and access-token refresh. Authentication HTML is parsed as a document rather than by tag-string matching, and all response cookies are normalized into the follow-up login request. CLI and future FFI adapters must call this core instead of duplicating protocol logic.
+`crates/core/src/lib.rs` serves as a high-level facade. Implementation logic is divided into modular domain handlers:
 
-Course and assignment collection endpoints are consumed with bounded pagination. Pages are merged in upstream order, stable identifiers are deduplicated, short pages terminate normally, and repeated full pages terminate defensively instead of causing an unbounded request loop. Reaching the hard page limit with more data is an explicit error rather than a silently truncated success.
+- **`client.rs`**: Houses `OpenUcloudClient` and shared HTTP connection configurations.
+- **`transport.rs`**: HTTP abstraction layer decoupling reqwest from business rules.
+- **`protocol.rs`**: Parsing and validation of upstream JSON response envelopes, HTML documents, and type normalization.
+- **`error.rs`**: Core error mapping ensuring all internal faults map to stable, actionable error codes defined in `open-ucloud-api`.
+- **`auth.rs`**: Full authentication protocol: unified SSO page scraping, optional captcha fetching, credential dispatch, ticket extraction, token exchange, role resolution, and JWT decoding.
+- **`session.rs`**: Session lifecycle management, coordinating automatic token refresh, expiry calculation, and store synchronization.
+- **`courses.rs`**: Course roster retrieval, course detail resolution, and defensive pagination handling.
+- **`attendance.rs`**: Course activity polling, user check-in submission, attendance QR parameter resolution, and standalone parsing of raw `checkwork|...` QR payloads.
+- **`assignments.rs`**: Course assignments querying, pending assignment aggregation, assignment detail loading, RFC 7578 multipart attachment uploading, and submission dispatch.
+- **`resources.rs`**: Course material tree flattening, detail retrieval, download link generation, streamed file downloads, and path collision prevention.
+- **`extensions.rs`**: Public capability defaults (e.g., `selfAttendance`, `attendanceQrPayloadParsing`) exposed to clients.
 
-The store crate now has two session stores: memory storage for tests and short-lived adapters, and secure session persistence through the operating system credential store for the CLI. If the platform credential backend is unavailable, adapters must surface a storage error instead of writing tokens to plaintext files.
+---
+
+## 5. Cross-Cutting Design Protocols
+
+### 5.1. Authentication & Token Lifecycle
+
+1. **Unified Auth Chain**: The authentication flow simulates standard web SSO: initializes the unified login page, parses DOM inputs defensively, loads captcha images when required, submits credentials, extracts redirect tickets, and exchanges them for platform JWT bearer tokens.
+2. **Single-Flight Concurrency Control**: In multi-threaded desktop or mobile environments, concurrent requests requiring token refresh are synchronized inside the Rust core. Only a single refresh chain executes per principal; simultaneous callers await the outcome and reuse the renewed credentials.
+3. **Zero Plaintext Fallback**: Session tokens are persisted exclusively using the OS credential store (`crates/store`). If the OS keychain is locked or unavailable, the operation errors out with `SECURE_STORAGE_UNAVAILABLE` rather than storing unencrypted secrets on disk.
+
+### 5.2. Attendance & QR Processing
+
+- **Attendance Polling**: Evaluates current course activity states to flag courses as `going` (active check-in open) or `idle`.
+- **Check-in Execution**: Submits explicit user-approved sign-ins.
+- **QR Parameter Generation**: Computes parameters (`attendanceId`, `createTime`, `groupId`) required to render in-progress attendance QR codes.
+- **Raw QR Parsing**: Provides pure, offline text parsing for `checkwork|...` QR payload formats for adapters supporting paste or camera scan workflows.
+
+### 5.3. File Operations & Download Safety
+
+- **Path Traversal Protection**: All upstream file names are stripped of unsafe characters and path separators.
+- **Collision-Free Allocation**: When downloading materials (`resources download` or `download-course`), existing local files are never overwritten. A numeric suffix (`filename (1).ext`) is automatically allocated.
+- **Streaming Pipeline**: Files stream directly from HTTP response to filesystem, minimizing memory footprints.
+- **RFC 7578 Compliance**: Assignment attachment uploads use standard `multipart/form-data` with single UTF-8 `filename` headers. Unsafe characters (such as CR/LF) are rejected prior to request transmission.
+
+### 5.4. Flutter & FFI State Coordination
+
+- **Riverpod State Flow**: Presentation state in Flutter is immutable (`client_state.dart`) and driven by controllers (`client_controller.dart`).
+- **Ephemeral Password Handling**: User passwords are held in memory solely for the duration of the authentication flow and are zeroed immediately upon completion, error, or provider disposal.
+- **Opaque Session Tokens**: Dart handles session tokens as opaque byte buffers, passing them into the Rust FFI facade without inspecting or altering internal crypto structures.
+
+---
+
+## 6. Architectural Invariants
+
+- **Unidirectional Dependency**: Dependencies flow strictly inward toward `crates/api` and `crates/core`. Core never imports from CLI, FFI, or Flutter.
+- **Redaction by Default**: No user passwords, authentication tokens, refresh tokens, or raw cookie headers may appear in log outputs, CLI standard output, or unencrypted storage.
+- **Write Safety Gates**: All mutating actions (`upload`, `submit`, `download-course`, `logout`) mandate explicit `--yes` confirmation in automated environments.
+- **Bounded Pagination**: Upstream pagination defensively limits query loops, deduplicates records by stable ID, and reports explicit errors if hard page boundaries are exceeded.

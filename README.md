@@ -1,181 +1,433 @@
 # Open UCloud
 
-Open UCloud is a client-first, agent-harnessed project for a personal Open UCloud client.
+[![CI](https://github.com/nizne9/open-ucloud/actions/workflows/ci.yml/badge.svg)](https://github.com/nizne9/open-ucloud/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Rust MSRV](https://img.shields.io/badge/Rust-1.88+-orange.svg)](https://www.rust-lang.org)
+[![Platform Support](https://img.shields.io/badge/Platform-Linux%20|%20Windows%20|%20macOS%20|%20Android-lightgrey.svg)]()
+[![Keep Android Open](https://img.shields.io/badge/Keep_Android_Open-keepandroidopen.org-blue)](https://keepandroidopen.org/)
 
-The initial direction is:
+**Open UCloud** is a client-first, open-source personal client and agent-friendly CLI harness for university UCloud learning management platforms. It delivers a fast, privacy-preserving, and scriptable alternative to sluggish web interfaces, built with a high-performance **Rust** core and a multi-platform **Flutter** client.
 
-- Rust core for business logic and upstream protocol handling.
-- Agent-friendly CLI as the first integration and verification surface.
-- Flutter as the primary multi-platform user client.
-- Optional Web support as an adapter, not the architectural center.
+---
 
-Current workspace:
+## Table of Contents
 
-- `crates/api`: public DTOs, role names, session responses, and auth error codes.
-- `crates/core`: `OpenUcloudClient` facade, upstream protocol handling, login, role/token refresh, courses, attendance state, assignments, resources, and session access refresh.
-- `crates/store`: memory session storage plus system credential-store backed session persistence.
-- `crates/cli`: `open-ucloud` command-line harness.
-- `crates/ffi`: Flutter Rust Bridge facade for Dart-facing authentication, course, assignment, and resource DTOs.
-- `apps/client`: Linux-first Flutter client shell with Linux, Android, Windows, and macOS platform runners for login, secure session storage, course listing, assignments, and resources.
+- [Features](#features)
+- [Architecture Overview](#architecture-overview)
+- [Workspace Structure](#workspace-structure)
+- [Quick Start](#quick-start)
+  - [For End Users (Pre-built Binaries)](#for-end-users-pre-built-binaries)
+  - [For Developers (Building from Source)](#for-developers-building-from-source)
+- [CLI Reference & Usage](#cli-reference--usage)
+  - [System Health & Diagnostics](#system-health--diagnostics)
+  - [Authentication & Session](#authentication--session)
+  - [Courses & Activity](#courses--activity)
+  - [Attendance & Check-in](#attendance--check-in)
+  - [Assignments & Submissions](#assignments--submissions)
+  - [Course Resources & Downloads](#course-resources--downloads)
+- [Platform & Credential Backends](#platform--credential-backends)
+  - [Linux Credential Packages](#linux-credential-packages)
+- [Security, Privacy & Ethics](#security-privacy--ethics)
+- [Android Distribution Stance](#android-distribution-stance)
+- [Development & Quality Gates](#development--quality-gates)
+- [CI/CD & Releases](#cicd--releases)
+- [Documentation Index](#documentation-index)
+- [License](#license)
 
-The first CLI login is intentionally interactive and persists its session through the system credential store:
+---
 
-```bash
-cargo run -p open-ucloud-cli -- doctor
-cargo run -p open-ucloud-cli -- doctor --json
-cargo run -p open-ucloud-cli -- login --interactive
-cargo run -p open-ucloud-cli -- session --json
-cargo run -p open-ucloud-cli -- courses --json
-cargo run -p open-ucloud-cli -- courses --with-going --json
-cargo run -p open-ucloud-cli -- course <site-id> --json
-cargo run -p open-ucloud-cli -- attendance --site <site-id> --json
-cargo run -p open-ucloud-cli -- attendance status --site <site-id> --json
-cargo run -p open-ucloud-cli -- attendance sign --site <site-id> --group <group-id> --yes --json
-cargo run -p open-ucloud-cli -- attendance qr --site <site-id> --group <group-id> --json
-cargo run -p open-ucloud-cli -- assignments list --site <site-id> [--site-name <name>] [--keyword <text>] --json
-cargo run -p open-ucloud-cli -- assignments undone --json
-cargo run -p open-ucloud-cli -- assignments detail <assignment-id> --json
-cargo run -p open-ucloud-cli -- assignments upload <assignment-id> --file <path> --yes --json
-cargo run -p open-ucloud-cli -- assignments submit <assignment-id> [--content <text>|--content-file <path>] [--attachment <resource-id>] --yes --json
-cargo run -p open-ucloud-cli -- resources list --site <site-id> [--site-name <name>] --json
-cargo run -p open-ucloud-cli -- resources detail <resource-id> --site <site-id> [--site-name <name>] --json
-cargo run -p open-ucloud-cli -- resources download <resource-id> --site <site-id> [--site-name <name>] --out-dir <dir> --json
-cargo run -p open-ucloud-cli -- resources download-course --site <site-id> [--site-name <name>] --out-dir <dir> --yes --json
-cargo run -p open-ucloud-cli -- logout --yes
+## Features
+
+- 🎓 **Course Management**: Query enrolled courses, view course details, and monitor live in-progress class status (`going` vs. `idle`).
+- 📍 **Attendance & Check-in**: Inspect real-time check-in activity, submit explicit check-ins, generate QR attendance parameters, and parse raw `checkwork|...` QR payloads.
+- 📝 **Assignments & Submissions**: Filter assignments by course or keyword, track unfinished work, view grades and instructor feedback, upload attachments, and submit assignments with mandatory explicit confirmation (`--yes`).
+- 📦 **Resource Downloads**: Stream course materials with directory creation, sanitized filenames, and guaranteed non-overwriting collision protection.
+- 🔐 **Zero Plaintext Credentials**: Integrates with native operating system keychains and credential vaults (`keyring`). Tokens are automatically refreshed; no passwords, tokens, or cookies are ever stored in plaintext files.
+- 🤖 **Agent-First & Scriptable CLI**: Verb-first command structure with stable, machine-readable JSON output (`--json`) designed for scripting and AI agents.
+- 📱 **Cross-Platform Client**: High-performance Flutter GUI supporting Linux, Windows, macOS, and Android sharing the same Rust core via Flutter Rust Bridge.
+
+---
+
+## Architecture Overview
+
+Open UCloud follows strict architectural boundaries: the Rust core owns business logic, authentication protocols, and upstream API interactions; the CLI provides an agent-friendly verification harness; and the Flutter application serves as the primary multi-platform user interface.
+
+```mermaid
+flowchart TD
+    subgraph Clients["Clients & Interfaces"]
+        CLI["open-ucloud-cli<br/>(Terminal / Agent Harness)"]
+        Flutter["open_ucloud_client<br/>(Flutter Desktop & Mobile UI)"]
+    end
+
+    subgraph Adapters["Adapters & Persistence"]
+        FFI["open-ucloud-ffi<br/>(Flutter Rust Bridge Facade)"]
+        Store["open-ucloud-store<br/>(OS Keyring & In-Memory Store)"]
+    end
+
+    subgraph Core["Core Engine"]
+        CoreCrate["open-ucloud-core<br/>(Auth, Protocol, Courses, Attendance, Assignments, Resources)"]
+        APICrate["open-ucloud-api<br/>(Stable DTOs & Error Codes)"]
+    end
+
+    subgraph Upstream["Upstream Services"]
+        UCloud["University UCloud Platform & Unified Auth"]
+    end
+
+    CLI --> CoreCrate
+    CLI --> Store
+    Flutter --> FFI
+    FFI --> CoreCrate
+    CoreCrate --> APICrate
+    CoreCrate --> Store
+    CoreCrate --> Upstream
 ```
 
-`login` does not accept passwords as flags. Stored sessions use the platform credential store through `keyring`; if the platform backend is unavailable or locked, the CLI reports `SECURE_STORAGE_UNAVAILABLE` and does not fall back to plaintext files.
+### Key Architectural Principles
 
-`courses --json` reads the stored session, refreshes the access token when needed, and returns the current student course list as stable DTOs without printing access tokens, refresh tokens, cookies, or upstream session data.
+1. **DTO-Oriented Boundary**: `crates/api` defines clean, stable Data Transfer Objects and error codes. Rust lifetimes, traits, generics, and internal session types are never exposed to FFI or CLI consumers.
+2. **State Separation**: Presentation state remains strictly inside Flutter (Riverpod); business state and protocol lifecycle remain inside Rust core.
+3. **No Plaintext Token Storage**: If the host platform's secure credential store is unavailable or locked, the application surfaces `SECURE_STORAGE_UNAVAILABLE` rather than falling back to unencrypted files.
+4. **Unified File Operations**: Platform-native file picking is handled by `file_selector`, but attachment uploads and streaming downloads flow directly through the Rust core boundary. This ensures that download filename sanitization and non-overwriting collision-free allocation remain consistent between the CLI and GUI.
 
-`capabilities --json` does not require a session and reports build capability flags used by adapters, including `selfAttendance` and `attendanceQrPayloadParsing`.
+---
 
-`courses --with-going --json` also queries the current in-progress course attendance state and returns `goingSites` records with `siteId` and `groupId`. The plain-text form prints `id<TAB>siteName<TAB>going|idle`.
+## Workspace Structure
 
-The Flutter-facing FFI facade returns opaque session payloads for Dart secure storage. Flutter stores and returns those payloads unchanged; Rust core still owns login, token expiration checks, and token refresh. Regenerate Dart bindings after FFI API changes with:
+The project is structured as a Cargo workspace with an accompanying Flutter client application:
+
+| Path | Package | Description |
+| --- | --- | --- |
+| `crates/api` | `open-ucloud-api` | Public DTOs, session responses, and stable error codes. |
+| `crates/core` | `open-ucloud-core` | Business logic, unified auth, token refresh, and protocol client. |
+| `crates/store` | `open-ucloud-store` | OS credential-store integration (`keyring`) and in-memory test store. |
+| `crates/cli` | `open-ucloud-cli` | Verb-first `open-ucloud` command-line interface. |
+| `crates/ffi` | `open-ucloud-ffi` | Flutter Rust Bridge (FRB) bindings and Dart facade. |
+| `apps/client` | `open_ucloud_client` | Flutter multi-platform client application (Linux, Android, Windows, macOS). |
+
+---
+
+## Quick Start
+
+### For End Users (Pre-built Binaries)
+
+Official release packages are published on [GitHub Releases](https://github.com/nizne9/open-ucloud/releases).
+
+1. **CLI Users (Linux / Windows / macOS)**:
+   - Download the release archive for your operating system and architecture.
+   - Verify the checksum:
+     ```bash
+     sha256sum -c open-ucloud-linux-secret-service-x86_64.tar.gz.sha256
+     ```
+   - Extract the `open-ucloud` binary and place it in your `PATH`.
+2. **Desktop Client Users**:
+   - Download the client bundle for Linux, Windows, or macOS from the latest release.
+3. **Android Users**:
+   - Download the signed `.apk` matching your device ABI (typically `arm64-v8a`).
+   - For installation instructions and verification guidance, see [docs/android-install.md](docs/android-install.md).
+
+---
+
+### For Developers (Building from Source)
+
+#### Prerequisites
+
+- **Rust**: Version 1.88 or newer (`rustup default stable`)
+- **Flutter**: Version 3.11 or newer with Dart SDK
+- **Build Tools**:
+  - **Linux**: `clang`, `cmake`, `libgtk-3-dev`, `libsecret-1-dev`, `ninja-build`, `pkg-config`
+  - **Windows**: Visual Studio C++ Build Tools with Desktop development with C++
+  - **macOS**: Xcode Command Line Tools
+  - **Android**: Android SDK, NDK, and Rust Android targets
+
+---
+
+#### 1. Building the CLI
+
+```bash
+# Check environment and system credential backend
+cargo run -p open-ucloud-cli -- doctor
+
+# Build release CLI binary
+cargo build --release -p open-ucloud-cli
+```
+
+---
+
+#### 2. Building the Desktop Client (Flutter + Rust FFI)
+
+##### Linux Desktop
+
+```bash
+# 1. Install system development headers (Ubuntu/Debian)
+sudo apt-get update && sudo apt-get install -y \
+  clang cmake libgtk-3-dev libsecret-1-dev ninja-build pkg-config
+
+# 2. Build the Rust FFI library
+cargo build -p open-ucloud-ffi
+
+# 3. Launch the Flutter client
+cd apps/client
+flutter pub get
+flutter run -d linux
+```
+
+##### Windows Desktop
+
+Windows builds must be run on a Windows host:
+
+```powershell
+# Build Rust FFI DLL
+cargo build --release -p open-ucloud-ffi
+
+# Build Windows executable
+cd apps/client
+flutter pub get
+flutter build windows --release
+```
+
+##### macOS Desktop
+
+macOS builds must be run on a macOS host:
+
+```bash
+# Build Rust FFI dylib
+cargo build --release -p open-ucloud-ffi
+
+# Build macOS app bundle
+cd apps/client
+flutter pub get
+flutter build macos --release
+```
+
+---
+
+#### 3. Building the Android Client
+
+```bash
+# 1. Add Android Rust targets
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+# 2. Build debug APK
+cd apps/client
+flutter build apk --debug
+```
+
+> [!NOTE]
+> Android release builds require a local signing keystore. Copy `apps/client/android/key.properties.example` to `apps/client/android/key.properties` and configure your credentials. Do not commit `key.properties`.
+
+---
+
+#### 4. Regenerating FFI Bindings
+
+If you modify public functions in `crates/ffi`:
 
 ```bash
 flutter_rust_bridge_codegen generate
 ```
 
-The Flutter client remains Linux-first and has platform runners for Linux,
-Android, Windows, and macOS. For Linux local development, build the Rust library
-and run the client:
+---
+
+## CLI Reference & Usage
+
+The `open-ucloud` CLI follows a verb-first design. Add `--json` to any command for stable, machine-readable JSON output suitable for scripts and autonomous agents.
+
+### System Health & Diagnostics
 
 ```bash
-sudo apt-get install clang cmake libgtk-3-dev libsecret-1-dev ninja-build pkg-config
-cargo build -p open-ucloud-ffi
-cd apps/client
-flutter run -d linux
+# Diagnose local CLI readiness and check OS credential backend status
+open-ucloud doctor
+open-ucloud doctor --json
+
+# Inspect client capabilities (e.g. selfAttendance, qrParsing)
+open-ucloud capabilities --json
 ```
 
-Windows desktop builds must run on a Windows host with Flutter's Windows
-desktop toolchain installed. Build the Rust FFI DLL first so the Flutter
-Windows bundle can copy it next to `open_ucloud_client.exe`:
+### Authentication & Session
+
+Open UCloud never accepts passwords as command-line arguments. Login is interactive and sessions are saved directly into the OS credential store:
 
 ```bash
-cargo build -p open-ucloud-ffi
-cd apps/client
-flutter build windows --debug
+# Interactive login (prompts securely for username & password)
+open-ucloud login --interactive
+
+# Inspect current session metadata (redacts tokens/cookies)
+open-ucloud session --json
+
+# Clear stored session credentials (requires explicit confirmation)
+open-ucloud logout --yes
 ```
 
-For release builds:
+### Courses & Activity
 
 ```bash
-cargo build --release -p open-ucloud-ffi
-cd apps/client
-flutter build windows --release
+# List all active student courses
+open-ucloud courses
+open-ucloud courses --json
+
+# List courses including live in-progress attendance status (going vs. idle)
+open-ucloud courses --with-going --json
+
+# Inspect a single course by site ID
+open-ucloud course <site-id> --json
 ```
 
-macOS desktop builds must run on a macOS host with Flutter's macOS desktop
-toolchain installed. Build the Rust FFI dylib first, then build the Flutter
-bundle:
+### Attendance & Check-in
 
 ```bash
-cargo build -p open-ucloud-ffi
-cd apps/client
-flutter build macos --debug
+# Check current attendance status for a course (both forms supported)
+open-ucloud attendance --site <site-id> --json
+open-ucloud attendance status --site <site-id> --json
+
+# Submit an explicit check-in (requires --yes confirmation)
+open-ucloud attendance sign --site <site-id> --group <group-id> --yes --json
+
+# Resolve parameters for rendering the in-progress attendance QR code
+open-ucloud attendance qr --site <site-id> --group <group-id> --json
 ```
 
-For release/profile packaging, use the release Rust dylib:
+> [!NOTE]
+> Core and FFI also support parsing raw user-supplied `checkwork|...` QR payload text for client adapters that support QR paste/scan flows.
+
+### Assignments & Submissions
 
 ```bash
-cargo build --release -p open-ucloud-ffi
-cd apps/client
-flutter build macos --release
+# List assignments for a course (with optional keyword filter)
+open-ucloud assignments list --site <site-id> [--keyword <query>] --json
+
+# View all pending/unfinished assignments across all courses
+open-ucloud assignments undone --json
+
+# View full assignment detail (instructions, deadlines, scores, submissions)
+open-ucloud assignments detail <assignment-id> --json
+
+# Upload an assignment attachment file (validates assignment status first)
+open-ucloud assignments upload <assignment-id> --file <path> --yes --json
+
+# Submit assignment with text and optional uploaded attachments
+open-ucloud assignments submit <assignment-id> \
+  --content "Assignment response text" \
+  --attachment <resource-id> \
+  --yes --json
 ```
 
-Android builds package the Rust FFI library through the Flutter Gradle build.
-Install the Android SDK, NDK, and Rust Android targets before building:
+> [!IMPORTANT]
+> Uploading attachments and submitting assignments are live mutating operations. They require the explicit `--yes` flag to prevent accidental submission.
+
+### Course Resources & Downloads
 
 ```bash
-rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-cd apps/client
-flutter build apk --debug
+# List all course resources and files
+open-ucloud resources list --site <site-id> --json
+
+# View resource detail and obtain download URL
+open-ucloud resources detail <resource-id> --site <site-id> --json
+
+# Download a specific resource safely (never overwrites existing files)
+open-ucloud resources download <resource-id> --site <site-id> --out-dir ./materials --json
+
+# Download all resources for an entire course in batch
+open-ucloud resources download-course --site <site-id> --out-dir ./materials --yes --json
 ```
 
-Android release builds require a release signing keystore. Copy
-`apps/client/android/key.properties.example` to
-`apps/client/android/key.properties`, point `storeFile` at the local PKCS12
-keystore, and keep that file out of Git. CI releases read the same signing
-fields from the `android-release` GitHub Environment secrets.
+---
+
+## Platform & Credential Backends
+
+Open UCloud uses native system credential stores to safeguard auth tokens. Plaintext file fallback is strictly disallowed.
+
+| Platform | Credential Backend | Persistence | Diagnostic Backend Name |
+| --- | --- | --- | --- |
+| **Linux (CLI - Default)** | Linux Kernel `keyutils` | Until reboot | `keyutils` |
+| **Linux (Desktop / Secret Service)** | FreeDesktop Secret Service (GNOME Keyring, KWallet) | Until deleted | `secret-service` |
+| **Windows** | Windows Credential Manager | Until deleted | `credential-manager` |
+| **macOS** | Apple Keychain Services | Until deleted | `keychain` |
+| **Android** | Android Keystore / EncryptedSharedPreferences | Until app uninstalled | N/A (Client Secure Storage) |
+
+### Linux Credential Packages
+
+Linux distributions have two package variants depending on the runtime environment:
+
+| Package Artifact | Build Feature Flag | Recommended Environment |
+| --- | --- | --- |
+| `open-ucloud-linux-keyutils` | *(Default)* | Headless servers, CI runners, and WSL |
+| `open-ucloud-linux-secret-service` | `--features linux-secret-service` | Native Linux desktop environments with DBus |
+
+The Secret Service artifact requires a DBus session and a provider such as GNOME Keyring, KWallet, or KeePassXC with an unlocked collection. Building it may also require `libdbus-1-dev` and `pkg-config`; use `--features linux-secret-service-vendored` only when the release environment intentionally needs vendored native dependencies.
+
+Use `open-ucloud doctor` to confirm the actual `credential backend`, `credential persistence`, and runtime `credential status` of the binary being run. The runtime probe tests storage using a temporary `doctor-probe` credential entry, without touching or risking your stored login session.
+
+---
+
+## Security, Privacy & Ethics
+
+- **Zero Plaintext Credentials**: Authentication tokens, refresh tokens, and cookies are never written to unencrypted disk files.
+- **Strict Data Redaction**: Log files and standard CLI outputs automatically redact usernames, passwords, authorization tokens, and upstream cookies.
+- **Write Safety Gates**: All mutating actions (`assignments upload`, `assignments submit`, `resources download-course`, `logout`) mandate explicit `--yes` confirmation.
+- **Collision-Free File Downloads**: File download paths are sanitized and checked against directory traversal. If a file exists, a collision-free filename is allocated to prevent data loss.
+- **Backup Exclusion**: Android manifests explicitly disable full application backups and cloud extraction to prevent sensitive session material from leaking across device transfers.
+- **Ethical Usage**: Open UCloud is an open-source personal client for legitimate student access. It strictly prohibits and rejects automation designed to bypass institutional rules, forge attendance location/GPS data, generate automated test answers, or share account credentials.
+
+---
 
 ## Android Distribution Stance
 
 [![Keep Android Open](https://img.shields.io/badge/Keep_Android_Open-keepandroidopen.org-blue)](https://keepandroidopen.org/)
 
-Android packages ship as release-signed APKs through GitHub Releases, and this
-project does not publish to Google Play. Open UCloud will not register with
-Google's Android Developer Verification program, which from 2027 requires
-Android developers to submit identity documents and signing-key evidence to
-Google and blocks non-registered apps on certified Android devices. The client
-embeds a vendored FreeDroidWarn notice that explains this to users once per app
-upgrade. For how device owners keep installing and updating after enforcement,
-see [docs/android-install.md](docs/android-install.md).
+Android packages are published exclusively as release-signed APKs via [GitHub Releases](https://github.com/nizne9/open-ucloud/releases) and are not distributed through Google Play.
 
-The Flutter client uses `file_selector` for Linux desktop file picking and save
-locations. Assignment attachment upload reads the user-selected file path through
-the Rust FFI boundary. Resource downloads write through Rust so the same
-non-overwriting file allocation rules as the CLI are preserved.
+Open UCloud supports the open Android ecosystem and will not participate in Google's Android Developer Verification program, which mandates identity verification and signing-key escrow for third-party developers. The client embeds a vendored [FreeDroidWarn](https://github.com/woheller69/FreeDroidWarn) dialog (Apache-2.0) informing users of their software freedom rights.
 
-`course <site-id> --json` returns one current course plus its optional `goingSite`. `attendance --site <site-id> --json` returns attendance status derived from the current course activity state. Rust core and FFI also expose parsing for `checkwork|...` QR payload text.
+For complete verification instructions and installation methods (direct sideloading, ADB, or de-Googled ROMs), please consult [docs/android-install.md](docs/android-install.md).
 
-`assignments` supports course assignment lists, unfinished assignments, assignment detail, assignment-scoped attachment upload, and explicit assignment submission. Assignment lists accept an optional course name and keyword filter. Submission accepts inline content or `--content-file`, plus zero or more uploaded attachment resource IDs. Upload validates the target assignment before creating an attachment resource. Upload and submit are live write operations and require `--yes`.
+---
 
-`resources` supports course resource lists, resource detail, single-resource download, and explicit full-course batch download. Downloads require `--out-dir`, create the directory if needed, never overwrite existing files, and print or return the actual written paths.
+## Development & Quality Gates
 
-## Linux Credential Packages
+All contributions must pass the project's verification gates prior to merge:
 
-Linux releases are split by credential backend instead of silently pretending every build has the same persistence semantics:
+```bash
+# Code formatting
+cargo fmt --all
+cd apps/client && dart format . && cd ../..
 
-| Artifact | Build command | Backend | Persistence | Best for |
-| --- | --- | --- | --- | --- |
-| `open-ucloud-linux-keyutils` | `cargo build --release -p open-ucloud-cli` | Linux keyutils | Until reboot | WSL, headless servers, and low-dependency CLI use |
-| `open-ucloud-linux-secret-service` | `cargo build --release -p open-ucloud-cli --features linux-secret-service` | Secret Service | Until delete | Native Linux desktops with a running secret store |
+# Static analysis and linting
+cargo clippy --workspace --all-targets
+cd apps/client && flutter pub get && dart analyze && cd ../..
 
-The Secret Service artifact requires a DBus session and a provider such as GNOME Keyring, KWallet, or KeePassXC with an unlocked collection. Building it may also require `libdbus-1-dev` and `pkg-config`; use `--features linux-secret-service-vendored` only when the release environment intentionally needs vendored native dependencies.
+# Test suites
+cargo test --workspace
+cd apps/client && flutter test && cd ../..
 
-Use `open-ucloud doctor` to confirm the actual `credential backend`, `credential persistence`, and runtime `credential status` of the binary being run. The runtime probe uses a temporary `doctor-probe` credential entry, not the stored login session.
+# CLI smoke check
+cargo run -p open-ucloud-cli -- --help
+cargo run -p open-ucloud-cli -- doctor
+```
 
-## CI and Release Artifacts
+For detailed quality expectations, MSRV specifications (Rust 1.88), and dependency auditing policies, see [docs/quality.md](docs/quality.md).
 
-GitHub Actions has three package levels:
+---
 
-- `CI` runs Rust formatting, Clippy, Rust tests, CLI smoke checks, Dart analysis, and Flutter tests for pull requests and pushes to `main`.
-- `Build Artifacts` runs on `main` and manual dispatches. It uploads short-lived Actions artifacts for development testing, including CLI packages, desktop client bundles, and an Android `debug-signed` APK.
-- `Release` runs for `v*` tags and manual dispatches pointed at an existing `v*` tag. It uploads CLI packages, unsigned desktop client packages, release-signed Android APKs, and a `.sha256` file for each asset.
+## CI/CD & Releases
 
-macOS notarization and Windows Authenticode signing are not configured; current desktop client release assets are named as unsigned packages. Android APKs in GitHub Releases are signed with the project release keystore, while Android APKs from `Build Artifacts` remain debug-signed development packages.
+Automated workflows on GitHub Actions maintain repository health:
 
-See:
+- **`CI`**: Runs Rust formatting, Clippy, workspace tests, CLI smoke tests, Dart analysis, and Flutter widget tests on every PR and push to `main`.
+- **`Build Artifacts`**: Generates temporary development test builds for CLI binaries and desktop bundles on `main`.
+- **`Release`**: Triggered on `v*` tags. Publishes multi-architecture CLI packages, desktop application packages, release-signed Android APKs, and cryptographic `.sha256` checksums.
 
-- [AGENTS.md](AGENTS.md) for contributor and agent entry instructions.
-- [docs/architecture.md](docs/architecture.md) for module boundaries.
-- [docs/cli-contract.md](docs/cli-contract.md) for CLI behavior.
-- [docs/android-install.md](docs/android-install.md) for Android install paths and the verification-stance details.
-- [docs/task-guidelines.md](docs/task-guidelines.md) for task workflow.
-- [docs/quality.md](docs/quality.md) for quality gates.
+---
+
+## Documentation Index
+
+- [AGENTS.md](AGENTS.md): Repository rules, entry points, and coding guidelines.
+- [docs/architecture.md](docs/architecture.md): Module boundaries, data flow, and dependency hierarchy.
+- [docs/cli-contract.md](docs/cli-contract.md): Detailed CLI specifications, JSON contracts, and error code taxonomy.
+- [docs/quality.md](docs/quality.md): Verification commands, MSRV policies, and structural requirements.
+- [docs/android-install.md](docs/android-install.md): Android APK installation methods, sideloading, and SHA-256 verification.
+- [docs/task-guidelines.md](docs/task-guidelines.md): Development workflow and pull request guidelines.
+
+---
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
