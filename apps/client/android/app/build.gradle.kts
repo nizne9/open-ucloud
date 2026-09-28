@@ -3,8 +3,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // The Flutter Gradle Plugin applies the Kotlin Android plugin itself.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -43,6 +42,10 @@ val releaseSigningConfigured =
 
 fun requestedTaskName(taskName: String): String = taskName.substringAfterLast(':')
 
+// AGP 9 rejects Provider values on SourceSet APIs; resolve to a concrete File.
+fun ffiJniLibsDir(buildType: String): File =
+    layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/$buildType").get().asFile
+
 val androidReleaseSigningTasks =
     setOf(
         "assembleRelease",
@@ -70,10 +73,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
     }
 
     defaultConfig {
@@ -123,9 +122,15 @@ android {
         }
     }
 
-    sourceSets["debug"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/debug"))
-    sourceSets["profile"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/profile"))
-    sourceSets["release"].jniLibs.srcDir(layout.buildDirectory.dir("generated/openUcloudFfiJniLibs/release"))
+    sourceSets["debug"].jniLibs.srcDir(ffiJniLibsDir("debug"))
+    sourceSets["profile"].jniLibs.srcDir(ffiJniLibsDir("profile"))
+    sourceSets["release"].jniLibs.srcDir(ffiJniLibsDir("release"))
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
 }
 
 flutter {
@@ -232,13 +237,20 @@ fun registerOpenUcloudFfiAndroidTask(
                         }
                     }
 
-                exec {
-                    workingDir = repoRoot
-                    executable = "cargo"
-                    args = cargoArgs
-                    environment(linkerEnv, linker.absolutePath)
-                    environment("CC_${rustTarget.replace('-', '_')}", linker.absolutePath)
-                    environment("AR_${rustTarget.replace('-', '_')}", ar.absolutePath)
+                val cargoEnvironment = mapOf(
+                    linkerEnv to linker.absolutePath,
+                    "CC_${rustTarget.replace('-', '_')}" to linker.absolutePath,
+                    "AR_${rustTarget.replace('-', '_')}" to ar.absolutePath,
+                )
+                val cargoExitCode =
+                    ProcessBuilder(listOf("cargo") + cargoArgs)
+                        .directory(repoRoot)
+                        .apply { environment().putAll(cargoEnvironment) }
+                        .inheritIO()
+                        .start()
+                        .waitFor()
+                require(cargoExitCode == 0) {
+                    "cargo build failed for $rustTarget: cargo ${cargoArgs.joinToString(" ")}"
                 }
 
                 val sourceLibrary =
