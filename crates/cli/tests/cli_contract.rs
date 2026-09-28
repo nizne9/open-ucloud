@@ -685,6 +685,10 @@ fn formats_course_list_with_going_status() {
     let output = open_ucloud_cli::format_course_list_with_going(&courses, &going_sites);
 
     assert_eq!(output, "site-1\t软件测试\tidle\nsite-2\t操作系统\tgoing\n");
+    assert_eq!(
+        open_ucloud_cli::format_course_list_with_going(&[], &[]),
+        "No courses found.\n"
+    );
 }
 
 #[test]
@@ -705,6 +709,23 @@ fn formats_course_list_records() {
     assert_eq!(
         open_ucloud_cli::format_course_list(&[]),
         "No courses found.\n"
+    );
+}
+
+#[test]
+fn formats_written_download_paths() {
+    let paths = vec![
+        "/tmp/out/课件.pdf".to_string(),
+        "/tmp/out/讲义 (1).pdf".to_string(),
+    ];
+
+    assert_eq!(
+        open_ucloud_cli::format_written_paths(&paths),
+        "/tmp/out/课件.pdf\n/tmp/out/讲义 (1).pdf\n"
+    );
+    assert_eq!(
+        open_ucloud_cli::format_written_paths(&[]),
+        "No files downloaded.\n"
     );
 }
 

@@ -141,6 +141,8 @@ impl HttpResponseHead {
 pub trait HttpClient: Clone + Send + Sync + 'static {
     async fn send(&self, request: HttpRequest) -> Result<HttpResponse, AuthError>;
 
+    /// The multipart form is the request body; any `body` preset on
+    /// `request` is ignored.
     async fn send_multipart_file(
         &self,
         mut request: HttpRequest,

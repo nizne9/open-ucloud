@@ -1220,13 +1220,20 @@ fn print_download_response(
     json: bool,
 ) -> Result<(), CliError> {
     print_json_or(response, json, || {
-        let mut out = String::new();
-        for path in &response.written_paths {
-            out.push_str(path);
-            out.push('\n');
-        }
-        out
+        format_written_paths(&response.written_paths)
     })
+}
+
+pub fn format_written_paths(paths: &[String]) -> String {
+    if paths.is_empty() {
+        return "No files downloaded.\n".to_string();
+    }
+    let mut output = String::new();
+    for path in paths {
+        output.push_str(path);
+        output.push('\n');
+    }
+    output
 }
 
 pub fn format_assignment_list(assignments: &[AssignmentSummary]) -> String {
