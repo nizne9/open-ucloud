@@ -128,7 +128,7 @@ pub(crate) fn portal_json_headers(access_token: &str, referer: &str) -> Vec<(Str
 pub(crate) fn portal_json_utf8_headers(access_token: &str, referer: &str) -> Vec<(String, String)> {
     let mut headers = portal_json_headers(access_token, referer);
     headers.push((
-        "Content-Type".to_string(),
+        "content-type".to_string(),
         "application/json;charset=UTF-8".to_string(),
     ));
     headers
@@ -372,7 +372,7 @@ mod tests {
 
         let utf8_headers = portal_json_utf8_headers("tok123", "https://ucloud.example/");
         assert!(utf8_headers.contains(&(
-            "Content-Type".to_string(),
+            "content-type".to_string(),
             "application/json;charset=UTF-8".to_string()
         )));
     }
