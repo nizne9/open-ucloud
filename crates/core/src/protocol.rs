@@ -118,18 +118,15 @@ impl<'a> UcloudJsonHeaders<'a> {
     }
 }
 
-pub(crate) fn portal_json_headers(access_token: &str) -> Vec<(String, String)> {
+pub(crate) fn portal_json_headers(access_token: &str, referer: &str) -> Vec<(String, String)> {
     let mut headers = UcloudJsonHeaders::new(PORTAL_BASIC_AUTH, access_token).into_vec();
-    headers.push((
-        "Referer".to_string(),
-        "https://ucloud.bupt.edu.cn/".to_string(),
-    ));
+    headers.push(("Referer".to_string(), referer.to_string()));
     headers.push(("tenant-id".to_string(), "000000".to_string()));
     headers
 }
 
-pub(crate) fn portal_json_utf8_headers(access_token: &str) -> Vec<(String, String)> {
-    let mut headers = portal_json_headers(access_token);
+pub(crate) fn portal_json_utf8_headers(access_token: &str, referer: &str) -> Vec<(String, String)> {
+    let mut headers = portal_json_headers(access_token, referer);
     headers.push((
         "Content-Type".to_string(),
         "application/json;charset=UTF-8".to_string(),
@@ -367,16 +364,13 @@ mod tests {
 
     #[test]
     fn builds_portal_json_headers() {
-        let headers = portal_json_headers("tok123");
+        let headers = portal_json_headers("tok123", "https://ucloud.example/");
         assert!(headers.contains(&("authorization".to_string(), PORTAL_BASIC_AUTH.to_string())));
         assert!(headers.contains(&("Blade-Auth".to_string(), "tok123".to_string())));
-        assert!(headers.contains(&(
-            "Referer".to_string(),
-            "https://ucloud.bupt.edu.cn/".to_string()
-        )));
+        assert!(headers.contains(&("Referer".to_string(), "https://ucloud.example/".to_string())));
         assert!(headers.contains(&("tenant-id".to_string(), "000000".to_string())));
 
-        let utf8_headers = portal_json_utf8_headers("tok123");
+        let utf8_headers = portal_json_utf8_headers("tok123", "https://ucloud.example/");
         assert!(utf8_headers.contains(&(
             "Content-Type".to_string(),
             "application/json;charset=UTF-8".to_string()

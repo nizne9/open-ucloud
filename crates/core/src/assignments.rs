@@ -51,7 +51,7 @@ where
                 .send(HttpRequest {
                     method: HttpMethod::Post,
                     url: self.endpoints.assignment_list_url.clone(),
-                    headers: portal_json_utf8_headers(access_token),
+                    headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                     body: Some(HttpBody::text(body.to_string())),
                 })
                 .await?;
@@ -97,7 +97,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: portal_json_utf8_headers(access_token),
+                headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                 body: None,
             })
             .await?;
@@ -142,7 +142,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: portal_json_utf8_headers(access_token),
+                headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                 body: None,
             })
             .await?;
@@ -233,7 +233,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Post,
                 url: self.endpoints.assignment_submit_url.clone(),
-                headers: portal_json_utf8_headers(access_token),
+                headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                 body: Some(HttpBody::text(body.to_string())),
             })
             .await?;
