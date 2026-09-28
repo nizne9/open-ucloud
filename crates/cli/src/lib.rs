@@ -1118,10 +1118,6 @@ pub fn format_course_list(courses: &[CourseSite]) -> String {
     output
 }
 
-pub fn print_course_list(courses: &[CourseSite]) {
-    print!("{}", format_course_list(courses));
-}
-
 fn format_capabilities(capabilities: &ClientCapabilities) -> String {
     format!(
         "selfAttendance: {}\nattendanceQrPayloadParsing: {}\n",

@@ -137,34 +137,27 @@ pub(crate) fn portal_json_utf8_headers(access_token: &str) -> Vec<(String, Strin
     headers
 }
 
+fn normalize_non_empty(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else if trimmed.len() == value.len() {
+        Some(value)
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {
     match value {
-        serde_json::Value::String(value) => {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                None
-            } else if trimmed.len() == value.len() {
-                Some(value)
-            } else {
-                Some(trimmed.to_string())
-            }
-        }
+        serde_json::Value::String(value) => normalize_non_empty(value),
         serde_json::Value::Number(value) => Some(value.to_string()),
         _ => None,
     }
 }
 
 pub(crate) fn pick_string<const N: usize>(values: [Option<String>; N]) -> Option<String> {
-    values.into_iter().flatten().find_map(|value| {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            None
-        } else if trimmed.len() == value.len() {
-            Some(value)
-        } else {
-            Some(trimmed.to_string())
-        }
-    })
+    values.into_iter().flatten().find_map(normalize_non_empty)
 }
 
 #[cfg(test)]

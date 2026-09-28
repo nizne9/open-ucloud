@@ -15,11 +15,11 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::Path;
 
-pub const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
+const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
 const ASSIGNMENT_PAGE_SIZE: u32 = 100;
 const MAX_ASSIGNMENT_PAGES: u32 = 100;
 const PREVIEW_URL_CONCURRENCY: usize = 4;
-pub const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
+const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
     "ade", "adp", "apk", "app", "bat", "bin", "cmd", "com", "cpl", "dll", "dmg", "exe", "hta",
     "ins", "iso", "jar", "js", "jse", "lnk", "msc", "msi", "msp", "mst", "pif", "scr", "sh", "vb",
     "vbe", "vbs", "ws", "wsc", "wsf", "wsh",

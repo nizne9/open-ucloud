@@ -10,7 +10,6 @@ mod resources;
 mod session;
 mod transport;
 
-pub use assignments::{BLOCKED_UPLOAD_EXTENSIONS, MAX_ASSIGNMENT_UPLOAD_BYTES};
 pub use attendance::parse_attendance_qr_payload;
 pub use auth::{get_token_expiration_ms, LoginFlow, LoginResult, UserInfoPayload};
 pub use client::{OpenUcloudClient, OpenUcloudEndpoints};
