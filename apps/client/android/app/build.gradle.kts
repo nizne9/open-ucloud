@@ -3,7 +3,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    // The Flutter Gradle Plugin applies the Kotlin Android plugin itself.
+    // Kotlin sources are compiled by AGP's built-in Kotlin support.
     id("dev.flutter.flutter-gradle-plugin")
 }
 

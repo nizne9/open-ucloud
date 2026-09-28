@@ -26,6 +26,8 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     id("com.android.application") version "9.1.0" apply false
     id("com.android.library") version "9.1.0" apply false
+    // Not applied anywhere; keeps a KGP newer than AGP's bundled 2.2.10 on the
+    // classpath for built-in Kotlin, above Flutter's minimum supported version.
     id("org.jetbrains.kotlin.android") version "2.4.0" apply false
 }
 
