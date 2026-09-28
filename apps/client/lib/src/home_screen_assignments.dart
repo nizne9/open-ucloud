@@ -213,29 +213,10 @@ class _AssignmentsPane extends ConsumerWidget {
       ),
       if (state.assignmentView == AssignmentView.course) ...[
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: _courseDropdownKey(
-            'assignment',
-            state.courses,
-            selectedCourseId,
-          ),
-          isExpanded: true,
-          initialValue: selectedCourseId,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            labelText: '课程',
-          ),
-          items: [
-            for (final course in state.courses)
-              DropdownMenuItem(
-                value: course.id,
-                child: Text(
-                  course.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-          ],
+        _CourseDropdown(
+          scope: 'assignment',
+          courses: state.courses,
+          selectedCourseId: selectedCourseId,
           onChanged: (value) {
             if (value != null && value != state.selectedAssignmentCourseId) {
               unawaited(_loadCourseAssignmentsGuarded(context, ref, value));
@@ -320,7 +301,7 @@ class _AssignmentsPane extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         selected: state.selectedAssignmentId == assignment.id,
-        leading: Icon(_assignmentIcon(assignment.status)),
+        leading: Icon(assignment.status.icon),
         title: _TooltipText(assignment.title),
         subtitle: Text.rich(
           TextSpan(
@@ -333,21 +314,13 @@ class _AssignmentsPane extends ConsumerWidget {
           ),
         ),
         isThreeLine: true,
-        trailing: Text(_assignmentStatusText(assignment.status)),
+        trailing: Text(assignment.status.label),
         onTap: () {
           unawaited(_selectAssignmentGuarded(context, ref, assignment));
         },
       ),
     );
   }
-}
-
-String _assignmentStatusText(FfiAssignmentStatus status) {
-  return switch (status) {
-    FfiAssignmentStatus.pending => '待提交',
-    FfiAssignmentStatus.submitted => '已提交',
-    FfiAssignmentStatus.expired => '已截止',
-  };
 }
 
 Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
@@ -468,7 +441,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                   icon: expired
                       ? Icons.event_busy_outlined
                       : Icons.edit_note_outlined,
-                  label: _assignmentStatusText(detail.status),
+                  label: detail.status.label,
                 ),
                 if (detail.className.trim().isNotEmpty)
                   _MetaChip(

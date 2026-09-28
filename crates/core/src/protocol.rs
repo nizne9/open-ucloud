@@ -3,6 +3,7 @@ use open_ucloud_api::AuthErrorCode;
 use serde::Deserialize;
 
 pub(crate) const PORTAL_BASIC_AUTH: &str = "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=";
+pub(crate) const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
 struct UcloudEnvelope<T> {
@@ -117,12 +118,43 @@ impl<'a> UcloudJsonHeaders<'a> {
     }
 }
 
+pub(crate) fn portal_json_headers(access_token: &str, referer: &str) -> Vec<(String, String)> {
+    let mut headers = UcloudJsonHeaders::new(PORTAL_BASIC_AUTH, access_token).into_vec();
+    headers.push(("Referer".to_string(), referer.to_string()));
+    headers.push(("tenant-id".to_string(), "000000".to_string()));
+    headers
+}
+
+pub(crate) fn portal_json_utf8_headers(access_token: &str, referer: &str) -> Vec<(String, String)> {
+    let mut headers = portal_json_headers(access_token, referer);
+    headers.push((
+        "content-type".to_string(),
+        "application/json;charset=UTF-8".to_string(),
+    ));
+    headers
+}
+
+fn normalize_non_empty(value: String) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else if trimmed.len() == value.len() {
+        Some(value)
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 pub(crate) fn value_to_string(value: serde_json::Value) -> Option<String> {
     match value {
-        serde_json::Value::String(value) => Some(value.trim().to_string()),
+        serde_json::Value::String(value) => normalize_non_empty(value),
         serde_json::Value::Number(value) => Some(value.to_string()),
         _ => None,
     }
+}
+
+pub(crate) fn pick_string<const N: usize>(values: [Option<String>; N]) -> Option<String> {
+    values.into_iter().flatten().find_map(normalize_non_empty)
 }
 
 #[cfg(test)]
@@ -293,10 +325,28 @@ mod tests {
             Some("site-1")
         );
         assert_eq!(
+            value_to_string(serde_json::Value::String("   ".to_string())),
+            None
+        );
+        assert_eq!(
             value_to_string(serde_json::Value::Number(1001.into())).as_deref(),
             Some("1001")
         );
         assert_eq!(value_to_string(serde_json::Value::Bool(true)), None);
+    }
+
+    #[test]
+    fn picks_first_non_empty_string() {
+        assert_eq!(
+            pick_string([
+                None,
+                Some("".to_string()),
+                Some("   ".to_string()),
+                Some("  found  ".to_string())
+            ]),
+            Some("found".to_string())
+        );
+        assert_eq!(pick_string([None, Some("   ".to_string())]), None);
     }
 
     #[test]
@@ -310,5 +360,20 @@ mod tests {
                 ("Blade-Auth".to_string(), "access-token".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn builds_portal_json_headers() {
+        let headers = portal_json_headers("tok123", "https://ucloud.example/");
+        assert!(headers.contains(&("authorization".to_string(), PORTAL_BASIC_AUTH.to_string())));
+        assert!(headers.contains(&("Blade-Auth".to_string(), "tok123".to_string())));
+        assert!(headers.contains(&("Referer".to_string(), "https://ucloud.example/".to_string())));
+        assert!(headers.contains(&("tenant-id".to_string(), "000000".to_string())));
+
+        let utf8_headers = portal_json_utf8_headers("tok123", "https://ucloud.example/");
+        assert!(utf8_headers.contains(&(
+            "content-type".to_string(),
+            "application/json;charset=UTF-8".to_string()
+        )));
     }
 }

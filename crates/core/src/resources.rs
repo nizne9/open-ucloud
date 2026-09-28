@@ -1,6 +1,6 @@
 use crate::protocol::{
-    http_status_error, parse_ucloud_envelope, parse_ucloud_optional_envelope, value_to_string,
-    UcloudJsonHeaders, PORTAL_BASIC_AUTH,
+    http_status_error, parse_ucloud_envelope, parse_ucloud_optional_envelope, pick_string,
+    portal_json_headers, value_to_string,
 };
 use crate::{
     AuthError, DownloadCancelFlag, DownloadProgress, HttpClient, HttpMethod, HttpRequest,
@@ -37,7 +37,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Post,
                 url: url.to_string(),
-                headers: portal_json_headers(access_token),
+                headers: portal_json_headers(access_token, &self.endpoints.ucloud_referer),
                 body: None,
             })
             .await?;
@@ -86,7 +86,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: portal_json_headers(access_token),
+                headers: portal_json_headers(access_token, &self.endpoints.ucloud_referer),
                 body: None,
             })
             .await?;
@@ -193,7 +193,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: portal_json_headers(access_token),
+                headers: portal_json_headers(access_token, &self.endpoints.ucloud_referer),
                 body: None,
             })
             .await?;
@@ -279,16 +279,6 @@ fn resolve_download_redirect(current_url: &str, location: &str) -> Result<String
         .and_then(|base| base.join(location))
         .map(|url| url.to_string())
         .map_err(|error| AuthError::upstream(error.to_string()))
-}
-
-pub(crate) fn portal_json_headers(access_token: &str) -> Vec<(String, String)> {
-    let mut headers = UcloudJsonHeaders::new(PORTAL_BASIC_AUTH, access_token).into_vec();
-    headers.push((
-        "Referer".to_string(),
-        "https://ucloud.bupt.edu.cn/".to_string(),
-    ));
-    headers.push(("tenant-id".to_string(), "000000".to_string()));
-    headers
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
@@ -395,15 +385,6 @@ pub(crate) fn raw_resource_id(resource: &RawResourceDetail) -> Option<String> {
         .clone()
         .and_then(value_to_string)
         .or_else(|| resource.id.clone().and_then(value_to_string))
-        .filter(|value| !value.is_empty())
-}
-
-fn pick_string<const N: usize>(values: [Option<String>; N]) -> Option<String> {
-    values
-        .into_iter()
-        .flatten()
-        .map(|value| value.trim().to_string())
-        .find(|value| !value.is_empty())
 }
 
 fn pick_u64<const N: usize>(values: [Option<serde_json::Value>; N]) -> Option<u64> {
@@ -412,4 +393,157 @@ fn pick_u64<const N: usize>(values: [Option<serde_json::Value>; N]) -> Option<u6
         serde_json::Value::String(value) => value.trim().parse::<u64>().ok(),
         _ => None,
     })
+}
+
+const WINDOWS_RESERVED_NAMES: &[&str] = &[
+    "con", "prn", "aux", "nul", "clock$", "com0", "com1", "com2", "com3", "com4", "com5", "com6",
+    "com7", "com8", "com9", "lpt0", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8",
+    "lpt9",
+];
+
+pub fn sanitize_file_name(file_name: &str) -> String {
+    let cleaned = file_name
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | '\0' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            ch if (ch as u32) < 32 => '_',
+            other => other,
+        })
+        .collect::<String>()
+        .trim()
+        .trim_end_matches(['.', ' '])
+        .trim()
+        .to_string();
+    if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
+        return "download".to_string();
+    }
+    let base = cleaned
+        .split('.')
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_ascii_lowercase();
+    if WINDOWS_RESERVED_NAMES.contains(&base.as_str()) {
+        return format!("_{cleaned}");
+    }
+    cleaned
+}
+
+/// Allocates non-overwriting download paths for one batch of downloads.
+///
+/// Allocation skips paths that already exist on disk and paths handed out
+/// earlier by the same allocator, so a batch with duplicate file names
+/// still writes each file exactly once.
+#[derive(Default)]
+pub struct DownloadPathAllocator {
+    reserved: HashSet<PathBuf>,
+}
+
+impl DownloadPathAllocator {
+    pub fn new() -> Self {
+        Self {
+            reserved: HashSet::new(),
+        }
+    }
+
+    pub fn next_path(&mut self, requested_path: &Path) -> Result<PathBuf, AuthError> {
+        if !requested_path.exists() && self.reserved.insert(requested_path.to_path_buf()) {
+            return Ok(requested_path.to_path_buf());
+        }
+        let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
+        let stem = requested_path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("download");
+        let extension = requested_path.extension().and_then(|value| value.to_str());
+        for index in 1..10_000 {
+            let file_name = match extension {
+                Some(extension) if !extension.is_empty() => format!("{stem} ({index}).{extension}"),
+                _ => format!("{stem} ({index})"),
+            };
+            let candidate = parent.join(file_name);
+            if !candidate.exists() && self.reserved.insert(candidate.clone()) {
+                return Ok(candidate);
+            }
+        }
+        Err(AuthError::new(
+            AuthErrorCode::FileSystem,
+            "could not allocate a non-overwriting download path.",
+        ))
+    }
+}
+
+pub fn next_download_path(requested_path: &Path) -> Result<PathBuf, AuthError> {
+    DownloadPathAllocator::new().next_path(requested_path)
+}
+
+pub fn next_download_path_in_dir(out_dir: &Path, file_name: &str) -> Result<PathBuf, AuthError> {
+    let clean_name = sanitize_file_name(file_name);
+    let requested = out_dir.join(clean_name);
+    next_download_path(&requested)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitizes_file_names() {
+        assert_eq!(sanitize_file_name("  "), "download");
+        assert_eq!(sanitize_file_name("."), "download");
+        assert_eq!(sanitize_file_name(".."), "download");
+        assert_eq!(sanitize_file_name("  ..  "), "download");
+        assert_eq!(sanitize_file_name("..."), "download");
+        assert_eq!(sanitize_file_name("path/to/file.pdf"), "path_to_file.pdf");
+        assert_eq!(
+            sanitize_file_name(r"win\path\file.pdf"),
+            "win_path_file.pdf"
+        );
+        assert_eq!(
+            sanitize_file_name("Lecture 1: Intro?.pdf"),
+            "Lecture 1_ Intro_.pdf"
+        );
+        assert_eq!(
+            sanitize_file_name("Assignment <1> *final* | v2.pdf"),
+            "Assignment _1_ _final_ _ v2.pdf"
+        );
+        assert_eq!(sanitize_file_name("Report.pdf..."), "Report.pdf");
+        assert_eq!(sanitize_file_name("con.txt"), "_con.txt");
+        assert_eq!(sanitize_file_name("con.tar.gz"), "_con.tar.gz");
+        assert_eq!(sanitize_file_name("CON.TAR.GZ"), "_CON.TAR.GZ");
+        assert_eq!(sanitize_file_name("con .tar.gz"), "_con .tar.gz");
+        assert_eq!(sanitize_file_name("NUL"), "_NUL");
+        assert_eq!(sanitize_file_name("nul.tar.gz"), "_nul.tar.gz");
+        assert_eq!(sanitize_file_name("com0.pdf"), "_com0.pdf");
+        assert_eq!(sanitize_file_name("lpt0.zip"), "_lpt0.zip");
+        assert_eq!(sanitize_file_name("clock$.txt"), "_clock$.txt");
+        assert_eq!(sanitize_file_name("aux.1.2.pdf"), "_aux.1.2.pdf");
+        assert_eq!(sanitize_file_name("constant.tar.gz"), "constant.tar.gz");
+        assert_eq!(sanitize_file_name(".gitignore"), ".gitignore");
+        assert_eq!(sanitize_file_name("regular.pdf"), "regular.pdf");
+    }
+
+    #[test]
+    fn allocates_next_download_path_with_collision() {
+        let dir = std::env::temp_dir().join(format!("open_ucloud_test_{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("create test dir");
+
+        let base_file = dir.join("doc.txt");
+        std::fs::write(&base_file, b"content").expect("write");
+
+        let next = next_download_path(&base_file).expect("next path");
+        assert_eq!(next, dir.join("doc (1).txt"));
+
+        let next_in_dir = next_download_path_in_dir(&dir, "doc.txt").expect("next in dir");
+        assert_eq!(next_in_dir, dir.join("doc (1).txt"));
+
+        let mut allocator = DownloadPathAllocator::new();
+        let r1 = allocator.next_path(&base_file).expect("reserved 1");
+        assert_eq!(r1, dir.join("doc (1).txt"));
+        let r2 = allocator.next_path(&base_file).expect("reserved 2");
+        assert_eq!(r2, dir.join("doc (2).txt"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

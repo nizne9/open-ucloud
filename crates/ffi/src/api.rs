@@ -4,22 +4,17 @@ use open_ucloud_api::{
     AuthErrorCode, AuthErrorResponse, CourseResourceDetail, CourseResourceSummary,
 };
 use open_ucloud_core::{
-    client_capabilities, now_ms, parse_attendance_qr_payload, DownloadCancelFlag, DownloadProgress,
-    LoginFlow, OpenUcloudClient, OpenUcloudEndpoints, ReqwestHttpClient,
+    client_capabilities, next_download_path, now_ms, parse_attendance_qr_payload,
+    sanitize_file_name, DownloadCancelFlag, DownloadPathAllocator, DownloadProgress, LoginFlow,
+    OpenUcloudClient, OpenUcloudEndpoints, ReqwestHttpClient,
 };
 use open_ucloud_store::AuthSession;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
-const BLOCKED_UPLOAD_EXTENSIONS: &[&str] = &[
-    "ade", "adp", "apk", "app", "bat", "bin", "cmd", "com", "cpl", "dll", "dmg", "exe", "hta",
-    "ins", "iso", "jar", "js", "jse", "lnk", "msc", "msi", "msp", "mst", "pif", "scr", "sh", "vb",
-    "vbe", "vbs", "ws", "wsc", "wsf", "wsh",
-];
 const COURSE_DOWNLOAD_CONCURRENCY: usize = 4;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -948,7 +943,6 @@ where
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| error(AuthErrorCode::InvalidFileName, "invalid upload file name"))?;
-    validate_upload_file_metadata(&path, file_name)?;
     let upload = client
         .upload_assignment_file_path(
             &detail,
@@ -1252,45 +1246,15 @@ fn course_download_targets(
     output_dir: &Path,
     details: Vec<CourseResourceDetail>,
 ) -> Result<Vec<(CourseResourceDetail, PathBuf)>, FfiAuthError> {
-    let mut reserved = HashSet::new();
+    let mut allocator = DownloadPathAllocator::new();
     details
         .into_iter()
         .map(|detail| {
             let requested = output_dir.join(sanitize_file_name(&detail.name));
-            let target = next_download_path_reserved(&requested, &mut reserved)?;
+            let target = allocator.next_path(&requested).map_err(to_ffi_error)?;
             Ok((detail, target))
         })
         .collect()
-}
-
-fn next_download_path_reserved(
-    requested_path: &Path,
-    reserved: &mut HashSet<PathBuf>,
-) -> Result<PathBuf, FfiAuthError> {
-    if !requested_path.exists() && reserved.insert(requested_path.to_path_buf()) {
-        return Ok(requested_path.to_path_buf());
-    }
-    let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = requested_path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.is_empty())
-        .unwrap_or("download");
-    let extension = requested_path.extension().and_then(|value| value.to_str());
-    for index in 1..10_000 {
-        let file_name = match extension {
-            Some(extension) if !extension.is_empty() => format!("{stem} ({index}).{extension}"),
-            _ => format!("{stem} ({index})"),
-        };
-        let candidate = parent.join(file_name);
-        if !candidate.exists() && reserved.insert(candidate.clone()) {
-            return Ok(candidate);
-        }
-    }
-    Err(error(
-        AuthErrorCode::FileSystem,
-        "could not allocate a non-overwriting download path.",
-    ))
 }
 
 async fn download_course_targets<C>(
@@ -1408,7 +1372,7 @@ where
         .ok_or_else(|| error(AuthErrorCode::NotFound, "当前资料暂时没有可用下载链接。"))?;
     let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(parent).map_err(fs_error)?;
-    let path = next_download_path(requested_path)?;
+    let path = next_download_path(requested_path).map_err(to_ffi_error)?;
     client
         .download_url_to_path(url, &path, progress, cancel)
         .await
@@ -1416,84 +1380,8 @@ where
     Ok(path)
 }
 
-fn next_download_path(requested_path: &Path) -> Result<PathBuf, FfiAuthError> {
-    if !requested_path.exists() {
-        return Ok(requested_path.to_path_buf());
-    }
-    let parent = requested_path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = requested_path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.is_empty())
-        .unwrap_or("download");
-    let extension = requested_path.extension().and_then(|value| value.to_str());
-    for index in 1..10_000 {
-        let file_name = match extension {
-            Some(extension) if !extension.is_empty() => format!("{stem} ({index}).{extension}"),
-            _ => format!("{stem} ({index})"),
-        };
-        let candidate = parent.join(file_name);
-        if !candidate.exists() {
-            return Ok(candidate);
-        }
-    }
-    Err(error(
-        AuthErrorCode::FileSystem,
-        "could not allocate a non-overwriting download path.",
-    ))
-}
-
-fn sanitize_file_name(file_name: &str) -> String {
-    let cleaned = file_name
-        .chars()
-        .map(|ch| match ch {
-            '/' | '\\' | '\0' => '_',
-            other => other,
-        })
-        .collect::<String>()
-        .trim()
-        .to_string();
-    if cleaned.is_empty() {
-        "download".to_string()
-    } else {
-        cleaned
-    }
-}
-
 fn fs_error(source: std::io::Error) -> FfiAuthError {
     error(AuthErrorCode::FileSystem, source.to_string())
-}
-
-fn validate_upload_file_metadata(path: &Path, file_name: &str) -> Result<(), FfiAuthError> {
-    if file_name.contains(['\r', '\n']) {
-        return Err(error(
-            AuthErrorCode::InvalidFileName,
-            "上传文件名不能包含换行符。",
-        ));
-    }
-    let metadata = fs::metadata(path).map_err(fs_error)?;
-    if metadata.len() == 0 {
-        return Err(error(AuthErrorCode::EmptyUpload, "上传文件不能为空。"));
-    }
-    if metadata.len() > MAX_ASSIGNMENT_UPLOAD_BYTES {
-        return Err(error(
-            AuthErrorCode::FileTooLarge,
-            "单个附件不能超过 25 MB。",
-        ));
-    }
-    let extension = file_name
-        .rsplit_once('.')
-        .map(|(_, extension)| extension.trim().to_ascii_lowercase());
-    if extension
-        .as_deref()
-        .is_some_and(|extension| BLOCKED_UPLOAD_EXTENSIONS.contains(&extension))
-    {
-        return Err(error(
-            AuthErrorCode::FileTypeNotAllowed,
-            "当前不支持上传可执行文件，请改用文档、图片、压缩包或代码文本。",
-        ));
-    }
-    Ok(())
 }
 
 fn encode_session_payload(session: &AuthSession) -> Result<String, FfiAuthError> {

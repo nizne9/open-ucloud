@@ -270,6 +270,60 @@ Key _courseDropdownKey(
   return ValueKey<String>('$scope:$selectedCourseId:$courseIds');
 }
 
+class _CourseDropdown extends StatelessWidget {
+  const _CourseDropdown({
+    required this.scope,
+    required this.courses,
+    required this.selectedCourseId,
+    required this.onChanged,
+  });
+
+  final String scope;
+  final List<CourseItem> courses;
+  final String? selectedCourseId;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      key: _courseDropdownKey(scope, courses, selectedCourseId),
+      isExpanded: true,
+      initialValue: selectedCourseId,
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+        labelText: '课程',
+      ),
+      items: [
+        for (final course in courses)
+          DropdownMenuItem(
+            value: course.id,
+            child: Text(
+              course.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onChanged,
+    );
+  }
+}
+
+String _formatBytes(BigInt bytes) {
+  final value = bytes.toDouble();
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  var size = value;
+  var unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  final text = unitIndex == 0 || size >= 10
+      ? size.toStringAsFixed(0)
+      : size.toStringAsFixed(1);
+  return '$text ${units[unitIndex]}';
+}
+
 Future<void> _openExternalLink(BuildContext context, String value) async {
   final uri = Uri.tryParse(value.trim());
   if (uri == null || !uri.hasScheme) {

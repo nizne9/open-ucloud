@@ -483,6 +483,26 @@ async fn upload_assignment_file_path_uses_transport_file_upload() {
 }
 
 #[tokio::test]
+async fn upload_assignment_file_path_rejects_directory() {
+    let dir = std::env::temp_dir();
+    let http = PathUploadHttp::with(Vec::new());
+    let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
+
+    let error = client
+        .upload_assignment_file_path(
+            &assignment_detail(AssignmentStatus::Pending),
+            "directory.pdf",
+            &dir,
+            "u-1",
+            "access-token",
+        )
+        .await
+        .expect_err("uploading directory must fail");
+
+    assert_eq!(error.code, AuthErrorCode::InvalidInput);
+}
+
+#[tokio::test]
 async fn upload_assignment_file_uses_boundary_that_does_not_collide_with_file_bytes() {
     let http = MockHttp::with(vec![
         response(200, r#"{"success":true,"data":"resource-1"}"#),

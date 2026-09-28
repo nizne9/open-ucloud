@@ -180,7 +180,7 @@ Assignment uploads use RFC 7578-style `multipart/form-data` with a single UTF-8 
 }
 ```
 
-`resources list`, `resources detail`, `resources download`, and `resources download-course` may receive `--site-name` when the caller already has a display name from course discovery. `resources detail <resource-id> --site <site-id> --json` wraps the detail as `{ "detail": { ... } }` and includes `downloadUrl` when upstream provides one. `resources download` and `resources download-course` require `--out-dir`; they create the directory if needed, do not overwrite existing files, and return `writtenPaths` with the actual saved paths.
+`resources list`, `resources detail`, `resources download`, and `resources download-course` may receive `--site-name` when the caller already has a display name from course discovery. `resources detail <resource-id> --site <site-id> --json` wraps the detail as `{ "detail": { ... } }` and includes `downloadUrl` when upstream provides one. `resources download` and `resources download-course` require `--out-dir`; they create the directory if needed, do not overwrite existing files, and return `writtenPaths` with the actual saved paths. The human-readable download output prints one written path per line, or `No files downloaded.` when nothing was written.
 
 ## Agent-Friendly Rules
 

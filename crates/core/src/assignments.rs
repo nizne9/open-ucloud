@@ -1,7 +1,8 @@
 use crate::protocol::{
-    parse_ucloud_empty_success, parse_ucloud_envelope, value_to_string, PORTAL_BASIC_AUTH,
+    parse_ucloud_empty_success, parse_ucloud_envelope, pick_string, portal_json_utf8_headers,
+    value_to_string, UcloudJsonHeaders, PORTAL_BASIC_AUTH,
 };
-use crate::resources::{portal_json_headers, raw_resource_id, RawResourceDetail};
+use crate::resources::{raw_resource_id, RawResourceDetail};
 use crate::transport::{multipart_boundary, multipart_quoted_string};
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
 use futures_util::stream::{self, StreamExt};
@@ -14,7 +15,7 @@ use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::Path;
 
-const MAX_ASSIGNMENT_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
+const MAX_ASSIGNMENT_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
 const ASSIGNMENT_PAGE_SIZE: u32 = 100;
 const MAX_ASSIGNMENT_PAGES: u32 = 100;
 const PREVIEW_URL_CONCURRENCY: usize = 4;
@@ -50,7 +51,7 @@ where
                 .send(HttpRequest {
                     method: HttpMethod::Post,
                     url: self.endpoints.assignment_list_url.clone(),
-                    headers: json_headers(access_token),
+                    headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                     body: Some(HttpBody::text(body.to_string())),
                 })
                 .await?;
@@ -96,7 +97,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: json_headers(access_token),
+                headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                 body: None,
             })
             .await?;
@@ -141,7 +142,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Get,
                 url: url.to_string(),
-                headers: json_headers(access_token),
+                headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                 body: None,
             })
             .await?;
@@ -232,7 +233,7 @@ where
             .send(HttpRequest {
                 method: HttpMethod::Post,
                 url: self.endpoints.assignment_submit_url.clone(),
-                headers: json_headers(access_token),
+                headers: portal_json_utf8_headers(access_token, &self.endpoints.ucloud_referer),
                 body: Some(HttpBody::text(body.to_string())),
             })
             .await?;
@@ -250,16 +251,14 @@ where
     ) -> Result<AssignmentUploadResponse, AuthError> {
         validate_assignment_upload(file_name, bytes)?;
         let (content_type, body) = multipart_upload_body(file_name, bytes, user_id);
+        let mut headers = UcloudJsonHeaders::new(PORTAL_BASIC_AUTH, access_token).into_vec();
+        headers.push(("content-type".to_string(), content_type));
         let response = self
             .http
             .send(HttpRequest {
                 method: HttpMethod::Post,
                 url: self.endpoints.assignment_upload_url.clone(),
-                headers: vec![
-                    ("authorization".to_string(), PORTAL_BASIC_AUTH.to_string()),
-                    ("Blade-Auth".to_string(), access_token.to_string()),
-                    ("content-type".to_string(), content_type),
-                ],
+                headers,
                 body: Some(HttpBody::bytes(body)),
             })
             .await?;
@@ -288,17 +287,20 @@ where
         let metadata = tokio::fs::metadata(path)
             .await
             .map_err(|error| AuthError::file_system(error.to_string()))?;
-        validate_assignment_upload_metadata(file_name, metadata.len() as usize)?;
+        if !metadata.is_file() {
+            return Err(AuthError::new(
+                AuthErrorCode::InvalidInput,
+                "上传路径不是普通文件。",
+            ));
+        }
+        validate_assignment_upload_metadata(file_name, metadata.len())?;
         let response = self
             .http
             .send_multipart_file(
                 HttpRequest {
                     method: HttpMethod::Post,
                     url: self.endpoints.assignment_upload_url.clone(),
-                    headers: vec![
-                        ("authorization".to_string(), PORTAL_BASIC_AUTH.to_string()),
-                        ("Blade-Auth".to_string(), access_token.to_string()),
-                    ],
+                    headers: UcloudJsonHeaders::new(PORTAL_BASIC_AUTH, access_token).into_vec(),
                     body: None,
                 },
                 vec![
@@ -498,9 +500,6 @@ fn to_assignment_summary(
     fallback_site_name: &str,
 ) -> Option<AssignmentSummary> {
     let id = value_to_string_opt(record.id.clone())?;
-    if id.is_empty() {
-        return None;
-    }
     Some(AssignmentSummary {
         end_time: pick_string([record.assignment_end_time.clone(), record.end_time.clone()])
             .unwrap_or_default(),
@@ -570,10 +569,10 @@ fn resolve_assignment_status(record: &RawAssignmentSummary) -> AssignmentStatus 
 }
 
 fn validate_assignment_upload(file_name: &str, bytes: &[u8]) -> Result<(), AuthError> {
-    validate_assignment_upload_metadata(file_name, bytes.len())
+    validate_assignment_upload_metadata(file_name, bytes.len() as u64)
 }
 
-fn validate_assignment_upload_metadata(file_name: &str, size: usize) -> Result<(), AuthError> {
+fn validate_assignment_upload_metadata(file_name: &str, size: u64) -> Result<(), AuthError> {
     if file_name.contains(['\r', '\n']) {
         return Err(AuthError::new(
             AuthErrorCode::InvalidFileName,
@@ -605,15 +604,6 @@ fn validate_assignment_upload_metadata(file_name: &str, size: usize) -> Result<(
         ));
     }
     Ok(())
-}
-
-fn json_headers(access_token: &str) -> Vec<(String, String)> {
-    let mut headers = portal_json_headers(access_token);
-    headers.push((
-        "Content-Type".to_string(),
-        "application/json;charset=UTF-8".to_string(),
-    ));
-    headers
 }
 
 fn multipart_upload_body(file_name: &str, bytes: &[u8], user_id: &str) -> (String, Vec<u8>) {
@@ -651,9 +641,7 @@ fn push_field(body: &mut Vec<u8>, boundary: &str, name: &str, value: &[u8]) {
 }
 
 fn value_to_string_opt(value: Option<serde_json::Value>) -> Option<String> {
-    value
-        .and_then(value_to_string)
-        .filter(|value| !value.is_empty())
+    value.and_then(value_to_string)
 }
 
 fn score_value(value: Option<&serde_json::Value>) -> Option<f64> {
@@ -662,14 +650,6 @@ fn score_value(value: Option<&serde_json::Value>) -> Option<f64> {
         Some(serde_json::Value::String(value)) => value.trim().parse().ok(),
         _ => None,
     }
-}
-
-fn pick_string<const N: usize>(values: [Option<String>; N]) -> Option<String> {
-    values
-        .into_iter()
-        .flatten()
-        .map(|value| value.trim().to_string())
-        .find(|value| !value.is_empty())
 }
 
 fn truthy(value: Option<&serde_json::Value>) -> bool {

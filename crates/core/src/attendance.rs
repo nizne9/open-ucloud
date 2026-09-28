@@ -1,5 +1,6 @@
 use crate::protocol::{
     parse_ucloud_empty_success, parse_ucloud_envelope, value_to_string, UcloudJsonHeaders,
+    SWORD_BASIC_AUTH,
 };
 use crate::{AuthError, HttpBody, HttpClient, HttpMethod, HttpRequest, OpenUcloudClient};
 use open_ucloud_api::{
@@ -7,7 +8,6 @@ use open_ucloud_api::{
 };
 use serde::Deserialize;
 
-const SWORD_BASIC_AUTH: &str = "Basic c3dvcmQ6c3dvcmRfc2VjcmV0";
 const CHECKWORK_PREFIX: &str = "checkwork|";
 
 impl<C> OpenUcloudClient<C>
@@ -63,9 +63,8 @@ where
             })
             .await?;
         let basic: RawCheckoutBasic = parse_ucloud_envelope(response, "签到信息加载失败。")?;
-        let attendance_id = value_to_string(basic.attendance_basic_info.id)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(attendance_not_found)?;
+        let attendance_id =
+            value_to_string(basic.attendance_basic_info.id).ok_or_else(attendance_not_found)?;
         Ok(attendance_id)
     }
 
@@ -85,9 +84,7 @@ where
             })
             .await?;
         let clock: RawClockResponse = parse_ucloud_envelope(response, "签到时间参数加载失败。")?;
-        value_to_string(clock.data)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| AuthError::upstream("签到时间参数为空。"))
+        value_to_string(clock.data).ok_or_else(|| AuthError::upstream("签到时间参数为空。"))
     }
 
     /// Submit attendance for a user-selected course with an active session.
@@ -200,9 +197,6 @@ fn normalize_going_sites(payload: RawGoingSiteList) -> Vec<GoingSite> {
         .filter_map(|record| {
             let group_id = value_to_string(record.group_id?)?;
             let site_id = value_to_string(record.site_id?)?;
-            if group_id.is_empty() || site_id.is_empty() {
-                return None;
-            }
             Some(GoingSite { group_id, site_id })
         })
         .collect()
