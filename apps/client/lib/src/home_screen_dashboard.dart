@@ -386,7 +386,7 @@ class _PendingAssignmentsCard extends ConsumerWidget {
                   Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ListTile(
-                      leading: Icon(_assignmentIcon(assignment.status)),
+                      leading: Icon(assignment.status.icon),
                       title: _TooltipText(assignment.title),
                       subtitle: Text.rich(
                         TextSpan(
@@ -462,10 +462,7 @@ class _NextActionCard extends ConsumerWidget {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _MetaChip(
-                      icon: _assignmentIcon(next.status),
-                      label: _assignmentStatusText(next.status),
-                    ),
+                    _MetaChip(icon: next.status.icon, label: next.status.label),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -512,10 +509,7 @@ class _AccountPane extends ConsumerWidget {
               if (session != null) ...[
                 _AccountBadge(name: session.user.realName, subtitle: '已登录'),
                 const SizedBox(height: 12),
-                _LabelValueRow(
-                  label: '角色',
-                  value: _roleLabel(session.selectedRole),
-                ),
+                _LabelValueRow(label: '角色', value: session.selectedRole.label),
                 _LabelValueRow(label: '账号', value: session.user.account),
               ],
               const SizedBox(height: 12),

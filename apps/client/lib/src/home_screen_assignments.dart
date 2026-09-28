@@ -301,7 +301,7 @@ class _AssignmentsPane extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         selected: state.selectedAssignmentId == assignment.id,
-        leading: Icon(_assignmentIcon(assignment.status)),
+        leading: Icon(assignment.status.icon),
         title: _TooltipText(assignment.title),
         subtitle: Text.rich(
           TextSpan(
@@ -314,7 +314,7 @@ class _AssignmentsPane extends ConsumerWidget {
           ),
         ),
         isThreeLine: true,
-        trailing: Text(_assignmentStatusText(assignment.status)),
+        trailing: Text(assignment.status.label),
         onTap: () {
           unawaited(_selectAssignmentGuarded(context, ref, assignment));
         },
@@ -322,8 +322,6 @@ class _AssignmentsPane extends ConsumerWidget {
     );
   }
 }
-
-String _assignmentStatusText(FfiAssignmentStatus status) => status.label;
 
 Future<void> _refreshAssignments(BuildContext context, WidgetRef ref) async {
   if (!await _prepareForAssignmentContextChange(context, ref)) {
@@ -443,7 +441,7 @@ class _AssignmentDetailCardState extends ConsumerState<_AssignmentDetailCard> {
                   icon: expired
                       ? Icons.event_busy_outlined
                       : Icons.edit_note_outlined,
-                  label: _assignmentStatusText(detail.status),
+                  label: detail.status.label,
                 ),
                 if (detail.className.trim().isNotEmpty)
                   _MetaChip(

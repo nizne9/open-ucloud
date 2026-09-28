@@ -1241,7 +1241,3 @@ extension FfiRoleNameX on FfiRoleName {
     FfiRoleName.assistant => '助教',
   };
 }
-
-IconData _assignmentIcon(FfiAssignmentStatus status) => status.icon;
-
-String _roleLabel(FfiRoleName role) => role.label;
