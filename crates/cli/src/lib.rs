@@ -402,13 +402,13 @@ where
             json,
         } => {
             if !interactive {
-                return cli_error_response(
+                return Err(to_cli_error(
                     error(
                         AuthErrorCode::InvalidInput,
                         "login requires --interactive so credentials are not passed through shell history.",
                     ),
                     json,
-                );
+                ));
             }
             let session = json_cli_result(login_interactive(&store, role).await, json)?;
             print_json_or(&session, json, || format_logged_in_session(&session))?;
@@ -637,13 +637,13 @@ where
             // Subcommands cannot be combined with the legacy outer options.
             if site.is_some() || outer_json {
                 let json = attendance_json_flag(&action) || outer_json;
-                return cli_error_response(
+                return Err(to_cli_error(
                     error(
                         AuthErrorCode::InvalidInput,
                         "attendance subcommands conflict with the legacy --site/--json options.",
                     ),
                     json,
-                );
+                ));
             }
             action
         }
@@ -651,13 +651,13 @@ where
             site: match site {
                 Some(site) => site,
                 None => {
-                    return cli_error_response(
+                    return Err(to_cli_error(
                         error(
                             AuthErrorCode::InvalidInput,
                             "attendance requires a subcommand or --site <site-id>.",
                         ),
                         outer_json,
-                    )
+                    ))
                 }
             },
             json: outer_json,
@@ -665,13 +665,13 @@ where
     };
     let json = attendance_json_flag(&action);
     if attendance_requires_yes(&action) {
-        return cli_error_response(
+        return Err(to_cli_error(
             error(
                 AuthErrorCode::InvalidInput,
                 "attendance sign is mutating; rerun with --yes.",
             ),
             json,
-        );
+        ));
     }
     let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
     let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
@@ -724,6 +724,11 @@ fn attendance_requires_yes(command: &AttendanceCommands) -> bool {
     matches!(command, AttendanceCommands::Sign { yes: false, .. })
 }
 
+/// Prints machine JSON or human text for a command result.
+///
+/// Human text is expected to end with its own newline; a missing final
+/// newline is appended so the shell prompt starts on a fresh line. Empty
+/// human text prints nothing.
 fn print_json_or<T: Serialize>(
     value: &T,
     json: bool,
@@ -766,13 +771,13 @@ where
 {
     let json = assignment_json_flag(&command);
     if assignment_requires_yes(&command) {
-        return cli_error_response(
+        return Err(to_cli_error(
             error(
                 AuthErrorCode::InvalidInput,
                 "assignment write commands are mutating; rerun with --yes.",
             ),
             json,
-        );
+        ));
     }
     let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
     let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
@@ -835,13 +840,13 @@ where
                 json,
             )?;
             if detail.status == open_ucloud_api::AssignmentStatus::Expired {
-                return cli_error_response(
+                return Err(to_cli_error(
                     error(
                         AuthErrorCode::InvalidInput,
                         "当前作业已截止，不能继续上传附件。",
                     ),
                     json,
-                );
+                ));
             }
             let file_name = file
                 .file_name()
@@ -909,13 +914,13 @@ where
 {
     let json = resource_json_flag(&command);
     if resource_requires_yes(&command) {
-        return cli_error_response(
+        return Err(to_cli_error(
             error(
                 AuthErrorCode::InvalidInput,
                 "resource batch download is mutating; rerun with --yes.",
             ),
             json,
-        );
+        ));
     }
     let http = json_cli_result(ReqwestHttpClient::new().map_err(to_response_error), json)?;
     let client = OpenUcloudClient::new(http, OpenUcloudEndpoints::default());
@@ -1068,10 +1073,6 @@ fn to_cli_error(error_response: AuthErrorResponse, json: bool) -> CliError {
 
 fn json_cli_result<T>(result: Result<T, AuthErrorResponse>, json: bool) -> Result<T, CliError> {
     result.map_err(|error_response| to_cli_error(error_response, json))
-}
-
-fn cli_error_response(error_response: AuthErrorResponse, json: bool) -> Result<(), CliError> {
-    Err(to_cli_error(error_response, json))
 }
 
 fn assignment_json_flag(command: &AssignmentCommands) -> bool {
@@ -1527,7 +1528,7 @@ mod tests {
     fn json_cli_error_is_marked_as_already_printed() {
         let response = error(AuthErrorCode::UpstreamUnavailable, "upstream failed");
 
-        let err = cli_error_response(response, true).expect_err("json error returns cli error");
+        let err = to_cli_error(response, true);
 
         assert!(err.json_error_was_printed());
         assert_eq!(err.response().code, AuthErrorCode::UpstreamUnavailable);
