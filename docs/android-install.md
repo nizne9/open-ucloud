@@ -1,63 +1,74 @@
 # Installing the Android Client
 
-Open UCloud is not distributed through Google Play. Android packages are
-release-signed APKs attached to GitHub Releases, split by ABI, with a matching
-`.sha256` file per asset. Most phones want the `arm64-v8a` APK.
+Open UCloud is free and open-source software distributed independently of Google Play. Android packages are published exclusively as release-signed APKs attached to [GitHub Releases](https://github.com/nizne9/open-ucloud/releases), split by device ABI, with cryptographic `.sha256` checksum files provided for each package.
 
-This project will not register with Google's Android Developer Verification
-program. Once enforcement starts in 2027, apps from non-registered developers
-are blocked on certified Android devices unless the device owner takes one of
-the paths below. This guide keeps those paths collected in one place; see
-[Keep Android Open](https://keepandroidopen.org/) for the campaign background
-and the current state of the program.
+---
 
-## Verify a Downloaded APK
+## 1. Select the Correct Package
+
+Most modern Android smartphones and tablets use 64-bit ARM processors:
+
+| Package File | Target Hardware Architecture | Typical Devices |
+| --- | --- | --- |
+| `open-ucloud-client-android-arm64-v8a.apk` | 64-bit ARM (`aarch64`) | **Almost all modern Android phones (Recommended)** |
+| `open-ucloud-client-android-armeabi-v7a.apk` | 32-bit ARM (`armv7`) | Older legacy Android phones |
+| `open-ucloud-client-android-x86_64.apk` | 64-bit Intel/AMD (`x86_64`) | Android emulators, ChromeOS, x86 Android tablets |
+
+---
+
+## 2. Verify Package Integrity
+
+Before installing, verify that the downloaded APK matches the official build checksum:
 
 ```bash
+# Verify checksum file
 sha256sum -c open-ucloud-client-android-arm64-v8a.apk.sha256
 ```
 
-## Installing Today
+To verify the release certificate signature using the Android SDK build tools:
 
-1. Download the APK for your device ABI from the latest GitHub Release.
-2. Allow your browser or file manager to install unknown apps for your device
-   (Settings, search for "install unknown apps").
-3. Open the APK and confirm the install.
+```bash
+apksigner verify --print-certs open-ucloud-client-android-arm64-v8a.apk
+```
 
-From the app you can check the installed signature with
-`apksigner verify --print-certs <apk>` from the Android build-tools if you want
-to compare against the release certificate.
+---
 
-## After Verification Enforcement (2027)
+## 3. Standard Installation Steps
 
-The options below are expected to keep working. Exact device menus vary by
-Android version and manufacturer, and the enforcement details themselves may
-still change under regulatory review, so treat this section as reviewed before
-each release rather than frozen.
+1. **Download the APK**: Download the matching APK and `.sha256` file from the latest [GitHub Release](https://github.com/nizne9/open-ucloud/releases).
+2. **Enable Unknown Apps**: In Android **Settings**, search for **"Install unknown apps"**, select your browser or file manager, and toggle **"Allow from this source"**.
+3. **Install the APK**: Tap the downloaded `.apk` file and confirm the installation.
 
-- **Sideloading escape hatch.** Certified devices expose a per-app opt-out
-  buried in Developer Options. It involves a multi-step flow and a waiting
-  period, and Google can revoke it. The campaign site documents the exact
-  steps per Android version.
-- **ADB install.** Google has stated that installing over ADB keeps working.
-  Enable USB debugging in Developer Options, then from a host with the
-  platform-tools installed:
+---
 
-  ```bash
-  adb install open-ucloud-client-android-arm64-v8a.apk
-  ```
+## 4. Android Distribution Stance & The 2027 Enforcement
 
-  Updates install the same way with `adb install -r`.
-- **De-Googled ROMs.** Devices running GrapheneOS, LineageOS, CalyxOS, or
-  /e/OS without certified Google Play Services are outside the program's
-  reach entirely.
-- **Desktop clients.** Linux, Windows, and macOS builds are unaffected by the
-  program and remain the zero-friction alternative.
+[![Keep Android Open](https://img.shields.io/badge/Keep_Android_Open-keepandroidopen.org-blue)](https://keepandroidopen.org/)
 
-## The In-App Notice
+Open UCloud supports open ecosystems and user software freedom. This project will **not** register with Google's Android Developer Verification program. Beginning in 2027, this program requires third-party developers to escrow identity records and private signing keys with Google, blocking unverified applications on certified Android devices.
 
-The Flutter client embeds a vendored copy of
-[FreeDroidWarn](https://github.com/woheller69/FreeDroidWarn), which shows a
-dialog once per app upgrade explaining why this app is not verified with
-Google and where to read about workarounds. The notice lives in
-`apps/client/android/freedroidwarn/` and is Apache-2.0 licensed.
+For background on the campaign and technical policy details, see [Keep Android Open](https://keepandroidopen.org/).
+
+### Installation Alternatives After 2027
+
+Device owners will retain several viable paths to run and update Open UCloud:
+
+1. **Sideloading Escape Hatch**: Certified Google Android devices maintain an opt-out toggle within **Developer Options**. While requiring multiple confirmation steps, it allows unverified apps to run locally.
+2. **ADB Sideloading**: Installation over the Android Debug Bridge remains unobstructed:
+   ```bash
+   # Initial installation
+   adb install open-ucloud-client-android-arm64-v8a.apk
+
+   # Updating an existing install
+   adb install -r open-ucloud-client-android-arm64-v8a.apk
+   ```
+3. **De-Googled Operating Systems**: Devices running open-source ROMs (such as GrapheneOS, LineageOS, CalyxOS, or /e/OS) operate independently of Google Play Services and are completely unaffected by Google's developer verification restrictions.
+4. **Desktop Clients**: Unrestricted desktop versions (Linux, Windows, and macOS) remain fully supported and feature-complete alternatives.
+
+---
+
+## 5. The In-App Notice (FreeDroidWarn)
+
+The Open UCloud Android client embeds a vendored copy of [FreeDroidWarn](https://github.com/woheller69/FreeDroidWarn) (Apache-2.0 licensed, located in `apps/client/android/freedroidwarn/`).
+
+FreeDroidWarn displays a single informational dialog upon initial app launch or upgrade, explaining developer verification policies, user rights, and community workarounds.
