@@ -1,6 +1,6 @@
 use crate::protocol::{
     parse_ucloud_empty_success, parse_ucloud_envelope, pick_string, portal_json_utf8_headers,
-    value_to_string, PORTAL_BASIC_AUTH,
+    value_to_string, UcloudJsonHeaders, PORTAL_BASIC_AUTH,
 };
 use crate::resources::{raw_resource_id, RawResourceDetail};
 use crate::transport::{multipart_boundary, multipart_quoted_string};
@@ -251,16 +251,14 @@ where
     ) -> Result<AssignmentUploadResponse, AuthError> {
         validate_assignment_upload(file_name, bytes)?;
         let (content_type, body) = multipart_upload_body(file_name, bytes, user_id);
+        let mut headers = UcloudJsonHeaders::new(PORTAL_BASIC_AUTH, access_token).into_vec();
+        headers.push(("content-type".to_string(), content_type));
         let response = self
             .http
             .send(HttpRequest {
                 method: HttpMethod::Post,
                 url: self.endpoints.assignment_upload_url.clone(),
-                headers: vec![
-                    ("authorization".to_string(), PORTAL_BASIC_AUTH.to_string()),
-                    ("Blade-Auth".to_string(), access_token.to_string()),
-                    ("content-type".to_string(), content_type),
-                ],
+                headers,
                 body: Some(HttpBody::bytes(body)),
             })
             .await?;
@@ -302,10 +300,7 @@ where
                 HttpRequest {
                     method: HttpMethod::Post,
                     url: self.endpoints.assignment_upload_url.clone(),
-                    headers: vec![
-                        ("authorization".to_string(), PORTAL_BASIC_AUTH.to_string()),
-                        ("Blade-Auth".to_string(), access_token.to_string()),
-                    ],
+                    headers: UcloudJsonHeaders::new(PORTAL_BASIC_AUTH, access_token).into_vec(),
                     body: None,
                 },
                 vec![
