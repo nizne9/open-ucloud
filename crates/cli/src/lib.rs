@@ -736,7 +736,12 @@ fn print_json_or<T: Serialize>(
                 .map_err(|err| error(AuthErrorCode::UnknownAuthError, err.to_string()))?
         );
     } else {
-        print!("{}", human());
+        let text = human();
+        if text.is_empty() || text.ends_with('\n') {
+            print!("{text}");
+        } else {
+            println!("{text}");
+        }
     }
     Ok(())
 }
