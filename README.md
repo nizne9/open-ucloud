@@ -120,6 +120,19 @@ Android release builds require a release signing keystore. Copy
 keystore, and keep that file out of Git. CI releases read the same signing
 fields from the `android-release` GitHub Environment secrets.
 
+## Android Distribution Stance
+
+[![Keep Android Open](https://img.shields.io/badge/Keep_Android_Open-keepandroidopen.org-blue)](https://keepandroidopen.org/)
+
+Android packages ship as release-signed APKs through GitHub Releases, and this
+project does not publish to Google Play. Open UCloud will not register with
+Google's Android Developer Verification program, which from 2027 requires
+Android developers to submit identity documents and signing-key evidence to
+Google and blocks non-registered apps on certified Android devices. The client
+embeds a vendored FreeDroidWarn notice that explains this to users once per app
+upgrade. For how device owners keep installing and updating after enforcement,
+see [docs/android-install.md](docs/android-install.md).
+
 The Flutter client uses `file_selector` for Linux desktop file picking and save
 locations. Assignment attachment upload reads the user-selected file path through
 the Rust FFI boundary. Resource downloads write through Rust so the same
@@ -159,6 +172,7 @@ See:
 - [AGENTS.md](AGENTS.md) for contributor and agent entry instructions.
 - [docs/architecture.md](docs/architecture.md) for module boundaries.
 - [docs/cli-contract.md](docs/cli-contract.md) for CLI behavior.
+- [docs/android-install.md](docs/android-install.md) for Android install paths and the verification-stance details.
 - [docs/task-guidelines.md](docs/task-guidelines.md) for task workflow.
 - [docs/quality.md](docs/quality.md) for quality gates.
 

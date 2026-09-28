@@ -132,6 +132,10 @@ flutter {
     source = "../.."
 }
 
+dependencies {
+    implementation(project(":freedroidwarn"))
+}
+
 val repoRoot = rootProject.projectDir.parentFile.parentFile.parentFile
 val localProperties =
     Properties().apply {
