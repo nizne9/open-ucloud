@@ -60,7 +60,7 @@ jobs:
           tar -C dist -czf ${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.tar.gz
@@ -99,7 +99,7 @@ jobs:
           Compress-Archive -Path dist/open-ucloud-cli-windows-x64/* -DestinationPath open-ucloud-cli-windows-x64.zip -Force
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: open-ucloud-cli-windows-x64
           path: open-ucloud-cli-windows-x64.zip
@@ -142,7 +142,7 @@ jobs:
           tar -C dist -czf open-ucloud-cli-macos-universal.tar.gz open-ucloud-cli-macos-universal
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: open-ucloud-cli-macos-universal
           path: open-ucloud-cli-macos-universal.tar.gz
@@ -200,7 +200,7 @@ jobs:
             -czf open-ucloud-client-linux-x64.tar.gz bundle
 
       - name: Upload Linux client artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: open-ucloud-client-linux-x64
           path: open-ucloud-client-linux-x64.tar.gz
@@ -254,7 +254,7 @@ jobs:
           Compress-Archive -Path "$bundle/*" -DestinationPath open-ucloud-client-windows-x64.zip -Force
 
       - name: Upload Windows client artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: open-ucloud-client-windows-x64
           path: open-ucloud-client-windows-x64.zip
@@ -307,7 +307,7 @@ jobs:
             open-ucloud-client-macos-universal.zip
 
       - name: Upload macOS client artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: open-ucloud-client-macos-universal
           path: open-ucloud-client-macos-universal.zip
@@ -365,7 +365,7 @@ jobs:
         run: cp apps/client/build/app/outputs/flutter-apk/app-debug.apk open-ucloud-client-android-debug-signed.apk
 
       - name: Upload Android debug artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: open-ucloud-client-android-debug-signed
           path: open-ucloud-client-android-debug-signed.apk
